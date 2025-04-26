@@ -1,0 +1,18 @@
+# Telegram Bot API
+pyTelegramBotAPI==4.12.0
+
+# Base de datos
+SQLAlchemy==2.0.25
+
+# Pasarelas de pago
+stripe==7.5.0
+paypalrestsdk==1.13.1
+
+# Utilidades
+python-dotenv==1.0.0
+pytz==2023.3
+dateparser==1.1.8
+
+# Servidor web (para Render.com)
+flask==2.3.3
+gunicorn==21.2.0
