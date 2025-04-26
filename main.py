@@ -21,10 +21,9 @@ logger = logging.getLogger(__name__)
 # Inicializar la aplicación Flask
 app = Flask(__name__)
 
-# Punto de inicio para la aplicación
-@app.before_first_request
-def setup():
-    """Configuración inicial antes de la primera petición"""
+# Inicializar la base de datos y configurar handlers antes de comenzar
+def setup_app():
+    """Configuración inicial de la aplicación"""
     try:
         logger.info("Inicializando aplicación...")
         # Inicializar la base de datos
@@ -45,6 +44,9 @@ def setup():
     except Exception as e:
         logger.error(f"Error durante la inicialización: {str(e)}")
         logger.error(traceback.format_exc())
+
+# Ejecutar setup inmediatamente
+setup_app()
 
 # Ruta para el webhook del bot de Telegram
 @app.route(config.WEBHOOK_PATH, methods=['POST'])
@@ -94,30 +96,16 @@ def paypal_webhook():
 
 # Punto de entrada principal
 if __name__ == "__main__":
-    # Inicialización
-    try:
-        # Inicializar la base de datos y registrar handlers
-        init_db()
-        register_all_handlers(bot)
-        logger.info("Inicialización completada correctamente")
-        
-        # Si estamos en desarrollo local, podemos usar polling en lugar de webhook
-        if os.environ.get('ENVIRONMENT') == 'development':
-            logger.info("Iniciando en modo desarrollo (polling)")
-            bot.remove_webhook()
-            bot.polling(none_stop=True)
-        else:
-            # En producción, configuramos el webhook
-            logger.info("Iniciando en modo producción (webhook)")
-            bot.remove_webhook()
-            webhook_url = f"{config.WEBHOOK_URL}{config.WEBHOOK_PATH}"
-            logger.info(f"Configurando webhook en: {webhook_url}")
-            bot.set_webhook(url=webhook_url)
-            
-            # Iniciar servidor Flask
-            port = int(os.environ.get('PORT', config.PORT))
-            logger.info(f"Iniciando servidor en puerto: {port}")
-            app.run(host='0.0.0.0', port=port)
-    except Exception as e:
-        logger.error(f"Error crítico durante la inicialización: {str(e)}")
-        logger.error(traceback.format_exc())
+    # Inicialización ya realizada previamente en setup_app()
+    
+    # Si estamos en desarrollo local, podemos usar polling en lugar de webhook
+    if os.environ.get('ENVIRONMENT') == 'development':
+        logger.info("Iniciando en modo desarrollo (polling)")
+        bot.remove_webhook()
+        bot.polling(none_stop=True)
+    else:
+        # En producción, el webhook ya está configurado en setup_app()
+        # Iniciar servidor Flask
+        port = int(os.environ.get('PORT', config.PORT))
+        logger.info(f"Iniciando servidor en puerto: {port}")
+        app.run(host='0.0.0.0', port=port)
