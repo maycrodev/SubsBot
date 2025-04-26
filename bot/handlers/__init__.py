@@ -23,26 +23,30 @@ def register_all_handlers(bot: TeleBot):
         logger.info("Registrando handlers de pagos")
         register_payment_handlers(bot)
         
+        # Registrar callbacks como prioritarios
         logger.info("Registrando handlers de callbacks")
         register_callback_handlers(bot)
         
         logger.info("Registrando handlers de inicio")
         register_start_handlers(bot)  # Este debe ser el último (más general)
         
-        # Verificar que el handler de start está registrado
-        handlers_info = ""
-        for handler_group in bot.message_handlers:
-            for handler in handler_group:
-                handlers_info += f"Handler: {handler.__name__ if hasattr(handler, '__name__') else 'anónimo'}\n"
+        # Verificar que los handlers están registrados
+        handlers_info = "Message handlers:\n"
+        for i, handler_group in enumerate(bot.message_handlers):
+            handlers_info += f"Group {i}: {len(handler_group)} handlers\n"
         
-        logger.info(f"Handlers registrados:\n{handlers_info}")
+        handlers_info += "\nCallback handlers:\n"
+        for i, handler_group in enumerate(bot.callback_query_handlers):
+            handlers_info += f"Group {i}: {len(handler_group)} handlers\n"
         
-        # Verificar explícitamente el comando /start
-        logger.info("Registrando handler de /start manualmente")
-        from .start_handler import start_command
-        bot.register_message_handler(
-            lambda message: start_command(bot, message),
-            commands=['start'],
+        logger.info(handlers_info)
+        
+        # Registrar handlers directamente si es necesario
+        from .callback_handler import handle_callback
+        logger.info("Registrando handler de callback manualmente")
+        bot.register_callback_query_handler(
+            lambda call: handle_callback(bot, call),
+            func=lambda call: True,  # Manejar todos los callbacks
             pass_bot=True
         )
         
