@@ -56,26 +56,18 @@ def webhook():
         if request.headers.get('content-type') == 'application/json':
             json_string = request.get_data().decode('utf-8')
             
-            # Loguear los datos para diagnóstico (limitados por seguridad)
-            logger.debug(f"Datos recibidos: {json_string[:200]}...")
-            
+            # Crear update y mostrar info básica para debug
             update = Update.de_json(json_string)
             logger.info(f"Procesando update_id: {update.update_id}")
             
-            # Mostrar más detalles del update para diagnóstico
+            # Log más detallado basado en el tipo de update
             if update.message:
-                logger.info(f"Mensaje recibido de: {update.message.from_user.id}, texto: {update.message.text}")
+                logger.info(f"Mensaje de: {update.message.from_user.id}, Texto: {update.message.text}")
             elif update.callback_query:
-                logger.info(f"Callback recibido de: {update.callback_query.from_user.id}, datos: {update.callback_query.data}")
-                
-                # Procesamiento manual de callbacks si es necesario
-                from bot.handlers.callback_handler import handle_callback
-                logger.info(f"Procesando callback manualmente: {update.callback_query.data}")
-                handle_callback(bot, update.callback_query)
+                logger.info(f"Callback de: {update.callback_query.from_user.id}, Data: {update.callback_query.data}")
             
-            # Procesar la actualización con el método estándar
+            # Procesar updates
             bot.process_new_updates([update])
-            
             return ''
         else:
             logger.warning(f"Contenido no válido: {request.headers.get('content-type')}")
@@ -110,10 +102,36 @@ def paypal_webhook():
         logger.error(f"Error procesando webhook de PayPal: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+# Ruta para diagnóstico
+@app.route('/diagnostic', methods=['GET'])
+def diagnostic():
+    try:
+        # Verificar la API de Telegram
+        me = bot.get_me()
+        
+        # Verificar los handlers
+        message_handlers = sum(len(group) for group in bot.message_handlers)
+        callback_handlers = sum(len(group) for group in bot.callback_query_handlers)
+        
+        # Verificar el webhook
+        webhook_info = bot.get_webhook_info()
+        
+        # Mostrar la información
+        result = [
+            f"Bot: @{me.username} (ID: {me.id})",
+            f"Message handlers: {message_handlers}",
+            f"Callback handlers: {callback_handlers}",
+            f"Webhook URL: {webhook_info.url}",
+            f"Pending updates: {webhook_info.pending_update_count}",
+            f"Last error: {webhook_info.last_error_message or 'None'}"
+        ]
+        
+        return "<br>".join(result)
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
 # Punto de entrada principal
 if __name__ == "__main__":
-    # Inicialización ya realizada previamente en setup_app()
-    
     # Si estamos en desarrollo local, podemos usar polling en lugar de webhook
     if os.environ.get('ENVIRONMENT') == 'development':
         logger.info("Iniciando en modo desarrollo (polling)")
