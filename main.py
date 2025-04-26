@@ -45,13 +45,6 @@ def paypal_webhook():
     logger.info("Recibido webhook de PayPal")
     return '', 200
 
-# Ruta para webhooks de Stripe
-@app.route(config.STRIPE_WEBHOOK_PATH, methods=['POST'])
-def stripe_webhook():
-    # Aquí implementaremos la lógica del webhook de Stripe
-    logger.info("Recibido webhook de Stripe")
-    return '', 200
-
 if __name__ == "__main__":
     # Si estamos en desarrollo local, podemos usar polling en lugar de webhook
     if os.environ.get('ENVIRONMENT') == 'development':
