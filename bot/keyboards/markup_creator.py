@@ -31,7 +31,6 @@ def payment_methods_markup(plan_type):
     """Crea el markup con los métodos de pago para un plan específico"""
     markup = InlineKeyboardMarkup()
     markup.row(
-        InlineKeyboardButton("💳 Pagar con Stripe", callback_data=f"pay_stripe_{plan_type}"),
         InlineKeyboardButton("🅿️ Pagar con PayPal", callback_data=f"pay_paypal_{plan_type}")
     )
     markup.row(

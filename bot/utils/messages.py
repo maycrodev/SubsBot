@@ -129,12 +129,6 @@ Para completar tu suscripción sigue estos pasos:
 4. Confirma la suscripción recurrente
 5. Regresa al bot para confirmar
 
-**Para Stripe:**
-1. Haz clic en "💳 Pagar con Stripe"
-2. Completa el formulario con tus datos
-3. El sistema procesará tu pago
-4. Serás notificado automáticamente
-
 ⚠️ Importante: Al completar el pago, serás añadido automáticamente a la whitelist y recibirás el enlace de invitación al grupo VIP.
 """
 
@@ -163,7 +157,7 @@ Este bot de suscripciones VIP fue desarrollado utilizando:
 
 🤖 Framework: pyTelegramBotAPI
 💾 Base de datos: SQLite
-💳 Pasarelas de pago: Stripe y PayPal
+💳 Pasarela de pago: PayPal
 
 Desarrollado con ❤️ para gestionar suscripciones de forma automática y segura.
 
@@ -206,7 +200,7 @@ def user_subscription_info(user, subscriptions):
 Monto: ${latest_sub.amount:.2f}
 
 🧾 Suscripciones:  
-{"🅿️ " if latest_sub.payment_method == "paypal" else "💳 "}{status} {latest_sub.payment_method.capitalize()} subscription  
+🅿️ {status} {latest_sub.payment_method.capitalize()} subscription  
 en 𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 {latest_sub.plan_type.upper()} 📦  
 Inició: {start_date.strftime('%d de %B de %Y')}
 """

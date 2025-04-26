@@ -22,10 +22,6 @@ PAYPAL_CLIENT_ID = os.getenv("PAYPAL_CLIENT_ID", "")
 PAYPAL_CLIENT_SECRET = os.getenv("PAYPAL_CLIENT_SECRET", "")
 PAYPAL_MODE = os.getenv("PAYPAL_MODE", "sandbox")  # sandbox o live
 
-# Stripe
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-
 # Planes de suscripción
 SUBSCRIPTION_PLANS = {
     "weekly": {
@@ -45,7 +41,6 @@ SUBSCRIPTION_PLANS = {
 # Configuración de rutas para webhooks
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 PAYPAL_WEBHOOK_PATH = "/webhook/paypal"
-STRIPE_WEBHOOK_PATH = "/webhook/stripe"
 
 # Configuración de la base de datos
 DB_PATH = os.path.join(os.path.dirname(__file__), 'vip_bot.db')

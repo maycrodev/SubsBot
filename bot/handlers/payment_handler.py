@@ -16,7 +16,7 @@ from db.database import SessionLocal
 def process_payment_simulation(payment_method, plan_type, user_id):
     """
     Simula un procesamiento de pago. En implementación real,
-    se usarían las APIs de PayPal o Stripe.
+    se usarían las APIs de PayPal.
     
     Returns:
         tuple: (success, payment_id)
@@ -24,11 +24,8 @@ def process_payment_simulation(payment_method, plan_type, user_id):
     # Simular tiempo de procesamiento
     time.sleep(5)
     
-    # Simulamos éxito
-    if payment_method == "paypal":
-        payment_id = f"PP-{user_id}-{int(time.time())}"
-    else:  # stripe
-        payment_id = f"SP-{user_id}-{int(time.time())}"
+    # Simulamos éxito (solo PayPal)
+    payment_id = f"PP-{user_id}-{int(time.time())}"
     
     return True, payment_id
 
@@ -50,6 +47,11 @@ def handle_payment_callback(bot: TeleBot, call: CallbackQuery):
         return
     
     _, payment_method, plan_type = parts
+    
+    # Verificar que sea PayPal
+    if payment_method != "paypal":
+        bot.answer_callback_query(call.id, "Solo pagos con PayPal están disponibles")
+        return
     
     # Obtener detalles del plan
     plan = config.SUBSCRIPTION_PLANS.get(plan_type)
