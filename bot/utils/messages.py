@@ -1,20 +1,31 @@
 import config
 from datetime import datetime
 import pytz
+import logging
+
+# Configuración de logging para este módulo
+logger = logging.getLogger(__name__)
 
 def welcome_message():
     """Mensaje de bienvenida del bot"""
-    return """
+    try:
+        message = """
 👋 ¡Bienvenido al Bot de Suscripciones VIP!
 
 Este es un grupo exclusivo con contenido premium y acceso limitado.
 
 Selecciona una opción 👇
 """
+        logger.info("Mensaje de bienvenida generado correctamente")
+        return message
+    except Exception as e:
+        logger.error(f"Error al generar mensaje de bienvenida: {str(e)}")
+        return "👋 ¡Bienvenido al Bot de Suscripciones VIP!"
 
 def plans_message():
     """Mensaje con los planes disponibles"""
-    return """
+    try:
+        message = """
 💸 Escoge tu plan de suscripción:
 
 🔹 Plan Semanal: $3.50 / 1 semana  
@@ -22,14 +33,21 @@ def plans_message():
 
 🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇
 """
+        logger.info("Mensaje de planes generado correctamente")
+        return message
+    except Exception as e:
+        logger.error(f"Error al generar mensaje de planes: {str(e)}")
+        return "💸 Escoge tu plan de suscripción"
 
 def subscription_details(plan_type):
     """Genera el mensaje con detalles de la suscripción según el plan"""
-    plan = config.SUBSCRIPTION_PLANS.get(plan_type)
-    if not plan:
-        return "Plan no válido"
-    
-    return f"""
+    try:
+        plan = config.SUBSCRIPTION_PLANS.get(plan_type)
+        if not plan:
+            logger.error(f"Plan no válido: {plan_type}")
+            return "Plan no válido"
+        
+        message = f"""
 📦 𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 {plan['name'].split()[-1]}
 
 Acceso: {plan['duration']} al grupo VIP  
@@ -42,6 +60,11 @@ Beneficios:
 
 Selecciona un método de pago 👇
 """
+        logger.info(f"Mensaje de detalles de suscripción generado para plan: {plan_type}")
+        return message
+    except Exception as e:
+        logger.error(f"Error al generar detalles de suscripción: {str(e)}")
+        return f"Detalles del plan {plan_type}"
 
 def payment_processing():
     """Mensaje inicial para procesamiento de pago"""
@@ -53,7 +76,8 @@ Aguarde por favor...
 
 def payment_success(subscription, payment_method):
     """Mensaje de pago exitoso"""
-    return f"""
+    try:
+        return f"""
 ✅ ¡Pago completado con éxito!
 
 Tu suscripción ha sido activada.
@@ -66,14 +90,18 @@ Tu suscripción ha sido activada.
 🚪 Aquí tienes tu enlace de acceso al grupo VIP:
 {config.GROUP_INVITE_LINK}
 """
+    except Exception as e:
+        logger.error(f"Error al generar mensaje de pago exitoso: {str(e)}")
+        return "✅ ¡Pago completado con éxito! Tu suscripción ha sido activada."
 
 def admin_new_subscription_notification(subscription, user, payment_method):
     """Notificación para admins de nueva suscripción"""
-    local_tz = pytz.timezone('America/Mexico_City')  # Ajusta a tu zona horaria
-    start_date = subscription.start_date.astimezone(local_tz)
-    expiry_date = subscription.expiry_date.astimezone(local_tz)
-    
-    return f"""
+    try:
+        local_tz = pytz.timezone('America/Mexico_City')  # Ajusta a tu zona horaria
+        start_date = subscription.start_date.astimezone(local_tz)
+        expiry_date = subscription.expiry_date.astimezone(local_tz)
+        
+        return f"""
 🎉 ¡Nueva Suscripción! ({payment_method})
 
 Detalles:
@@ -85,6 +113,9 @@ Detalles:
 * Expira: {expiry_date.strftime('%a, %b %d, %Y %I:%M %p')}
 * Estado: ✅ ACTIVO
 """
+    except Exception as e:
+        logger.error(f"Error al generar notificación de nueva suscripción: {str(e)}")
+        return f"🎉 ¡Nueva Suscripción! Usuario: {user.full_name}"
 
 def admin_whitelist_request(user_id, username=None, full_name=None):
     """Mensaje para solicitar confirmación de whitelist"""
@@ -166,8 +197,9 @@ Desarrollado con ❤️ para gestionar suscripciones de forma automática y segu
 
 def user_subscription_info(user, subscriptions):
     """Genera información detallada de suscripción para un usuario"""
-    if not subscriptions:
-        return f"""
+    try:
+        if not subscriptions:
+            return f"""
 👤 ID: {user.telegram_id}  
 🧑 Nombre: {user.full_name}  
 📊 Estado: 🔴 Sin suscripciones activas
@@ -176,18 +208,18 @@ def user_subscription_info(user, subscriptions):
 
 💳 Pagos: No hay registros
 """
-    
-    # Obtener la suscripción más reciente
-    latest_sub = subscriptions[0]
-    
-    status = "🟢 Activo" if latest_sub.is_active else "🔴 Cancelado"
-    if not latest_sub.is_active and latest_sub.expiry_date < datetime.utcnow():
-        status = "🟡 Expirado"
-    
-    local_tz = pytz.timezone('America/Mexico_City')
-    start_date = latest_sub.start_date.astimezone(local_tz)
-    
-    return f"""
+        
+        # Obtener la suscripción más reciente
+        latest_sub = subscriptions[0]
+        
+        status = "🟢 Activo" if latest_sub.is_active else "🔴 Cancelado"
+        if not latest_sub.is_active and latest_sub.expiry_date < datetime.utcnow():
+            status = "🟡 Expirado"
+        
+        local_tz = pytz.timezone('America/Mexico_City')
+        start_date = latest_sub.start_date.astimezone(local_tz)
+        
+        return f"""
 👤 ID: {user.telegram_id}  
 🧑 Nombre: {user.full_name}  
 📊 Estado: {status}
@@ -204,3 +236,6 @@ Monto: ${latest_sub.amount:.2f}
 en 𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 {latest_sub.plan_type.upper()} 📦  
 Inició: {start_date.strftime('%d de %B de %Y')}
 """
+    except Exception as e:
+        logger.error(f"Error al generar información de suscripción: {str(e)}")
+        return f"Información de usuario: {user.full_name} (ID: {user.telegram_id})"

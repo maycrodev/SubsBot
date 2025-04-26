@@ -23,6 +23,7 @@ def start_command(bot: TeleBot, message: Message):
     try:
         # Log para depuración
         logger.info(f"Comando /start recibido de usuario {message.from_user.id}")
+        logger.info(f"Contenido completo del mensaje: {message}")
         
         # Obtener información del usuario
         user_id = message.from_user.id
@@ -48,20 +49,38 @@ def start_command(bot: TeleBot, message: Message):
         
         # Preparar mensaje de bienvenida
         welcome_text = welcome_message()
-        logger.info(f"Enviando mensaje de bienvenida a usuario {user_id}")
+        logger.info(f"Mensaje de bienvenida: {welcome_text[:50]}...")
+        
+        # Crear markup
+        markup = welcome_markup()
+        logger.info("Markup de bienvenida creado")
         
         # Enviar mensaje de bienvenida con los botones principales
-        sent_msg = bot.send_message(
-            chat_id=message.chat.id,
-            text=welcome_text,
-            reply_markup=welcome_markup(),
-            parse_mode='HTML'
-        )
+        logger.info(f"Enviando mensaje a chat_id: {message.chat.id}")
         
-        logger.info(f"Mensaje de bienvenida enviado correctamente. ID: {sent_msg.message_id}")
+        try:
+            sent_msg = bot.send_message(
+                chat_id=message.chat.id,
+                text=welcome_text,
+                reply_markup=markup,
+                parse_mode='HTML'
+            )
+            logger.info(f"Mensaje de bienvenida enviado correctamente. ID: {sent_msg.message_id}")
+        except Exception as e:
+            logger.error(f"Error al enviar mensaje a Telegram: {str(e)}")
+            logger.error(traceback.format_exc())
+            # Intentar con una versión simplificada
+            try:
+                sent_msg = bot.send_message(
+                    chat_id=message.chat.id,
+                    text="¡Bienvenido al Bot de Suscripciones VIP!"
+                )
+                logger.info(f"Mensaje simplificado enviado. ID: {sent_msg.message_id}")
+            except Exception as inner_e:
+                logger.error(f"Error al enviar mensaje simplificado: {str(inner_e)}")
         
     except Exception as e:
-        logger.error(f"Error al procesar comando /start: {str(e)}")
+        logger.error(f"Error general al procesar comando /start: {str(e)}")
         logger.error(traceback.format_exc())
         
         # Intentar enviar un mensaje simplificado en caso de error
@@ -70,8 +89,8 @@ def start_command(bot: TeleBot, message: Message):
                 chat_id=message.chat.id,
                 text="👋 ¡Bienvenido! Estamos experimentando problemas técnicos. Por favor, intenta nuevamente en unos momentos."
             )
-        except:
-            pass  # Ignorar errores al enviar mensaje de error
+        except Exception as reply_error:
+            logger.error(f"No se pudo enviar mensaje de error: {str(reply_error)}")
 
 def register_start_handlers(bot: TeleBot):
     """
