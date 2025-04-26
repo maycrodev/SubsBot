@@ -29,6 +29,23 @@ def register_all_handlers(bot: TeleBot):
         logger.info("Registrando handlers de inicio")
         register_start_handlers(bot)  # Este debe ser el último (más general)
         
+        # Verificar que el handler de start está registrado
+        handlers_info = ""
+        for handler_group in bot.message_handlers:
+            for handler in handler_group:
+                handlers_info += f"Handler: {handler.__name__ if hasattr(handler, '__name__') else 'anónimo'}\n"
+        
+        logger.info(f"Handlers registrados:\n{handlers_info}")
+        
+        # Verificar explícitamente el comando /start
+        logger.info("Registrando handler de /start manualmente")
+        from .start_handler import start_command
+        bot.register_message_handler(
+            lambda message: start_command(bot, message),
+            commands=['start'],
+            pass_bot=True
+        )
+        
         logger.info("Todos los handlers registrados correctamente")
     except Exception as e:
         logger.error(f"Error al registrar los handlers: {str(e)}")

@@ -55,11 +55,27 @@ def webhook():
         logger.info("Recibida petición al webhook de Telegram")
         if request.headers.get('content-type') == 'application/json':
             json_string = request.get_data().decode('utf-8')
-            logger.debug(f"Datos recibidos: {json_string[:200]}...")  # Loguear primeros 200 caracteres
             update = Update.de_json(json_string)
             logger.info(f"Procesando update_id: {update.update_id}")
             
+            # Mostrar más detalles del update para diagnóstico
+            if update.message:
+                logger.info(f"Mensaje recibido de: {update.message.from_user.id}, texto: {update.message.text}")
+            
+            # Procesar la actualización
             bot.process_new_updates([update])
+            
+            # Verificación adicional para comandos
+            if update.message and update.message.text and update.message.text.startswith('/'):
+                command = update.message.text.split()[0]
+                logger.info(f"Comando detectado: {command}")
+                
+                # Procesar manualmente el comando /start si es necesario
+                if command == '/start':
+                    from bot.handlers.start_handler import start_command
+                    logger.info("Ejecutando handler de /start manualmente")
+                    start_command(bot, update.message)
+                    
             return ''
         else:
             logger.warning(f"Contenido no válido: {request.headers.get('content-type')}")
