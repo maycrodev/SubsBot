@@ -6,10 +6,11 @@ import time
 import os
 import json
 import datetime
+import requests
 from telebot import types
 import database as db
 import payments as pay
-from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS, PLANS
+from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS, PLANS, DB_PATH
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -394,6 +395,62 @@ def reset_webhook_endpoint():
         logger.error(f"Error al reiniciar webhook: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/admin/paypal-diagnostic', methods=['GET'])
+def paypal_diagnostic():
+    """Endpoint para diagnosticar la conexión con PayPal"""
+    try:
+        # Comprobar credenciales de PayPal
+        results = {
+            "paypal_mode": pay.PAYPAL_MODE,
+            "base_url": pay.BASE_URL,
+            "client_id_valid": bool(pay.PAYPAL_CLIENT_ID) and len(pay.PAYPAL_CLIENT_ID) > 10,
+            "client_secret_valid": bool(pay.PAYPAL_CLIENT_SECRET) and len(pay.PAYPAL_CLIENT_SECRET) > 10,
+            "webhook_url": WEBHOOK_URL,
+        }
+        
+        # Probar obtención de token
+        token = pay.get_access_token()
+        results["token_obtained"] = bool(token)
+        
+        if token:
+            # Intentar listar productos existentes
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(f"{pay.BASE_URL}/v1/catalogs/products?page_size=10", headers=headers)
+            results["products_api_status"] = response.status_code
+            
+            if response.status_code == 200:
+                products = response.json().get('products', [])
+                results["existing_products"] = [
+                    {"id": p.get("id"), "name": p.get("name")} 
+                    for p in products[:5]  # Mostrar solo los primeros 5
+                ]
+                
+                # Si hay productos existentes, intentar forzar la reutilización
+                if products:
+                    product_id_file = os.path.join(os.path.dirname(DB_PATH), 'paypal_product_id.txt')
+                    os.makedirs(os.path.dirname(product_id_file), exist_ok=True)
+                    with open(product_id_file, 'w') as f:
+                        f.write(products[0].get("id", ""))
+                    results["product_id_saved"] = products[0].get("id", "")
+            else:
+                results["products_api_error"] = response.text[:200]
+            
+            # Probar creación de producto (solo si no hay productos existentes)
+            if response.status_code != 200 or not response.json().get('products', []):
+                product_id = pay.create_product_if_not_exists()
+                results["product_creation"] = bool(product_id)
+                if product_id:
+                    results["created_product_id"] = product_id
+                
+        return jsonify(results), 200
+    except Exception as e:
+        logger.error(f"Error en diagnóstico de PayPal: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/diagnostico')
 def diagnostico():
     """Ruta para diagnóstico del bot"""
@@ -628,6 +685,23 @@ if __name__ == "__main__":
                     text=terms_text,
                     reply_markup=markup
                 )
+            
+            elif call.data == "back_to_main":
+                # Volver al menú principal
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                markup.add(
+                    types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
+                    types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
+                    types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
+                )
+                
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
+                    reply_markup=markup
+                )
+                logger.info(f"Vuelto al menú principal para usuario {chat_id}")
             
             elif call.data.startswith("payment_paypal_"):
                 # Manejar pago con PayPal
