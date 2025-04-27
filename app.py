@@ -5,6 +5,7 @@ import threading
 import time
 import os
 import json
+import datetime
 from telebot import types
 import database as db
 import payments as pay
@@ -21,7 +22,7 @@ app = Flask(__name__)
 # Importar el sistema centralizado de handlers
 import bot_handlers
 
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+@app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
 def webhook():
     """Recibe las actualizaciones de Telegram a través de webhook"""
     if request.headers.get('content-type') == 'application/json':
@@ -109,6 +110,32 @@ def paypal_cancel():
         return render_template('webhook_success.html', 
                               message=f"Error: {str(e)}. Puedes volver a Telegram."), 500
 
+@app.route('/diagnostico')
+def diagnostico():
+    """Ruta para diagnóstico del bot"""
+    try:
+        # Obtener información del bot
+        bot_info = bot.get_me()
+        
+        # Verificar webhook
+        webhook_info = bot.get_webhook_info()
+        
+        # Crear información de diagnóstico
+        info = {
+            "bot_name": bot_info.first_name,
+            "bot_username": bot_info.username,
+            "webhook_url": webhook_info.url,
+            "pending_updates": webhook_info.pending_update_count,
+            "last_error": webhook_info.last_error_message if hasattr(webhook_info, 'last_error_message') else None,
+            "server_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "environment": os.environ.get('ENVIRONMENT', 'production')
+        }
+        
+        return jsonify(info), 200
+    except Exception as e:
+        logger.error(f"Error en diagnóstico: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/')
 def index():
     """Página simple para confirmar que el servidor está funcionando"""
@@ -119,8 +146,9 @@ def set_webhook():
     try:
         bot.remove_webhook()
         time.sleep(0.5)
-        bot.set_webhook(url=f"{WEBHOOK_URL}/{BOT_TOKEN}")
-        logger.info(f"Webhook configurado en {WEBHOOK_URL}/{BOT_TOKEN}")
+        webhook_url = f"{WEBHOOK_URL}/webhook/{BOT_TOKEN}"
+        bot.set_webhook(url=webhook_url)
+        logger.info(f"Webhook configurado en {webhook_url}")
         return True
     except Exception as e:
         logger.error(f"Error al configurar webhook: {str(e)}")
@@ -137,6 +165,10 @@ def run_bot_polling():
         logger.error(f"Error en polling: {str(e)}")
 
 if __name__ == "__main__":
+    # Agregar logs para diagnóstico
+    logger.info(f"BOT_TOKEN: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
+    logger.info(f"WEBHOOK_URL: {WEBHOOK_URL}")
+    
     # Registrar los handlers
     bot_handlers.register_handlers(bot)
     
