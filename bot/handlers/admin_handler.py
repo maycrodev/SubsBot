@@ -281,7 +281,7 @@ def register_admin_handlers(bot: TeleBot):
         pass_bot=True
     )
     
-    # Respuesta de tiempo para whitelist
+    # Respuesta de tiempo para whitelist #
     bot.register_message_handler(
         callback=handle_whitelist_time_response,
         func=lambda message: True,
