@@ -25,6 +25,13 @@ GROUP_INVITE_LINK = os.getenv('GROUP_INVITE_LINK')
 if not GROUP_INVITE_LINK:
     logger.warning("ADVERTENCIA: GROUP_INVITE_LINK no está definido")
 
+# ID del grupo VIP (debe ser un valor negativo para grupos)
+GROUP_CHAT_ID = int(os.getenv('GROUP_CHAT_ID', '-1002692311282'))
+if GROUP_CHAT_ID >= 0:
+    logger.warning("ADVERTENCIA: GROUP_CHAT_ID no es un valor negativo. Grupos de Telegram siempre tienen ID negativo.")
+else:
+    logger.info(f"Grupo VIP configurado con ID: {GROUP_CHAT_ID}")
+
 # Configuración de PayPal
 PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID')
 PAYPAL_CLIENT_SECRET = os.getenv('PAYPAL_CLIENT_SECRET')

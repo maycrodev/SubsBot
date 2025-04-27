@@ -409,6 +409,117 @@ def create_plans_markup():
     
     return markup
 
+def handle_new_chat_members(message, bot):
+    """
+    Maneja la entrada de nuevos miembros al grupo VIP.
+    Verifica si tienen suscripción activa y expulsa a los no autorizados.
+    """
+    try:
+        # Verificar si el mensaje es de un grupo
+        if message.chat.type not in ['group', 'supergroup']:
+            return
+        
+        # Verificar si es el grupo VIP (comparando con la variable GROUP_CHAT_ID)
+        from config import GROUP_CHAT_ID
+        if message.chat.id != GROUP_CHAT_ID:
+            logger.info(f"Evento de nuevo miembro en un chat que no es el grupo VIP: {message.chat.id}")
+            return
+        
+        # Procesar cada nuevo miembro
+        for new_member in message.new_chat_members:
+            user_id = new_member.id
+            
+            # Ignorar al propio bot
+            if new_member.is_bot and new_member.username == bot.get_me().username:
+                logger.info(f"El bot fue añadido al grupo {message.chat.id}")
+                continue
+            
+            # Verificar si el usuario tiene una suscripción activa
+            subscription = db.get_active_subscription(user_id)
+            
+            if not subscription:
+                # El usuario no tiene suscripción activa, expulsarlo después de enviar mensaje
+                logger.warning(f"Usuario {user_id} sin suscripción activa intentó unirse al grupo VIP. Expulsando...")
+                
+                try:
+                    # Enviar mensaje de advertencia
+                    username_display = new_member.username or f"User{user_id}"
+                    bot.send_message(
+                        chat_id=message.chat.id,
+                        text=f"⚠️ @{username_display} no tiene una suscripción activa y será expulsado del grupo.\n\nPara unirte, debes obtener tu propia suscripción a través del bot."
+                    )
+                    
+                    # Expulsar al usuario
+                    bot.kick_chat_member(
+                        chat_id=message.chat.id,
+                        user_id=user_id
+                    )
+                    
+                    # Enviar mensaje privado al usuario
+                    try:
+                        bot.send_message(
+                            chat_id=user_id,
+                            text="❌ No tienes una suscripción activa para acceder al grupo VIP.\n\nPara obtener acceso, adquiere tu propia suscripción con el comando /start."
+                        )
+                    except Exception as e:
+                        logger.error(f"No se pudo enviar mensaje privado al usuario {user_id}: {str(e)}")
+                    
+                    # Registrar la expulsión
+                    db.record_expulsion(user_id, "Sin suscripción activa")
+                    
+                    logger.info(f"Usuario {user_id} expulsado del grupo VIP por falta de suscripción activa")
+                except Exception as e:
+                    logger.error(f"Error al expulsar al usuario {user_id}: {str(e)}")
+            else:
+                # El usuario tiene suscripción activa, dar la bienvenida
+                logger.info(f"Usuario {user_id} con suscripción activa se unió al grupo VIP")
+                
+                # Mensaje de bienvenida
+                username_display = new_member.username or f"User{user_id}"
+                bot.send_message(
+                    chat_id=message.chat.id,
+                    text=f"🎉 ¡Bienvenido al grupo VIP, @{username_display}!\n\nTu suscripción es válida hasta el {datetime.datetime.fromisoformat(subscription['end_date']).strftime('%d %b %Y')}."
+                )
+    
+    except Exception as e:
+        logger.error(f"Error en handle_new_chat_members: {str(e)}")
+
+def register_handlers(bot):
+    """Registra todos los handlers con el bot"""
+    # Handler para el comando /start
+    bot.register_message_handler(lambda message: handle_start(message, bot), commands=['start'])
+    
+    # Handler para el comando de recuperación de acceso
+    bot.register_message_handler(lambda message: handle_recover_access(message, bot), 
+                              func=lambda message: message.text == '🎟️ Recuperar Acceso VIP' or 
+                                                  message.text == '/recover')
+    
+    # Handlers para comandos de administrador
+    bot.register_message_handler(lambda message: handle_whitelist(message, bot), 
+                              func=lambda message: message.from_user.id in ADMIN_IDS and 
+                                                  message.text.startswith('/whitelist'))
+    
+    bot.register_message_handler(lambda message: handle_subinfo(message, bot), 
+                              func=lambda message: message.from_user.id in ADMIN_IDS and 
+                                                  message.text.startswith('/subinfo'))
+    
+    # NUEVO: Handler para nuevos miembros en el grupo
+    bot.register_message_handler(lambda message: handle_new_chat_members(message, bot), 
+                              content_types=['new_chat_members'])
+    
+    # Callback handlers para los botones
+    bot.register_callback_query_handler(lambda call: handle_main_menu_callback(call, bot), 
+                                      func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms'])
+    
+    bot.register_callback_query_handler(lambda call: handle_plans_callback(call, bot), 
+                                      func=lambda call: call.data in ['tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'])
+    
+    bot.register_callback_query_handler(lambda call: handle_payment_method(call, bot), 
+                                      func=lambda call: call.data.startswith('payment_'))
+    
+    # Handler por defecto para mensajes no reconocidos
+    bot.register_message_handler(lambda message: handle_unknown_message(message, bot), func=lambda message: True)
+
 def handle_start(message, bot):
     """Maneja el comando /start"""
     try:
