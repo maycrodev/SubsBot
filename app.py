@@ -9,7 +9,7 @@ import datetime
 from telebot import types
 import database as db
 import payments as pay
-from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS
+from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS, PLANS
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -95,6 +95,68 @@ def webhook():
                             reply_markup=markup
                         )
                         logger.info(f"Planes mostrados a usuario {chat_id}")
+                    
+                    elif call.data == "tutorial":
+                        # Mostrar tutorial de pagos
+                        tutorial_text = (
+                            "🎥 Tutorial de Pagos\n\n"
+                            "Para suscribirte a nuestro grupo VIP, sigue estos pasos:\n\n"
+                            "1️⃣ Selecciona el plan que deseas (Semanal o Mensual)\n\n"
+                            "2️⃣ Haz clic en 'Pagar con PayPal'\n\n"
+                            "3️⃣ Serás redirigido a la página de PayPal donde puedes pagar con:\n"
+                            "   - Cuenta de PayPal\n"
+                            "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
+                            "4️⃣ Completa el pago y regresa a Telegram\n\n"
+                            "5️⃣ Recibirás un enlace de invitación al grupo VIP\n\n"
+                            "⚠️ Importante: Tu suscripción se renovará automáticamente. Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
+                        )
+                        
+                        markup = types.InlineKeyboardMarkup()
+                        markup.add(types.InlineKeyboardButton("🔙 Volver a los Planes", callback_data="view_plans"))
+                        
+                        bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=tutorial_text,
+                            reply_markup=markup
+                        )
+                        logger.info(f"Tutorial mostrado a usuario {chat_id}")
+                    
+                    elif call.data == "weekly_plan" or call.data == "monthly_plan":
+                        # Mostrar detalles del plan seleccionado
+                        plan_id = call.data.split("_")[0]  # "weekly" o "monthly"
+                        
+                        plan = PLANS.get(plan_id)
+                        
+                        if plan:
+                            plan_text = (
+                                f"📦 {plan['display_name']}\n\n"
+                                f"{plan['description']}\n"
+                                f"Beneficios:\n"
+                                f"✅ Grupo VIP (Acceso)\n"
+                                f"✅ 21,000 archivos exclusivos 📁\n\n"
+                                f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
+                                f"📆 Facturación: {'semanal' if plan_id == 'weekly' else 'mensual'} (recurrente)\n\n"
+                                f"Selecciona un método de pago 👇"
+                            )
+                            
+                            markup = types.InlineKeyboardMarkup(row_width=1)
+                            markup.add(
+                                types.InlineKeyboardButton("🅿️ Pagar con PayPal", callback_data=f"payment_paypal_{plan_id}"),
+                                types.InlineKeyboardButton("🔙 Atrás", callback_data="view_plans")
+                            )
+                            
+                            bot.edit_message_text(
+                                chat_id=chat_id,
+                                message_id=message_id,
+                                text=plan_text,
+                                reply_markup=markup
+                            )
+                            logger.info(f"Detalles del plan {plan_id} mostrados a usuario {chat_id}")
+                        else:
+                            # Plan no encontrado (no debería ocurrir)
+                            bot.answer_callback_query(call.id, "Plan no disponible")
+                            logger.error(f"Plan {plan_id} no encontrado")
                         
                     elif call.data == "bot_credits":
                         # Mostrar créditos - SIN formato Markdown para evitar errores
@@ -160,6 +222,62 @@ def webhook():
                             reply_markup=markup
                         )
                         logger.info(f"Vuelto al menú principal para usuario {chat_id}")
+                    
+                    elif call.data.startswith("payment_paypal_"):
+                        # Manejar pago con PayPal
+                        plan_id = call.data.split("_")[-1]  # Extraer el ID del plan
+                        
+                        # Mostrar animación de "procesando"
+                        processing_text = "🔄 Preparando pago...\nAguarde por favor..."
+                        bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=processing_text
+                        )
+                        
+                        # Crear enlace de suscripción de PayPal
+                        subscription_url = pay.create_subscription_link(plan_id, chat_id)
+                        
+                        if subscription_url:
+                            # Crear markup con botón para pagar
+                            markup = types.InlineKeyboardMarkup()
+                            markup.add(
+                                types.InlineKeyboardButton("💳 Ir a pagar", url=subscription_url),
+                                types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
+                            )
+                            
+                            payment_text = (
+                                "🔗 Tu enlace de pago está listo\n\n"
+                                f"Plan: {PLANS[plan_id]['display_name']}\n"
+                                f"Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / "
+                                f"{'semana' if plan_id == 'weekly' else 'mes'}\n\n"
+                                "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
+                                "Una vez completado, serás redirigido de vuelta aquí."
+                            )
+                            
+                            bot.edit_message_text(
+                                chat_id=chat_id,
+                                message_id=message_id,
+                                text=payment_text,
+                                reply_markup=markup
+                            )
+                            logger.info(f"Enlace de pago PayPal creado para usuario {chat_id}, plan {plan_id}")
+                        else:
+                            # Error al crear enlace de pago
+                            markup = types.InlineKeyboardMarkup()
+                            markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
+                            
+                            bot.edit_message_text(
+                                chat_id=chat_id,
+                                message_id=message_id,
+                                text=(
+                                    "❌ Error al crear enlace de pago\n\n"
+                                    "Lo sentimos, no pudimos procesar tu solicitud en este momento.\n"
+                                    "Por favor, intenta nuevamente más tarde o contacta a soporte."
+                                ),
+                                reply_markup=markup
+                            )
+                            logger.error(f"Error al crear enlace de pago PayPal para usuario {chat_id}")
                     
                     # Responder al callback para quitar el "reloj de espera" en el cliente
                     bot.answer_callback_query(call.id)
@@ -375,7 +493,7 @@ if __name__ == "__main__":
             )
     
     # Manejar callbacks de los botones del menú principal
-    @bot.callback_query_handler(func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms'])
+    @bot.callback_query_handler(func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms', 'tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'] or call.data.startswith('payment_paypal_'))
     def direct_main_menu_callback(call):
         logger.info(f"Callback handler directo llamado: {call.data}")
         try:
@@ -403,10 +521,68 @@ if __name__ == "__main__":
                     chat_id=chat_id,
                     message_id=message_id,
                     text=plans_text,
-                    parse_mode='Markdown',
                     reply_markup=markup
                 )
+            
+            elif call.data == "tutorial":
+                # Mostrar tutorial de pagos
+                tutorial_text = (
+                    "🎥 Tutorial de Pagos\n\n"
+                    "Para suscribirte a nuestro grupo VIP, sigue estos pasos:\n\n"
+                    "1️⃣ Selecciona el plan que deseas (Semanal o Mensual)\n\n"
+                    "2️⃣ Haz clic en 'Pagar con PayPal'\n\n"
+                    "3️⃣ Serás redirigido a la página de PayPal donde puedes pagar con:\n"
+                    "   - Cuenta de PayPal\n"
+                    "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
+                    "4️⃣ Completa el pago y regresa a Telegram\n\n"
+                    "5️⃣ Recibirás un enlace de invitación al grupo VIP\n\n"
+                    "⚠️ Importante: Tu suscripción se renovará automáticamente. Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
+                )
                 
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔙 Volver a los Planes", callback_data="view_plans"))
+                
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=tutorial_text,
+                    reply_markup=markup
+                )
+            
+            elif call.data in ["weekly_plan", "monthly_plan"]:
+                # Mostrar detalles del plan seleccionado
+                plan_id = call.data.split("_")[0]  # "weekly" o "monthly"
+                
+                plan = PLANS.get(plan_id)
+                
+                if plan:
+                    plan_text = (
+                        f"📦 {plan['display_name']}\n\n"
+                        f"{plan['description']}\n"
+                        f"Beneficios:\n"
+                        f"✅ Grupo VIP (Acceso)\n"
+                        f"✅ 21,000 archivos exclusivos 📁\n\n"
+                        f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
+                        f"📆 Facturación: {'semanal' if plan_id == 'weekly' else 'mensual'} (recurrente)\n\n"
+                        f"Selecciona un método de pago 👇"
+                    )
+                    
+                    markup = types.InlineKeyboardMarkup(row_width=1)
+                    markup.add(
+                        types.InlineKeyboardButton("🅿️ Pagar con PayPal", callback_data=f"payment_paypal_{plan_id}"),
+                        types.InlineKeyboardButton("🔙 Atrás", callback_data="view_plans")
+                    )
+                    
+                    bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=plan_text,
+                        reply_markup=markup
+                    )
+                else:
+                    # Plan no encontrado (no debería ocurrir)
+                    bot.answer_callback_query(call.id, "Plan no disponible")
+                    
             elif call.data == "bot_credits":
                 # Mostrar créditos - SIN formato Markdown para evitar errores
                 credits_text = (
@@ -453,39 +629,67 @@ if __name__ == "__main__":
                     reply_markup=markup
                 )
             
+            elif call.data.startswith("payment_paypal_"):
+                # Manejar pago con PayPal
+                plan_id = call.data.split("_")[-1]  # Extraer el ID del plan
+                
+                # Mostrar animación de "procesando"
+                processing_text = "🔄 Preparando pago...\nAguarde por favor..."
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=processing_text
+                )
+                
+                # Crear enlace de suscripción de PayPal
+                import payments as pay
+                subscription_url = pay.create_subscription_link(plan_id, chat_id)
+                
+                if subscription_url:
+                    # Crear markup con botón para pagar
+                    markup = types.InlineKeyboardMarkup()
+                    markup.add(
+                        types.InlineKeyboardButton("💳 Ir a pagar", url=subscription_url),
+                        types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
+                    )
+                    
+                    payment_text = (
+                        "🔗 Tu enlace de pago está listo\n\n"
+                        f"Plan: {PLANS[plan_id]['display_name']}\n"
+                        f"Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / "
+                        f"{'semana' if plan_id == 'weekly' else 'mes'}\n\n"
+                        "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
+                        "Una vez completado, serás redirigido de vuelta aquí."
+                    )
+                    
+                    bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=payment_text,
+                        reply_markup=markup
+                    )
+                else:
+                    # Error al crear enlace de pago
+                    markup = types.InlineKeyboardMarkup()
+                    markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
+                    
+                    bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=(
+                            "❌ Error al crear enlace de pago\n\n"
+                            "Lo sentimos, no pudimos procesar tu solicitud en este momento.\n"
+                            "Por favor, intenta nuevamente más tarde o contacta a soporte."
+                        ),
+                        reply_markup=markup
+                    )
+                    
             # Responder al callback para quitar el "reloj de espera" en el cliente
             bot.answer_callback_query(call.id)
             logger.info(f"Respuesta de callback enviada para: {call.data}")
             
         except Exception as e:
             logger.error(f"Error en handler directo de callback: {str(e)}")
-            try:
-                bot.answer_callback_query(call.id, "❌ Ocurrió un error. Intenta nuevamente.")
-            except:
-                pass
-    
-    # Manejar botón "Volver al menú principal"
-    @bot.callback_query_handler(func=lambda call: call.data == "back_to_main")
-    def direct_back_to_main(call):
-        try:
-            # Volver al menú principal
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
-                types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
-                types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
-            )
-            
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
-                reply_markup=markup
-            )
-            
-            bot.answer_callback_query(call.id)
-        except Exception as e:
-            logger.error(f"Error en handler volver al menú: {str(e)}")
             try:
                 bot.answer_callback_query(call.id, "❌ Ocurrió un error. Intenta nuevamente.")
             except:
