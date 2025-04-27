@@ -58,13 +58,120 @@ def webhook():
                             reply_markup=markup
                         )
                         logger.info(f"Respuesta enviada al usuario {update.message.from_user.id}")
+                        return 'OK', 200
                     except Exception as e:
                         logger.error(f"Error al enviar respuesta directa: {str(e)}")
             
             elif update.callback_query:
                 logger.info(f"Callback recibido de {update.callback_query.from_user.id}: {update.callback_query.data}")
+                
+                # Manejar directamente los callbacks aquí
+                try:
+                    call = update.callback_query
+                    chat_id = call.message.chat.id
+                    message_id = call.message.message_id
+                    
+                    if call.data == "view_plans":
+                        # Mostrar planes
+                        plans_text = (
+                            "💸 Escoge tu plan de suscripción:\n\n"
+                            "🔹 Plan Semanal: $3.50 / 1 semana\n"
+                            "🔸 Plan Mensual: $5.00 / 1 mes\n\n"
+                            "🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
+                        )
+                        
+                        markup = types.InlineKeyboardMarkup(row_width=2)
+                        markup.add(types.InlineKeyboardButton("🎥 Tutorial de Pagos", callback_data="tutorial"))
+                        markup.add(
+                            types.InlineKeyboardButton("🗓️ Plan Semanal", callback_data="weekly_plan"),
+                            types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan")
+                        )
+                        markup.add(types.InlineKeyboardButton("🔙 Atrás", callback_data="back_to_main"))
+                        
+                        bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=plans_text,
+                            reply_markup=markup
+                        )
+                        logger.info(f"Planes mostrados a usuario {chat_id}")
+                        
+                    elif call.data == "bot_credits":
+                        # Mostrar créditos
+                        credits_text = (
+                            "🧠 *Créditos del Bot*\n\n"
+                            "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
+                            "© 2025 Todos los derechos reservados.\n\n"
+                            "Para contacto o soporte: @admin_support"
+                        )
+                        
+                        markup = types.InlineKeyboardMarkup()
+                        markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="back_to_main"))
+                        
+                        bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=credits_text,
+                            parse_mode='Markdown',
+                            reply_markup=markup
+                        )
+                        logger.info(f"Créditos mostrados a usuario {chat_id}")
+                        
+                    elif call.data == "terms":
+                        # Mostrar términos
+                        try:
+                            with open(os.path.join('static', 'terms.txt'), 'r', encoding='utf-8') as f:
+                                terms_text = f.read()
+                        except:
+                            terms_text = (
+                                "📜 *Términos de Uso*\n\n"
+                                "1. El contenido del grupo VIP es exclusivo para suscriptores.\n"
+                                "2. No se permiten reembolsos una vez activada la suscripción.\n"
+                                "3. Está prohibido compartir el enlace de invitación.\n"
+                                "4. No se permite redistribuir el contenido fuera del grupo.\n"
+                                "5. El incumplimiento de estas normas resultará en expulsión sin reembolso.\n\n"
+                                "Al suscribirte, aceptas estos términos."
+                            )
+                        
+                        markup = types.InlineKeyboardMarkup()
+                        markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="back_to_main"))
+                        
+                        bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=terms_text,
+                            parse_mode='Markdown',
+                            reply_markup=markup
+                        )
+                        logger.info(f"Términos mostrados a usuario {chat_id}")
+                        
+                    elif call.data == "back_to_main":
+                        # Volver al menú principal
+                        markup = types.InlineKeyboardMarkup(row_width=1)
+                        markup.add(
+                            types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
+                            types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
+                            types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
+                        )
+                        
+                        bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
+                            reply_markup=markup
+                        )
+                        logger.info(f"Vuelto al menú principal para usuario {chat_id}")
+                    
+                    # Responder al callback para quitar el "reloj de espera" en el cliente
+                    bot.answer_callback_query(call.id)
+                    logger.info(f"Callback respondido: {call.data}")
+                    
+                    return 'OK', 200
+                    
+                except Exception as e:
+                    logger.error(f"Error al procesar callback directamente: {str(e)}")
             
-            # Procesar normalmente a través de los handlers
+            # Procesar a través de los handlers normales como respaldo
             bot.process_new_updates([update])
             
             return 'OK', 200
