@@ -1,6 +1,6 @@
 import logging
 import telebot
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_file
 import threading
 import time
 import os
@@ -399,6 +399,11 @@ def reset_webhook_endpoint():
 def paypal_diagnostic():
     """Endpoint para diagnosticar la conexión con PayPal"""
     try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
         # Comprobar credenciales de PayPal
         results = {
             "paypal_mode": pay.PAYPAL_MODE,
@@ -450,6 +455,220 @@ def paypal_diagnostic():
     except Exception as e:
         logger.error(f"Error en diagnóstico de PayPal: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/admin/database', methods=['GET', 'POST'])
+def admin_database():
+    """Endpoint para ver y consultar la base de datos"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Obtener todas las tablas de la base de datos
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        
+        # Obtener lista de tablas
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [table[0] for table in cursor.fetchall()]
+        
+        if request.method == 'POST':
+            # Si se envía una consulta SQL, ejecutarla
+            query = request.form.get('query', '')
+            if query:
+                try:
+                    cursor.execute(query)
+                    # Verificar si es una consulta SELECT
+                    if query.strip().upper().startswith('SELECT'):
+                        columns = [description[0] for description in cursor.description]
+                        results = cursor.fetchall()
+                        results_list = [dict(zip(columns, row)) for row in results]
+                        return jsonify({
+                            "tables": tables,
+                            "query": query,
+                            "columns": columns,
+                            "results": results_list,
+                            "count": len(results_list)
+                        })
+                    else:
+                        conn.commit()
+                        return jsonify({
+                            "tables": tables,
+                            "query": query,
+                            "message": "Consulta ejecutada correctamente",
+                            "rows_affected": cursor.rowcount
+                        })
+                except Exception as e:
+                    return jsonify({
+                        "tables": tables,
+                        "query": query,
+                        "error": str(e)
+                    }), 400
+        
+        # Consultas predefinidas
+        stats = {
+            "usuarios": get_table_count(conn, "users"),
+            "suscripciones": get_table_count(conn, "subscriptions"),
+            "suscripciones_activas": get_active_subscriptions_count(conn),
+            "enlaces_invitacion": get_table_count(conn, "invite_links")
+        }
+        
+        # Obtener últimas 5 suscripciones
+        cursor.execute("""
+        SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, s.status
+        FROM subscriptions s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        ORDER BY s.start_date DESC
+        LIMIT 5
+        """)
+        recent_subscriptions = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            "tables": tables,
+            "stats": stats,
+            "recent_subscriptions": recent_subscriptions
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en admin_database: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/admin/download-database', methods=['GET'])
+def download_database():
+    """Endpoint para descargar la base de datos"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Ruta al archivo de base de datos
+        db_path = DB_PATH
+        
+        # Verificar que el archivo existe
+        if not os.path.exists(db_path):
+            return jsonify({"error": "Archivo de base de datos no encontrado"}), 404
+        
+        # Crear una copia temporal para evitar problemas de concurrencia
+        temp_file = os.path.join(os.path.dirname(db_path), 'temp_download.db')
+        
+        # Copiar archivo con el módulo shutil
+        import shutil
+        shutil.copy2(db_path, temp_file)
+        
+        # Enviar el archivo temporal
+        response = send_file(
+            temp_file,
+            as_attachment=True,
+            download_name=f"vip_bot_db_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db",
+            mimetype='application/octet-stream'
+        )
+        
+        # Configurar un callback para eliminar el archivo temporal después de enviarlo
+        @response.call_on_close
+        def cleanup():
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error al descargar base de datos: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/admin/panel', methods=['GET', 'POST'])
+def admin_panel():
+    """Panel de administración con interfaz web"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Obtener conexión a la base de datos
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        
+        # Variables para plantilla
+        template_vars = {
+            "admin_id": admin_id,
+            "error": None,
+            "message": None,
+            "results": None,
+            "columns": None,
+            "count": 0,
+            "query": None,
+            "rows_affected": 0
+        }
+        
+        # Procesar consulta SQL si se envió
+        if request.method == 'POST':
+            query = request.form.get('query', '')
+            if query:
+                try:
+                    cursor.execute(query)
+                    # Si es una consulta SELECT
+                    if query.strip().upper().startswith('SELECT'):
+                        columns = [description[0] for description in cursor.description]
+                        results = cursor.fetchall()
+                        results_list = [dict(zip(columns, row)) for row in results]
+                        
+                        template_vars["query"] = query
+                        template_vars["columns"] = columns
+                        template_vars["results"] = results_list
+                        template_vars["count"] = len(results_list)
+                    else:
+                        conn.commit()
+                        template_vars["query"] = query
+                        template_vars["message"] = "Consulta ejecutada correctamente"
+                        template_vars["rows_affected"] = cursor.rowcount
+                except Exception as e:
+                    template_vars["query"] = query
+                    template_vars["error"] = str(e)
+        
+        # Obtener estadísticas
+        stats = {
+            "usuarios": get_table_count(conn, "users"),
+            "suscripciones": get_table_count(conn, "subscriptions"),
+            "suscripciones_activas": get_active_subscriptions_count(conn),
+            "enlaces_invitacion": get_table_count(conn, "invite_links")
+        }
+        template_vars["stats"] = stats
+        
+        # Obtener últimas 5 suscripciones
+        cursor.execute("""
+        SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, s.status
+        FROM subscriptions s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        ORDER BY s.start_date DESC
+        LIMIT 5
+        """)
+        recent_subscriptions = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
+        template_vars["recent_subscriptions"] = recent_subscriptions
+        
+        conn.close()
+        
+        # Renderizar plantilla
+        return render_template('admin_panel.html', **template_vars)
+        
+    except Exception as e:
+        logger.error(f"Error en admin_panel: {str(e)}")
+        return f"Error: {str(e)}", 500
+
+def get_table_count(conn, table_name):
+    """Obtiene el número de registros en una tabla"""
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+    return cursor.fetchone()[0]
+
+def get_active_subscriptions_count(conn):
+    """Obtiene el número de suscripciones activas"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM subscriptions WHERE status = 'ACTIVE' AND end_date > datetime('now')")
+    return cursor.fetchone()[0]
 
 @app.route('/diagnostico')
 def diagnostico():
