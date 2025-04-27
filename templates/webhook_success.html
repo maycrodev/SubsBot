@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suscripción VIP</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #2e86de;
+            margin-bottom: 20px;
+        }
+        .message {
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .button {
+            display: inline-block;
+            background-color: #2e86de;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #1c71c7;
+        }
+        .logo {
+            margin-bottom: 20px;
+            font-size: 48px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🎟️</div>
+        <h1>Suscripción VIP</h1>
+        <div class="message {% if 'error' in message.lower() %}error{% else %}success{% endif %}">
+            {{ message }}
+        </div>
+        <a href="https://t.me/VIPSubscriptionBot" class="button">Volver a Telegram</a>
+    </div>
+</body>
+</html>
