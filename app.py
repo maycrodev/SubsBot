@@ -136,6 +136,25 @@ def diagnostico():
         logger.error(f"Error en diagnóstico: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/admin/reset-webhook')
+def reset_webhook_endpoint():
+    """Endpoint para reiniciar el webhook (solo uso administrativo)"""
+    try:
+        # Importar y ejecutar las funciones del script reset_webhook.py
+        from reset_webhook import verify_bot, delete_webhook, set_new_webhook, get_webhook_info
+        
+        results = {
+            "bot_verified": verify_bot(),
+            "webhook_deleted": delete_webhook(),
+            "webhook_set": set_new_webhook(),
+            "webhook_info": get_webhook_info()
+        }
+        
+        return jsonify(results), 200
+    except Exception as e:
+        logger.error(f"Error al reiniciar webhook: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/')
 def index():
     """Página simple para confirmar que el servidor está funcionando"""
