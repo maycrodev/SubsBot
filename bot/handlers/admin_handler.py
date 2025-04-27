@@ -2,6 +2,7 @@ from telebot import TeleBot
 from telebot.types import Message, CallbackQuery
 import dateparser
 from datetime import datetime, timedelta
+import logging
 
 import config
 from bot.keyboards.markup_creator import admin_whitelist_time_markup, admin_confirm_whitelist_markup
@@ -10,6 +11,9 @@ from db.repository.user_repo import UserRepository
 from db.repository.subscription_repo import SubscriptionRepository
 from db.database import SessionLocal
 
+# Configuración de logging para este módulo
+logger = logging.getLogger(__name__)
+
 # Estado para el comando whitelist
 admin_whitelist_state = {}
 
@@ -17,13 +21,13 @@ def is_admin(user_id):
     """Verifica si un usuario es administrador"""
     return user_id in config.ADMIN_IDS
 
-def handle_whitelist_command(bot: TeleBot, message: Message):
+def handle_whitelist_command(message: Message, bot: TeleBot):
     """
     Maneja el comando /whitelist para añadir usuarios a la whitelist.
     
     Args:
-        bot: Instancia del bot
         message: Mensaje del comando
+        bot: Instancia del bot
     """
     user_id = message.from_user.id
     
@@ -74,7 +78,7 @@ def handle_whitelist_command(bot: TeleBot, message: Message):
     except ValueError:
         bot.reply_to(message, "❌ El ID de usuario debe ser un número.")
 
-def handle_whitelist_time_callback(bot: TeleBot, call: CallbackQuery):
+def handle_whitelist_time_callback(call: CallbackQuery, bot: TeleBot):
     """Maneja el callback para solicitar tiempo de whitelist"""
     if not call.data.startswith("whitelist_time_"):
         return
@@ -107,7 +111,7 @@ def handle_whitelist_time_callback(bot: TeleBot, call: CallbackQuery):
         'message_id': call.message.message_id
     }
 
-def handle_whitelist_time_response(bot: TeleBot, message: Message):
+def handle_whitelist_time_response(message: Message, bot: TeleBot):
     """Procesa la respuesta con el tiempo de whitelist"""
     user_id = message.from_user.id
     
@@ -197,13 +201,13 @@ def handle_whitelist_time_response(bot: TeleBot, message: Message):
     
     return True
 
-def handle_subinfo_command(bot: TeleBot, message: Message):
+def handle_subinfo_command(message: Message, bot: TeleBot):
     """
     Maneja el comando /subinfo para mostrar información de suscripción de un usuario.
     
     Args:
-        bot: Instancia del bot
         message: Mensaje del comando
+        bot: Instancia del bot
     """
     user_id = message.from_user.id
     
@@ -258,28 +262,28 @@ def register_admin_handlers(bot: TeleBot):
     """
     # Comando whitelist
     bot.register_message_handler(
-        lambda message: handle_whitelist_command(bot, message),
+        callback=handle_whitelist_command,
         commands=['whitelist'],
         pass_bot=True
     )
     
     # Comando subinfo
     bot.register_message_handler(
-        lambda message: handle_subinfo_command(bot, message),
+        callback=handle_subinfo_command,
         commands=['subinfo'],
         pass_bot=True
     )
     
     # Callback de tiempo para whitelist
     bot.register_callback_query_handler(
-        lambda call: handle_whitelist_time_callback(bot, call),
-        lambda call: call.data and call.data.startswith("whitelist_time_"),
+        callback=handle_whitelist_time_callback,
+        func=lambda call: call.data and call.data.startswith("whitelist_time_"),
         pass_bot=True
     )
     
     # Respuesta de tiempo para whitelist
     bot.register_message_handler(
-        lambda message: handle_whitelist_time_response(bot, message),
+        callback=handle_whitelist_time_response,
         func=lambda message: True,
         content_types=['text'],
         pass_bot=True

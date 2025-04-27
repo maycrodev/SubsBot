@@ -29,13 +29,13 @@ def process_payment_simulation(payment_method, plan_type, user_id):
     
     return True, payment_id
 
-def handle_payment_callback(bot: TeleBot, call: CallbackQuery):
+def handle_payment_callback(call: CallbackQuery, bot: TeleBot):
     """
     Maneja los callbacks relacionados con pagos.
     
     Args:
-        bot: Instancia del bot
         call: Datos del callback
+        bot: Instancia del bot
     """
     # Verificar si es un callback de pago
     if not call.data.startswith("pay_"):
@@ -163,7 +163,7 @@ def register_payment_handlers(bot: TeleBot):
         bot: Instancia del bot
     """
     bot.register_callback_query_handler(
-        lambda call: handle_payment_callback(bot, call),
-        lambda call: call.data and call.data.startswith("pay_"),
+        callback=handle_payment_callback,
+        func=lambda call: call.data and call.data.startswith("pay_"),
         pass_bot=True
     )

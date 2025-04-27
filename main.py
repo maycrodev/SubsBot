@@ -113,8 +113,6 @@ def paypal_webhook():
 
 # Punto de entrada principal
 if __name__ == "__main__":
-    # Inicialización ya realizada previamente en setup_app()
-    
     # Si estamos en desarrollo local, podemos usar polling en lugar de webhook
     if os.environ.get('ENVIRONMENT') == 'development':
         logger.info("Iniciando en modo desarrollo (polling)")

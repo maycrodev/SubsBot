@@ -15,13 +15,13 @@ from bot.utils.messages import (
 # Configuración de logging para este módulo
 logger = logging.getLogger(__name__)
 
-def handle_callback(bot: TeleBot, call: CallbackQuery):
+def handle_callback(call: CallbackQuery, bot: TeleBot):
     """
     Maneja los callbacks de los botones inline.
     
     Args:
-        bot: Instancia del bot
         call: Datos del callback
+        bot: Instancia del bot
     """
     try:
         # Registrar información para depuración
@@ -138,9 +138,9 @@ def register_callback_handlers(bot: TeleBot):
     """
     logger.info("Registrando handler para callbacks generales")
     
-    # Primero registrar un manejador general para todos los callbacks
+    # Registrar manejador para todos los callbacks - CORREGIDO
     bot.register_callback_query_handler(
-        lambda call: handle_callback(bot, call),
+        callback=handle_callback,
         func=lambda call: True,  # Manejar todos los callbacks
         pass_bot=True
     )

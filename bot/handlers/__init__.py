@@ -17,19 +17,19 @@ def register_all_handlers(bot: TeleBot):
         from .callback_handler import register_callback_handlers
         
         # Registrar handlers en orden específico - el orden importa
-        # Handler de callbacks primero - es el más general
-        logger.info("Registrando handlers de callback")
-        register_callback_handlers(bot)
-        
-        # Luego handlers específicos
-        logger.info("Registrando handlers de pagos")
-        register_payment_handlers(bot)
+        # Los handlers de comandos primero
+        logger.info("Registrando handlers de inicio")
+        register_start_handlers(bot)
         
         logger.info("Registrando handlers de administrador")
         register_admin_handlers(bot)
         
-        logger.info("Registrando handlers de inicio")
-        register_start_handlers(bot)
+        logger.info("Registrando handlers de pagos")
+        register_payment_handlers(bot)
+        
+        # Handler de callbacks al final - es el más específico
+        logger.info("Registrando handlers de callback")
+        register_callback_handlers(bot)
         
         # Diagnóstico - verificar handlers registrados
         logger.info("Verificando handlers registrados:")
@@ -41,15 +41,6 @@ def register_all_handlers(bot: TeleBot):
         # Contar handlers de mensaje
         message_count = sum(len(handlers) for handlers in bot.message_handlers)
         logger.info(f"  - Handlers de mensaje: {message_count}")
-        
-        # Verificar explícitamente el comando /start
-        logger.info("Registrando handler de /start manualmente para asegurar")
-        from .start_handler import start_command
-        bot.register_message_handler(
-            lambda message: start_command(bot, message),
-            commands=['start'],
-            pass_bot=True
-        )
         
         logger.info("Todos los handlers registrados correctamente")
     except Exception as e:

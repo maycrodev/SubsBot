@@ -11,19 +11,18 @@ from db.database import SessionLocal
 # Configuración de logging para este módulo
 logger = logging.getLogger(__name__)
 
-def start_command(bot: TeleBot, message: Message):
+def start_command(message: Message, bot: TeleBot):
     """
     Maneja el comando /start del bot.
     Muestra el mensaje de bienvenida y los botones principales.
     
     Args:
-        bot: Instancia del bot
         message: Mensaje del usuario
+        bot: Instancia del bot
     """
     try:
         # Log para depuración
         logger.info(f"Comando /start recibido de usuario {message.from_user.id}")
-        logger.info(f"Contenido completo del mensaje: {message}")
         
         # Obtener información del usuario
         user_id = message.from_user.id
@@ -101,9 +100,9 @@ def register_start_handlers(bot: TeleBot):
     """
     logger.info("Registrando handler para comando /start")
     
-    # Registrar el handler del comando /start
+    # Registrar el handler del comando /start - CORREGIDO
     bot.register_message_handler(
-        callback=lambda message: start_command(bot, message),
+        callback=start_command,
         commands=['start'],
         pass_bot=True
     )
