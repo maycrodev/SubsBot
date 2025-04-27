@@ -77,11 +77,12 @@ def create_product_if_not_exists() -> Optional[str]:
             "PayPal-Request-Id": f"create-product-{datetime.datetime.now().timestamp()}"  # ID único para evitar duplicados
         }
         
+        # CAMBIO: Eliminamos el campo "category" y usamos solo el tipo
+        # La API de PayPal Sandbox no acepta DIGITAL_GOODS como valor válido para category
         data = {
             "name": product_name,
             "description": "Acceso exclusivo a contenido premium",
-            "type": "SERVICE",
-            "category": "DIGITAL_GOODS"
+            "type": "SERVICE"
         }
         
         logger.info(f"Creando producto en PayPal: {product_name}")
