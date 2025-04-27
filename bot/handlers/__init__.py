@@ -17,25 +17,30 @@ def register_all_handlers(bot: TeleBot):
         from .callback_handler import register_callback_handlers
         
         # El orden importa - handlers más específicos primero
+        logger.info("Registrando handlers de callback")
+        register_callback_handlers(bot)  # Mover al inicio para priorizar
+        
         logger.info("Registrando handlers de administrador")
         register_admin_handlers(bot)
         
         logger.info("Registrando handlers de pagos")
         register_payment_handlers(bot)
         
-        logger.info("Registrando handlers de callbacks")
-        register_callback_handlers(bot)
-        
         logger.info("Registrando handlers de inicio")
-        register_start_handlers(bot)  # Este debe ser el último (más general)
+        register_start_handlers(bot)
         
-        # Verificar que el handler de start está registrado
-        handlers_info = ""
-        for handler_group in bot.message_handlers:
+        # Verificar que los handlers están registrados
+        logger.info("Verificando handlers registrados")
+        callback_handlers_count = 0
+        
+        # Verificar handlers de callback
+        for handler_group in bot.callback_query_handlers:
             for handler in handler_group:
-                handlers_info += f"Handler: {handler.__name__ if hasattr(handler, '__name__') else 'anónimo'}\n"
+                callback_handlers_count += 1
+                handler_name = handler.__name__ if hasattr(handler, '__name__') else 'anónimo'
+                logger.info(f"Handler de callback registrado: {handler_name}")
         
-        logger.info(f"Handlers registrados:\n{handlers_info}")
+        logger.info(f"Total de handlers de callback registrados: {callback_handlers_count}")
         
         # Verificar explícitamente el comando /start
         logger.info("Registrando handler de /start manualmente")
