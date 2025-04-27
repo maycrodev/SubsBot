@@ -25,13 +25,54 @@ import bot_handlers
 @app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
 def webhook():
     """Recibe las actualizaciones de Telegram a través de webhook"""
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return 'OK', 200
-    else:
-        return 'Error: Content type is not application/json', 403
+    try:
+        if request.headers.get('content-type') == 'application/json':
+            json_string = request.get_data().decode('utf-8')
+            
+            # Registrar el contenido de la actualización
+            logger.info(f"Actualización recibida: {json_string}")
+            
+            # Procesar la actualización
+            update = telebot.types.Update.de_json(json_string)
+            
+            # Registrar el tipo de actualización
+            if update.message:
+                logger.info(f"Mensaje recibido de {update.message.from_user.id}: {update.message.text}")
+                
+                # Manejar directamente el comando /start aquí por ahora
+                if update.message.text == '/start':
+                    logger.info("¡Comando /start detectado! Enviando respuesta directa...")
+                    
+                    try:
+                        # Enviar un mensaje simple sin usar los handlers complejos
+                        markup = types.InlineKeyboardMarkup(row_width=1)
+                        markup.add(
+                            types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
+                            types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
+                            types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
+                        )
+                        
+                        bot.send_message(
+                            chat_id=update.message.chat.id,
+                            text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
+                            reply_markup=markup
+                        )
+                        logger.info(f"Respuesta enviada al usuario {update.message.from_user.id}")
+                    except Exception as e:
+                        logger.error(f"Error al enviar respuesta directa: {str(e)}")
+            
+            elif update.callback_query:
+                logger.info(f"Callback recibido de {update.callback_query.from_user.id}: {update.callback_query.data}")
+            
+            # Procesar normalmente a través de los handlers
+            bot.process_new_updates([update])
+            
+            return 'OK', 200
+        else:
+            return 'Error: Content type is not application/json', 403
+    except Exception as e:
+        logger.error(f"Error al procesar webhook: {str(e)}")
+        return 'Error interno', 500
 
 @app.route('/paypal/webhook', methods=['POST'])
 def paypal_webhook():
@@ -110,6 +151,25 @@ def paypal_cancel():
         return render_template('webhook_success.html', 
                               message=f"Error: {str(e)}. Puedes volver a Telegram."), 500
 
+@app.route('/admin/reset-webhook')
+def reset_webhook_endpoint():
+    """Endpoint para reiniciar el webhook (solo uso administrativo)"""
+    try:
+        # Importar y ejecutar las funciones del script reset_webhook.py
+        from reset_webhook import verify_bot, delete_webhook, set_new_webhook, get_webhook_info
+        
+        results = {
+            "bot_verified": verify_bot(),
+            "webhook_deleted": delete_webhook(),
+            "webhook_set": set_new_webhook(),
+            "webhook_info": get_webhook_info()
+        }
+        
+        return jsonify(results), 200
+    except Exception as e:
+        logger.error(f"Error al reiniciar webhook: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/diagnostico')
 def diagnostico():
     """Ruta para diagnóstico del bot"""
@@ -134,25 +194,6 @@ def diagnostico():
         return jsonify(info), 200
     except Exception as e:
         logger.error(f"Error en diagnóstico: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/admin/reset-webhook')
-def reset_webhook_endpoint():
-    """Endpoint para reiniciar el webhook (solo uso administrativo)"""
-    try:
-        # Importar y ejecutar las funciones del script reset_webhook.py
-        from reset_webhook import verify_bot, delete_webhook, set_new_webhook, get_webhook_info
-        
-        results = {
-            "bot_verified": verify_bot(),
-            "webhook_deleted": delete_webhook(),
-            "webhook_set": set_new_webhook(),
-            "webhook_info": get_webhook_info()
-        }
-        
-        return jsonify(results), 200
-    except Exception as e:
-        logger.error(f"Error al reiniciar webhook: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/')
@@ -188,7 +229,164 @@ if __name__ == "__main__":
     logger.info(f"BOT_TOKEN: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
     logger.info(f"WEBHOOK_URL: {WEBHOOK_URL}")
     
-    # Registrar los handlers
+    # Registrar los handlers directamente aquí para mayor control
+    logger.info("Registrando handlers del bot...")
+    
+    # Registrar handler básico para /start
+    @bot.message_handler(commands=['start'])
+    def direct_start_handler(message):
+        logger.info(f"Handler directo de /start llamado por usuario {message.from_user.id}")
+        try:
+            # Crear markup con botones
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
+                types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
+                types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
+            )
+            
+            # Enviar mensaje de bienvenida
+            bot.send_message(
+                chat_id=message.chat.id,
+                text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
+                reply_markup=markup
+            )
+            
+            logger.info(f"Mensaje de bienvenida enviado a {message.from_user.id}")
+            
+            # Guardar usuario en la base de datos
+            db.save_user(
+                message.from_user.id,
+                message.from_user.username,
+                message.from_user.first_name,
+                message.from_user.last_name
+            )
+        except Exception as e:
+            logger.error(f"Error en handler directo de /start: {str(e)}")
+            bot.send_message(
+                chat_id=message.chat.id,
+                text="❌ Ocurrió un error. Por favor, intenta nuevamente más tarde."
+            )
+    
+    # Manejar callbacks de los botones del menú principal
+    @bot.callback_query_handler(func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms'])
+    def direct_main_menu_callback(call):
+        logger.info(f"Callback handler directo llamado: {call.data}")
+        try:
+            chat_id = call.message.chat.id
+            message_id = call.message.message_id
+            
+            if call.data == "view_plans":
+                # Mostrar planes
+                plans_text = (
+                    "💸 Escoge tu plan de suscripción:\n\n"
+                    "🔹 Plan Semanal: $3.50 / 1 semana\n"
+                    "🔸 Plan Mensual: $5.00 / 1 mes\n\n"
+                    "🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
+                )
+                
+                markup = types.InlineKeyboardMarkup(row_width=2)
+                markup.add(types.InlineKeyboardButton("🎥 Tutorial de Pagos", callback_data="tutorial"))
+                markup.add(
+                    types.InlineKeyboardButton("🗓️ Plan Semanal", callback_data="weekly_plan"),
+                    types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan")
+                )
+                markup.add(types.InlineKeyboardButton("🔙 Atrás", callback_data="back_to_main"))
+                
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=plans_text,
+                    parse_mode='Markdown',
+                    reply_markup=markup
+                )
+                
+            elif call.data == "bot_credits":
+                # Mostrar créditos
+                credits_text = (
+                    "🧠 *Créditos del Bot*\n\n"
+                    "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
+                    "© 2025 Todos los derechos reservados.\n\n"
+                    "Para contacto o soporte: @admin_support"
+                )
+                
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="back_to_main"))
+                
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=credits_text,
+                    parse_mode='Markdown',
+                    reply_markup=markup
+                )
+                
+            elif call.data == "terms":
+                # Mostrar términos
+                try:
+                    with open(os.path.join('static', 'terms.txt'), 'r', encoding='utf-8') as f:
+                        terms_text = f.read()
+                except:
+                    terms_text = (
+                        "📜 *Términos de Uso*\n\n"
+                        "1. El contenido del grupo VIP es exclusivo para suscriptores.\n"
+                        "2. No se permiten reembolsos una vez activada la suscripción.\n"
+                        "3. Está prohibido compartir el enlace de invitación.\n"
+                        "4. No se permite redistribuir el contenido fuera del grupo.\n"
+                        "5. El incumplimiento de estas normas resultará en expulsión sin reembolso.\n\n"
+                        "Al suscribirte, aceptas estos términos."
+                    )
+                
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="back_to_main"))
+                
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=terms_text,
+                    parse_mode='Markdown',
+                    reply_markup=markup
+                )
+            
+            # Responder al callback para quitar el "reloj de espera" en el cliente
+            bot.answer_callback_query(call.id)
+            logger.info(f"Respuesta de callback enviada para: {call.data}")
+            
+        except Exception as e:
+            logger.error(f"Error en handler directo de callback: {str(e)}")
+            try:
+                bot.answer_callback_query(call.id, "❌ Ocurrió un error. Intenta nuevamente.")
+            except:
+                pass
+    
+    # Manejar botón "Volver al menú principal"
+    @bot.callback_query_handler(func=lambda call: call.data == "back_to_main")
+    def direct_back_to_main(call):
+        try:
+            # Volver al menú principal
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
+                types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
+                types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
+            )
+            
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
+                reply_markup=markup
+            )
+            
+            bot.answer_callback_query(call.id)
+        except Exception as e:
+            logger.error(f"Error en handler volver al menú: {str(e)}")
+            try:
+                bot.answer_callback_query(call.id, "❌ Ocurrió un error. Intenta nuevamente.")
+            except:
+                pass
+    
+    # Registramos también el handler para otros comandos
     bot_handlers.register_handlers(bot)
     
     # Verificar si estamos en desarrollo local o en producción
