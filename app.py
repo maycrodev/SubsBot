@@ -18,40 +18,8 @@ logger = logging.getLogger(__name__)
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# Importar los manejadores después de inicializar el bot para evitar importaciones circulares
-from handlers import start_handler, plans_handler, payment_flow, admin_handler, recovery_handler
-
-# Registrar los handlers con el bot
-def register_handlers():
-    # Handler para el comando /start
-    bot.register_message_handler(start_handler.handle_start, commands=['start'])
-    
-    # Handler para el comando de recuperación de acceso
-    bot.register_message_handler(recovery_handler.handle_recover_access, 
-                              func=lambda message: message.text == '🎟️ Recuperar Acceso VIP' or 
-                                                  message.text == '/recover')
-    
-    # Handlers para comandos de administrador
-    bot.register_message_handler(admin_handler.handle_whitelist, 
-                              func=lambda message: message.from_user.id in ADMIN_IDS and 
-                                                  message.text.startswith('/whitelist'))
-    
-    bot.register_message_handler(admin_handler.handle_subinfo, 
-                              func=lambda message: message.from_user.id in ADMIN_IDS and 
-                                                  message.text.startswith('/subinfo'))
-    
-    # Callback handlers para los botones
-    bot.register_callback_query_handler(start_handler.handle_main_menu_callback, 
-                                      func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms'])
-    
-    bot.register_callback_query_handler(plans_handler.handle_plans_callback, 
-                                      func=lambda call: call.data in ['tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'])
-    
-    bot.register_callback_query_handler(payment_flow.handle_payment_method, 
-                                      func=lambda call: call.data.startswith('payment_'))
-    
-    # Handler por defecto para mensajes no reconocidos
-    bot.register_message_handler(lambda message: True, start_handler.handle_unknown_message)
+# Importar el sistema centralizado de handlers
+import bot_handlers
 
 @app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
@@ -75,8 +43,7 @@ def paypal_webhook():
         success, message = pay.process_webhook_event(event_data)
         
         # Actualizar la suscripción en la base de datos según el evento
-        # Esta función debe implementarse para manejar cada tipo de evento específico
-        payment_flow.update_subscription_from_webhook(event_data)
+        bot_handlers.update_subscription_from_webhook(bot, event_data)
         
         return jsonify({"status": "success", "message": message}), 200
     except Exception as e:
@@ -103,7 +70,9 @@ def paypal_return():
                                   message="No se pudo verificar la suscripción. Por favor, contacta a soporte."), 400
         
         # Procesar la suscripción exitosa
-        success = payment_flow.process_successful_subscription(int(user_id), plan_id, subscription_id, subscription_details)
+        success = bot_handlers.process_successful_subscription(
+            bot, int(user_id), plan_id, subscription_id, subscription_details
+        )
         
         if success:
             return render_template('webhook_success.html', 
@@ -169,7 +138,7 @@ def run_bot_polling():
 
 if __name__ == "__main__":
     # Registrar los handlers
-    register_handlers()
+    bot_handlers.register_handlers(bot)
     
     # Verificar si estamos en desarrollo local o en producción
     if os.environ.get('ENVIRONMENT') == 'development':
