@@ -97,9 +97,9 @@ def webhook():
                         logger.info(f"Planes mostrados a usuario {chat_id}")
                         
                     elif call.data == "bot_credits":
-                        # Mostrar créditos
+                        # Mostrar créditos - SIN formato Markdown para evitar errores
                         credits_text = (
-                            "🧠 *Créditos del Bot*\n\n"
+                            "🧠 Créditos del Bot\n\n"
                             "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
                             "© 2025 Todos los derechos reservados.\n\n"
                             "Para contacto o soporte: @admin_support"
@@ -112,19 +112,19 @@ def webhook():
                             chat_id=chat_id,
                             message_id=message_id,
                             text=credits_text,
-                            parse_mode='Markdown',
                             reply_markup=markup
                         )
                         logger.info(f"Créditos mostrados a usuario {chat_id}")
                         
                     elif call.data == "terms":
-                        # Mostrar términos
+                        # Mostrar términos - SIN formato Markdown para evitar errores
                         try:
                             with open(os.path.join('static', 'terms.txt'), 'r', encoding='utf-8') as f:
-                                terms_text = f.read()
+                                # Eliminar los asteriscos que causan problemas de formato Markdown
+                                terms_text = f.read().replace('*', '')
                         except:
                             terms_text = (
-                                "📜 *Términos de Uso*\n\n"
+                                "📜 Términos de Uso\n\n"
                                 "1. El contenido del grupo VIP es exclusivo para suscriptores.\n"
                                 "2. No se permiten reembolsos una vez activada la suscripción.\n"
                                 "3. Está prohibido compartir el enlace de invitación.\n"
@@ -140,7 +140,6 @@ def webhook():
                             chat_id=chat_id,
                             message_id=message_id,
                             text=terms_text,
-                            parse_mode='Markdown',
                             reply_markup=markup
                         )
                         logger.info(f"Términos mostrados a usuario {chat_id}")
@@ -409,9 +408,9 @@ if __name__ == "__main__":
                 )
                 
             elif call.data == "bot_credits":
-                # Mostrar créditos
+                # Mostrar créditos - SIN formato Markdown para evitar errores
                 credits_text = (
-                    "🧠 *Créditos del Bot*\n\n"
+                    "🧠 Créditos del Bot\n\n"
                     "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
                     "© 2025 Todos los derechos reservados.\n\n"
                     "Para contacto o soporte: @admin_support"
@@ -424,18 +423,18 @@ if __name__ == "__main__":
                     chat_id=chat_id,
                     message_id=message_id,
                     text=credits_text,
-                    parse_mode='Markdown',
                     reply_markup=markup
                 )
                 
             elif call.data == "terms":
-                # Mostrar términos
+                # Mostrar términos - SIN formato Markdown para evitar errores
                 try:
                     with open(os.path.join('static', 'terms.txt'), 'r', encoding='utf-8') as f:
-                        terms_text = f.read()
+                        # Eliminar los asteriscos que causan problemas de formato Markdown
+                        terms_text = f.read().replace('*', '')
                 except:
                     terms_text = (
-                        "📜 *Términos de Uso*\n\n"
+                        "📜 Términos de Uso\n\n"
                         "1. El contenido del grupo VIP es exclusivo para suscriptores.\n"
                         "2. No se permiten reembolsos una vez activada la suscripción.\n"
                         "3. Está prohibido compartir el enlace de invitación.\n"
@@ -451,7 +450,6 @@ if __name__ == "__main__":
                     chat_id=chat_id,
                     message_id=message_id,
                     text=terms_text,
-                    parse_mode='Markdown',
                     reply_markup=markup
                 )
             
