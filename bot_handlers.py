@@ -409,7 +409,7 @@ def create_plans_markup():
     
     return markup
 
-# Código actualizado y mejorado para verificación de miembros
+# Modificación a la función handle_new_chat_members en bot_handlers.py
 
 def handle_new_chat_members(message, bot):
     """
@@ -425,17 +425,58 @@ def handle_new_chat_members(message, bot):
         # Verificar si es el grupo VIP (comparando con la variable GROUP_CHAT_ID)
         from config import GROUP_CHAT_ID
         
-        # Registrar información adicional para depuración
-        logger.info(f"Evento de miembros en chat {message.chat.id}, GROUP_CHAT_ID configurado: {GROUP_CHAT_ID}")
+        # CORRECCIÓN: Convertir ambos valores a string para una comparación consistente
+        message_chat_id_str = str(message.chat.id)
+        group_chat_id_str = str(GROUP_CHAT_ID)
         
-        if str(message.chat.id) != str(GROUP_CHAT_ID):
-            logger.info(f"Evento de nuevo miembro en un chat que no es el grupo VIP: {message.chat.id}, GROUP_CHAT_ID: {GROUP_CHAT_ID}")
+        # Registrar información adicional para depuración
+        logger.info(f"Evento de miembros en chat ID: {message_chat_id_str}, GROUP_CHAT_ID configurado: {group_chat_id_str}")
+        
+        # CORRECCIÓN: Verificar si los IDs coinciden (asegurando que ambos son strings)
+        if message_chat_id_str != group_chat_id_str:
+            logger.info(f"Evento de nuevo miembro en un chat que no es el grupo VIP: {message_chat_id_str}, GROUP_CHAT_ID: {group_chat_id_str}")
+            return
+        
+        # CORRECCIÓN: Verificar antes si el bot tiene permisos de administrador
+        try:
+            bot_member = bot.get_chat_member(message.chat.id, bot.get_me().id)
+            if bot_member.status not in ['administrator', 'creator']:
+                logger.error(f"El bot no tiene permisos de administrador en el grupo {message.chat.id}. Estado: {bot_member.status}")
+                # Intentar notificar a los administradores sobre este problema
+                for admin_id in ADMIN_IDS:
+                    try:
+                        bot.send_message(
+                            chat_id=admin_id,
+                            text=f"⚠️ ALERTA DE SEGURIDAD: El bot no tiene permisos de administrador en el grupo VIP. No podré expulsar usuarios no autorizados."
+                        )
+                    except Exception as e:
+                        logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
+                return
+            elif not getattr(bot_member, 'can_restrict_members', False):
+                logger.error(f"El bot no tiene permiso para expulsar miembros en el grupo {message.chat.id}")
+                for admin_id in ADMIN_IDS:
+                    try:
+                        bot.send_message(
+                            chat_id=admin_id,
+                            text=f"⚠️ ALERTA DE SEGURIDAD: El bot no tiene permiso para expulsar miembros en el grupo VIP."
+                        )
+                    except Exception as e:
+                        logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
+                return
+            else:
+                logger.info(f"Bot tiene permisos necesarios. Status: {bot_member.status}, can_restrict_members: {getattr(bot_member, 'can_restrict_members', False)}")
+        except Exception as e:
+            logger.error(f"Error al verificar permisos del bot: {e}")
             return
         
         # Procesar cada nuevo miembro
         for new_member in message.new_chat_members:
             user_id = new_member.id
-            username_display = new_member.username or f"User{user_id}"
+            username = new_member.username or "Sin username"
+            first_name = new_member.first_name or ""
+            last_name = new_member.last_name or ""
+            full_name = f"{first_name} {last_name}".strip() or "Usuario"
+            username_display = username or f"User{user_id}"
             
             # Ignorar al propio bot
             if new_member.is_bot and new_member.username == bot.get_me().username:
@@ -452,52 +493,76 @@ def handle_new_chat_members(message, bot):
             
             if not subscription and not is_admin:
                 # El usuario no tiene suscripción activa y no es admin, expulsarlo
-                logger.warning(f"Usuario {user_id} (@{username_display}) sin suscripción activa intentó unirse al grupo VIP. Expulsando...")
+                logger.warning(f"⚠️ USUARIO SIN SUSCRIPCIÓN: {user_id} (@{username_display}) sin suscripción activa intentó unirse al grupo VIP.")
                 
                 try:
-                    # Enviar mensaje de advertencia
+                    # Enviar mensaje de advertencia al grupo
                     bot.send_message(
                         chat_id=message.chat.id,
-                        text=f"⚠️ @{username_display} no tiene una suscripción activa y será expulsado del grupo.\n\nPara unirte, debes obtener tu propia suscripción a través del bot."
+                        text=f"⚠️ Usuario {full_name} (@{username_display}) no tiene una suscripción activa y será expulsado del grupo.\n\nPara unirte, debes obtener tu propia suscripción a través del bot."
                     )
                     
-                    # Obtener información del chat para verificar permisos
-                    chat_member = bot.get_chat_member(message.chat.id, bot.get_me().id)
-                    logger.info(f"Permisos del bot en el grupo: {chat_member.status}, can_restrict_members: {getattr(chat_member, 'can_restrict_members', 'N/A')}")
+                    # CORRECCIÓN: Añadir un pequeño retraso antes de expulsar
+                    import time
+                    time.sleep(1)
                     
-                    # Expulsar al usuario - usando ban_chat_member en lugar de kick_chat_member (obsoleto)
-                    bot.ban_chat_member(
-                        chat_id=message.chat.id,
-                        user_id=user_id
-                    )
-                    
-                    # Desbanear inmediatamente para que pueda volver a unirse si obtiene una suscripción
-                    bot.unban_chat_member(
-                        chat_id=message.chat.id,
-                        user_id=user_id,
-                        only_if_banned=True
-                    )
+                    # CORRECCIÓN: Intentar expulsar al usuario con manejo de errores detallado
+                    try:
+                        logger.info(f"Iniciando expulsión del usuario {user_id} del grupo {message.chat.id}")
+                        
+                        # Expulsar al usuario usando ban_chat_member
+                        ban_result = bot.ban_chat_member(
+                            chat_id=message.chat.id,
+                            user_id=user_id
+                        )
+                        
+                        logger.info(f"Resultado de la expulsión: {ban_result}")
+                        
+                        # Desbanear inmediatamente para que pueda volver a unirse si obtiene una suscripción
+                        unban_result = bot.unban_chat_member(
+                            chat_id=message.chat.id,
+                            user_id=user_id,
+                            only_if_banned=True
+                        )
+                        
+                        logger.info(f"Resultado del desbaneo: {unban_result}")
+                        
+                        # Registrar la expulsión
+                        db.record_expulsion(user_id, "Sin suscripción activa")
+                        
+                        # Notificar a administradores
+                        for admin_id in ADMIN_IDS:
+                            try:
+                                bot.send_message(
+                                    chat_id=admin_id,
+                                    text=f"🛑 SEGURIDAD: Usuario {full_name} (@{username_display}) ID:{user_id} fue expulsado por no tener suscripción activa."
+                                )
+                            except Exception as ea:
+                                logger.error(f"No se pudo notificar al admin {admin_id}: {ea}")
+                        
+                    except Exception as e:
+                        logger.error(f"ERROR CRÍTICO AL EXPULSAR: {str(e)}")
+                        # Notificar a los administradores sobre el error específico
+                        for admin_id in ADMIN_IDS:
+                            try:
+                                bot.send_message(
+                                    chat_id=admin_id,
+                                    text=f"⚠️ ERROR DE SEGURIDAD: No se pudo expulsar a {username_display} (ID:{user_id})\nError: {str(e)}\nRevise los permisos del bot en el grupo."
+                                )
+                            except:
+                                pass
                     
                     # Enviar mensaje privado al usuario
                     try:
                         bot.send_message(
                             chat_id=user_id,
-                            text="❌ No tienes una suscripción activa para acceder al grupo VIP.\n\nPara obtener acceso, adquiere tu propia suscripción con el comando /start."
+                            text=f"❌ No tienes una suscripción activa para acceder al grupo VIP.\n\nPara obtener acceso, adquiere tu propia suscripción con el comando /start."
                         )
                     except Exception as e:
                         logger.error(f"No se pudo enviar mensaje privado al usuario {user_id}: {str(e)}")
-                    
-                    # Registrar la expulsión
-                    db.record_expulsion(user_id, "Sin suscripción activa")
-                    
-                    logger.info(f"Usuario {user_id} expulsado del grupo VIP por falta de suscripción activa")
+                        
                 except Exception as e:
-                    logger.error(f"Error al expulsar al usuario {user_id}: {str(e)}")
-                    # Enviar mensaje de error al grupo
-                    bot.send_message(
-                        chat_id=message.chat.id,
-                        text=f"⚠️ Error al expulsar a @{username_display}: El bot podría no tener permisos suficientes. Por favor verifique que el bot es administrador con permisos para expulsar usuarios."
-                    )
+                    logger.error(f"Error general al manejar expulsión del usuario {user_id}: {str(e)}")
             else:
                 # El usuario tiene suscripción activa o es admin, dar la bienvenida
                 if is_admin:
@@ -514,7 +579,7 @@ def handle_new_chat_members(message, bot):
                 )
     
     except Exception as e:
-        logger.error(f"Error en handle_new_chat_members: {str(e)}")
+        logger.error(f"Error general en handle_new_chat_members: {str(e)}")
         # Notificar a los administradores sobre el error
         for admin_id in ADMIN_IDS:
             try:
@@ -524,7 +589,6 @@ def handle_new_chat_members(message, bot):
                 )
             except:
                 pass
-
 def handle_verify_all_members(message, bot):
     """
     Versión simplificada para verificar todos los miembros actuales del grupo VIP.
