@@ -1,6 +1,7 @@
 from telebot import TeleBot
 from telebot.types import CallbackQuery
 import logging
+import traceback
 
 import config
 from bot.keyboards.markup_creator import (
@@ -22,95 +23,111 @@ def handle_callback(bot: TeleBot, call: CallbackQuery):
         bot: Instancia del bot
         call: Datos del callback
     """
-    # Registrar información para depuración
-    logger.info(f"Callback recibido: {call.data} de usuario {call.from_user.id}")
-    
-    # Evitar el reloj de espera
-    bot.answer_callback_query(call.id)
-    
-    # Manejar diferentes callbacks
-    if call.data == "plans":
-        logger.info("Procesando callback 'plans'")
-        # Mostrar planes disponibles
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=plans_message(),
-            reply_markup=plans_markup(),
-            parse_mode='HTML'
-        )
-    
-    elif call.data == "back_to_start":
-        logger.info("Procesando callback 'back_to_start'")
-        # Volver al menú principal
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=welcome_message(),
-            reply_markup=welcome_markup(),
-            parse_mode='HTML'
-        )
-    
-    elif call.data == "back_to_plans":
-        logger.info("Procesando callback 'back_to_plans'")
-        # Volver al menú de planes
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=plans_message(),
-            reply_markup=plans_markup(),
-            parse_mode='HTML'
-        )
-    
-    elif call.data.startswith("plan_"):
-        logger.info(f"Procesando callback 'plan_{call.data.split('_')[1]}'")
-        # Mostrar detalles del plan seleccionado
-        plan_type = call.data.split("_")[1]  # weekly o monthly
+    try:
+        # Registrar información para depuración
+        logger.info(f"Callback recibido: {call.data} de usuario {call.from_user.id}")
         
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=subscription_details(plan_type),
-            reply_markup=payment_methods_markup(plan_type),
-            parse_mode='HTML'
-        )
-    
-    elif call.data == "tutorial":
-        logger.info("Procesando callback 'tutorial'")
-        # Mostrar tutorial de pagos
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=tutorial_message(),
-            reply_markup=back_markup("back_to_plans"),
-            parse_mode='Markdown'
-        )
-    
-    elif call.data == "terms":
-        logger.info("Procesando callback 'terms'")
-        # Mostrar términos de uso
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=terms_message(),
-            reply_markup=back_markup(),
-            parse_mode='Markdown'
-        )
-    
-    elif call.data == "credits":
-        logger.info("Procesando callback 'credits'")
-        # Mostrar créditos del bot
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=credits_message(),
-            reply_markup=back_markup(),
-            parse_mode='Markdown'
-        )
-    else:
-        logger.warning(f"Callback no manejado: {call.data}")
-    
-    # No es necesario delegación explícita a payment_handler, ese módulo registra su propio handler
+        # Evitar el reloj de espera
+        bot.answer_callback_query(call.id)
+        
+        # Manejar diferentes callbacks
+        if call.data == "plans":
+            logger.info("Procesando callback 'plans'")
+            # Mostrar planes disponibles
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=plans_message(),
+                reply_markup=plans_markup(),
+                parse_mode='HTML'
+            )
+            logger.info("Mensaje de planes enviado correctamente")
+        
+        elif call.data == "back_to_start":
+            logger.info("Procesando callback 'back_to_start'")
+            # Volver al menú principal
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=welcome_message(),
+                reply_markup=welcome_markup(),
+                parse_mode='HTML'
+            )
+            logger.info("Mensaje de bienvenida enviado correctamente")
+        
+        elif call.data == "back_to_plans":
+            logger.info("Procesando callback 'back_to_plans'")
+            # Volver al menú de planes
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=plans_message(),
+                reply_markup=plans_markup(),
+                parse_mode='HTML'
+            )
+            logger.info("Mensaje de planes enviado correctamente")
+        
+        elif call.data.startswith("plan_"):
+            plan_type = call.data.split("_")[1]  # weekly o monthly
+            logger.info(f"Procesando callback 'plan_{plan_type}'")
+            
+            # Mostrar detalles del plan seleccionado
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=subscription_details(plan_type),
+                reply_markup=payment_methods_markup(plan_type),
+                parse_mode='HTML'
+            )
+            logger.info(f"Detalles del plan {plan_type} enviados correctamente")
+        
+        elif call.data == "tutorial":
+            logger.info("Procesando callback 'tutorial'")
+            # Mostrar tutorial de pagos
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=tutorial_message(),
+                reply_markup=back_markup("back_to_plans"),
+                parse_mode='Markdown'
+            )
+            logger.info("Tutorial enviado correctamente")
+        
+        elif call.data == "terms":
+            logger.info("Procesando callback 'terms'")
+            # Mostrar términos de uso
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=terms_message(),
+                reply_markup=back_markup(),
+                parse_mode='Markdown'
+            )
+            logger.info("Términos enviados correctamente")
+        
+        elif call.data == "credits":
+            logger.info("Procesando callback 'credits'")
+            # Mostrar créditos del bot
+            bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=credits_message(),
+                reply_markup=back_markup(),
+                parse_mode='Markdown'
+            )
+            logger.info("Créditos enviados correctamente")
+        else:
+            logger.warning(f"Callback no reconocido: {call.data}")
+            
+    except Exception as e:
+        logger.error(f"Error al procesar callback '{call.data}': {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Intentar responder al usuario que hubo un error
+        try:
+            bot.answer_callback_query(call.id, "Hubo un error procesando tu solicitud. Intenta nuevamente.")
+        except Exception:
+            pass
 
 def register_callback_handlers(bot: TeleBot):
     """
@@ -121,9 +138,11 @@ def register_callback_handlers(bot: TeleBot):
     """
     logger.info("Registrando handler para callbacks generales")
     
-    # Modificar filtro para ser más específico y evitar interferencia con otros handlers
+    # Primero registrar un manejador general para todos los callbacks
     bot.register_callback_query_handler(
         lambda call: handle_callback(bot, call),
-        func=lambda call: call.data in ["plans", "back_to_start", "back_to_plans", "tutorial", "terms", "credits"] or call.data.startswith("plan_"),
+        func=lambda call: True,  # Manejar todos los callbacks
         pass_bot=True
     )
+    
+    logger.info("Handler para callbacks registrado correctamente")

@@ -2,7 +2,7 @@ import os
 import logging
 import traceback
 import telebot
-from flask import Flask, request, abort, jsonify
+from flask import Flask, request, abort, jsonify, Response
 from telebot.types import Update
 
 # Importaciones internas
@@ -53,37 +53,38 @@ setup_app()
 def webhook():
     try:
         logger.info("Recibida petición al webhook de Telegram")
-        if request.headers.get('content-type') == 'application/json':
-            json_string = request.get_data().decode('utf-8')
+        
+        if request.headers.get('content-type') != 'application/json':
+            logger.warning(f"Contenido no válido: {request.headers.get('content-type')}")
+            return Response(status=403)
+        
+        json_string = request.get_data().decode('utf-8')
+        
+        # Validar que el json sea correcto
+        try:
             update = Update.de_json(json_string)
             logger.info(f"Procesando update_id: {update.update_id}")
             
             # Mostrar más detalles del update para diagnóstico
             if update.message:
                 logger.info(f"Mensaje recibido de: {update.message.from_user.id}, texto: {update.message.text}")
-            
+            elif update.callback_query:
+                logger.info(f"Callback recibido de: {update.callback_query.from_user.id}, data: {update.callback_query.data}")
+                
             # Procesar la actualización
             bot.process_new_updates([update])
+            return Response(status=200)
             
-            # Verificación adicional para comandos
-            if update.message and update.message.text and update.message.text.startswith('/'):
-                command = update.message.text.split()[0]
-                logger.info(f"Comando detectado: {command}")
-                
-                # Procesar manualmente el comando /start si es necesario
-                if command == '/start':
-                    from bot.handlers.start_handler import start_command
-                    logger.info("Ejecutando handler de /start manualmente")
-                    start_command(bot, update.message)
-                    
-            return ''
-        else:
-            logger.warning(f"Contenido no válido: {request.headers.get('content-type')}")
-            abort(403)
+        except Exception as json_error:
+            logger.error(f"Error al procesar JSON: {str(json_error)}")
+            logger.error(f"JSON recibido: {json_string}")
+            logger.error(traceback.format_exc())
+            return Response(status=400)  # Bad request
+            
     except Exception as e:
         logger.error(f"Error procesando webhook: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        return Response(status=500)  # Error interno
 
 # Ruta para verificar que el servidor está funcionando
 @app.route('/')
@@ -97,7 +98,7 @@ def index():
         error_msg = f"Error al conectar con la API de Telegram: {str(e)}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
-        return error_msg, 500
+        return jsonify({"error": error_msg}), 500
 
 # Ruta para webhooks de PayPal
 @app.route(config.PAYPAL_WEBHOOK_PATH, methods=['POST'])
@@ -124,4 +125,4 @@ if __name__ == "__main__":
         # Iniciar servidor Flask
         port = int(os.environ.get('PORT', config.PORT))
         logger.info(f"Iniciando servidor en puerto: {port}")
-        app.run(host='0.0.0.0', port=port)
+        app.run(host='0.0.0.0', port=port, debug=False)

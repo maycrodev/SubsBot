@@ -16,34 +16,34 @@ def register_all_handlers(bot: TeleBot):
         from .payment_handler import register_payment_handlers
         from .callback_handler import register_callback_handlers
         
-        # El orden importa - handlers más específicos primero
+        # Registrar handlers en orden específico - el orden importa
+        # Handler de callbacks primero - es el más general
         logger.info("Registrando handlers de callback")
-        register_callback_handlers(bot)  # Mover al inicio para priorizar
+        register_callback_handlers(bot)
+        
+        # Luego handlers específicos
+        logger.info("Registrando handlers de pagos")
+        register_payment_handlers(bot)
         
         logger.info("Registrando handlers de administrador")
         register_admin_handlers(bot)
         
-        logger.info("Registrando handlers de pagos")
-        register_payment_handlers(bot)
-        
         logger.info("Registrando handlers de inicio")
         register_start_handlers(bot)
         
-        # Verificar que los handlers están registrados
-        logger.info("Verificando handlers registrados")
-        callback_handlers_count = 0
+        # Diagnóstico - verificar handlers registrados
+        logger.info("Verificando handlers registrados:")
         
-        # Verificar handlers de callback
-        for handler_group in bot.callback_query_handlers:
-            for handler in handler_group:
-                callback_handlers_count += 1
-                handler_name = handler.__name__ if hasattr(handler, '__name__') else 'anónimo'
-                logger.info(f"Handler de callback registrado: {handler_name}")
+        # Contar handlers de callback
+        callback_count = sum(len(handlers) for handlers in bot.callback_query_handlers)
+        logger.info(f"  - Handlers de callback: {callback_count}")
         
-        logger.info(f"Total de handlers de callback registrados: {callback_handlers_count}")
+        # Contar handlers de mensaje
+        message_count = sum(len(handlers) for handlers in bot.message_handlers)
+        logger.info(f"  - Handlers de mensaje: {message_count}")
         
         # Verificar explícitamente el comando /start
-        logger.info("Registrando handler de /start manualmente")
+        logger.info("Registrando handler de /start manualmente para asegurar")
         from .start_handler import start_command
         bot.register_message_handler(
             lambda message: start_command(bot, message),
