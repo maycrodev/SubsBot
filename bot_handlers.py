@@ -716,22 +716,23 @@ def handle_verify_all_members(message, bot):
             except:
                 pass
 
-# Asegúrate de que este código se integre correctamente en register_handlers en bot_handlers.py
-
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
     # Handler para el comando /start
     bot.register_message_handler(lambda message: handle_start(message, bot), commands=['start'])
     
+    # IMPORTANTE: El handler para verify_all debe ir ANTES que otros handlers
+    bot.register_message_handler(lambda message: handle_verify_all_members(message, bot), 
+                              commands=['verify_all'])
+    
+    # Handler para nuevos miembros
+    bot.register_message_handler(lambda message: handle_new_chat_members(message, bot), 
+                              content_types=['new_chat_members'])
+    
     # Handler para el comando de recuperación de acceso
     bot.register_message_handler(lambda message: handle_recover_access(message, bot), 
                               func=lambda message: message.text == '🎟️ Recuperar Acceso VIP' or 
                                                   message.text == '/recover')
-    
-    # IMPORTANTE: Este handler debe estar ANTES que los otros handlers para comandos
-    # Comando para verificar todos los miembros del grupo
-    bot.register_message_handler(lambda message: handle_verify_all_members(message, bot), 
-                              commands=['verify_all'])
     
     # Handlers para comandos de administrador
     bot.register_message_handler(lambda message: handle_whitelist(message, bot), 
@@ -741,10 +742,6 @@ def register_handlers(bot):
     bot.register_message_handler(lambda message: handle_subinfo(message, bot), 
                               func=lambda message: message.from_user.id in ADMIN_IDS and 
                                                   message.text.startswith('/subinfo'))
-    
-    # Handler para nuevos miembros en el grupo
-    bot.register_message_handler(lambda message: handle_new_chat_members(message, bot), 
-                              content_types=['new_chat_members'])
     
     # Callback handlers para los botones
     bot.register_callback_query_handler(lambda call: handle_main_menu_callback(call, bot), 
