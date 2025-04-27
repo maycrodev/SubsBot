@@ -27,7 +27,7 @@ def register_all_handlers(bot: TeleBot):
         logger.info("Registrando handlers de pagos")
         register_payment_handlers(bot)
         
-        # Handler de callbacks al final - es el más específico
+        # Handler de callbacks al final - después de los handlers específicos
         logger.info("Registrando handlers de callback")
         register_callback_handlers(bot)
         

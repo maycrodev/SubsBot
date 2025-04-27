@@ -1,9 +1,11 @@
-from telebot import TeleBot
 from telebot.types import Message, CallbackQuery
 import dateparser
 from datetime import datetime, timedelta
 import logging
+import traceback
 
+# Importar la instancia del bot directamente
+from bot.bot_instance import bot
 import config
 from bot.keyboards.markup_creator import admin_whitelist_time_markup, admin_confirm_whitelist_markup
 from bot.utils.messages import admin_whitelist_request, admin_whitelist_time_instructions, admin_whitelist_success, user_subscription_info
@@ -21,13 +23,12 @@ def is_admin(user_id):
     """Verifica si un usuario es administrador"""
     return user_id in config.ADMIN_IDS
 
-def handle_whitelist_command(message: Message, bot: TeleBot):
+def handle_whitelist_command(message):
     """
     Maneja el comando /whitelist para añadir usuarios a la whitelist.
     
     Args:
         message: Mensaje del comando
-        bot: Instancia del bot
     """
     user_id = message.from_user.id
     
@@ -78,7 +79,7 @@ def handle_whitelist_command(message: Message, bot: TeleBot):
     except ValueError:
         bot.reply_to(message, "❌ El ID de usuario debe ser un número.")
 
-def handle_whitelist_time_callback(call: CallbackQuery, bot: TeleBot):
+def handle_whitelist_time_callback(call):
     """Maneja el callback para solicitar tiempo de whitelist"""
     if not call.data.startswith("whitelist_time_"):
         return
@@ -111,7 +112,7 @@ def handle_whitelist_time_callback(call: CallbackQuery, bot: TeleBot):
         'message_id': call.message.message_id
     }
 
-def handle_whitelist_time_response(message: Message, bot: TeleBot):
+def handle_whitelist_time_response(message):
     """Procesa la respuesta con el tiempo de whitelist"""
     user_id = message.from_user.id
     
@@ -201,13 +202,12 @@ def handle_whitelist_time_response(message: Message, bot: TeleBot):
     
     return True
 
-def handle_subinfo_command(message: Message, bot: TeleBot):
+def handle_subinfo_command(message):
     """
     Maneja el comando /subinfo para mostrar información de suscripción de un usuario.
     
     Args:
         message: Mensaje del comando
-        bot: Instancia del bot
     """
     user_id = message.from_user.id
     
@@ -253,38 +253,40 @@ def handle_subinfo_command(message: Message, bot: TeleBot):
     except ValueError:
         bot.reply_to(message, "❌ El ID de usuario debe ser un número.")
 
-def register_admin_handlers(bot: TeleBot):
+def register_admin_handlers(bot_instance):
     """
     Registra los handlers para comandos de administrador.
     
     Args:
-        bot: Instancia del bot
+        bot_instance: Instancia del bot
     """
+    logger.info("Registrando handlers de administrador")
+    
     # Comando whitelist
-    bot.register_message_handler(
-        callback=handle_whitelist_command,
-        commands=['whitelist'],
-        pass_bot=True
+    bot_instance.register_message_handler(
+        handle_whitelist_command,
+        commands=['whitelist']
     )
     
     # Comando subinfo
-    bot.register_message_handler(
-        callback=handle_subinfo_command,
-        commands=['subinfo'],
-        pass_bot=True
+    bot_instance.register_message_handler(
+        handle_subinfo_command,
+        commands=['subinfo']
     )
     
     # Callback de tiempo para whitelist
-    bot.register_callback_query_handler(
-        callback=handle_whitelist_time_callback,
-        func=lambda call: call.data and call.data.startswith("whitelist_time_"),
-        pass_bot=True
+    bot_instance.register_callback_query_handler(
+        handle_whitelist_time_callback,
+        func=lambda call: call.data and call.data.startswith("whitelist_time_")
     )
     
-    # Respuesta de tiempo para whitelist #
-    bot.register_message_handler(
-        callback=handle_whitelist_time_response,
-        func=lambda message: True,
-        content_types=['text'],
-        pass_bot=True
+    # Respuesta de tiempo para whitelist - necesita estar después de otros handlers
+    bot_instance.register_message_handler(
+        handle_whitelist_time_response,
+        func=lambda message: is_admin(message.from_user.id) and 
+                            message.from_user.id in admin_whitelist_state and
+                            admin_whitelist_state.get(message.from_user.id, {}).get('waiting_for_time', False),
+        content_types=['text']
     )
+    
+    logger.info("Handlers de administrador registrados correctamente")

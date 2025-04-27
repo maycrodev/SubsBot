@@ -1,9 +1,11 @@
-from telebot import TeleBot
 from telebot.types import CallbackQuery, Message
 import threading
 import time
 from datetime import datetime, timedelta
+import logging
 
+# Importar la instancia del bot directamente
+from bot.bot_instance import bot
 import config
 from bot.keyboards.markup_creator import back_markup
 from bot.utils.messages import payment_processing, payment_success, admin_new_subscription_notification
@@ -11,6 +13,9 @@ from bot.utils.animations import start_payment_animation
 from db.repository.user_repo import UserRepository
 from db.repository.subscription_repo import SubscriptionRepository
 from db.database import SessionLocal
+
+# Configuración de logging para este módulo
+logger = logging.getLogger(__name__)
 
 # Simulación de procesamiento de pago (en un escenario real se usarían las APIs reales)
 def process_payment_simulation(payment_method, plan_type, user_id):
@@ -29,17 +34,18 @@ def process_payment_simulation(payment_method, plan_type, user_id):
     
     return True, payment_id
 
-def handle_payment_callback(call: CallbackQuery, bot: TeleBot):
+def handle_payment_callback(call):
     """
     Maneja los callbacks relacionados con pagos.
     
     Args:
         call: Datos del callback
-        bot: Instancia del bot
     """
     # Verificar si es un callback de pago
     if not call.data.startswith("pay_"):
         return
+    
+    logger.info(f"Procesando callback de pago: {call.data}")
     
     # Parse del callback data
     parts = call.data.split("_")
@@ -128,7 +134,7 @@ def handle_payment_callback(call: CallbackQuery, bot: TeleBot):
                         )
                     except Exception as e:
                         # Ignorar errores al enviar a admins
-                        pass
+                        logger.error(f"Error al notificar admin {admin_id}: {str(e)}")
                 
             finally:
                 db.close()
@@ -154,16 +160,23 @@ def handle_payment_callback(call: CallbackQuery, bot: TeleBot):
             text=f"❌ Error inesperado: {str(e)}",
             reply_markup=back_markup("back_to_plans")
         )
+        
+        # Registrar error
+        logger.error(f"Error en procesamiento de pago: {str(e)}")
+        logger.error(traceback.format_exc())
 
-def register_payment_handlers(bot: TeleBot):
+def register_payment_handlers(bot_instance):
     """
     Registra los handlers relacionados con pagos.
     
     Args:
-        bot: Instancia del bot
+        bot_instance: Instancia del bot
     """
-    bot.register_callback_query_handler(
-        callback=handle_payment_callback,
-        func=lambda call: call.data and call.data.startswith("pay_"),
-        pass_bot=True
+    logger.info("Registrando handler para pagos")
+    
+    bot_instance.register_callback_query_handler(
+        handle_payment_callback,
+        func=lambda call: call.data and call.data.startswith("pay_")
     )
+    
+    logger.info("Handler para pagos registrado correctamente")

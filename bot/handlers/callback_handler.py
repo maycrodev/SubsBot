@@ -1,8 +1,9 @@
-from telebot import TeleBot
 from telebot.types import CallbackQuery
 import logging
 import traceback
 
+# Importar la instancia del bot directamente
+from bot.bot_instance import bot
 import config
 from bot.keyboards.markup_creator import (
     welcome_markup, plans_markup, payment_methods_markup, back_markup
@@ -15,13 +16,12 @@ from bot.utils.messages import (
 # Configuración de logging para este módulo
 logger = logging.getLogger(__name__)
 
-def handle_callback(call: CallbackQuery, bot: TeleBot):
+def handle_callback(call):
     """
     Maneja los callbacks de los botones inline.
     
     Args:
         call: Datos del callback
-        bot: Instancia del bot
     """
     try:
         # Registrar información para depuración
@@ -129,20 +129,19 @@ def handle_callback(call: CallbackQuery, bot: TeleBot):
         except Exception:
             pass
 
-def register_callback_handlers(bot: TeleBot):
+def register_callback_handlers(bot_instance):
     """
     Registra los handlers para los callbacks de botones.
     
     Args:
-        bot: Instancia del bot
+        bot_instance: Instancia del bot
     """
     logger.info("Registrando handler para callbacks generales")
     
-    # Registrar manejador para todos los callbacks - CORREGIDO
-    bot.register_callback_query_handler(
-        callback=handle_callback,
-        func=lambda call: True,  # Manejar todos los callbacks
-        pass_bot=True
+    # Registrar manejador para todos los callbacks - FORMA CORRECTA
+    bot_instance.register_callback_query_handler(
+        handle_callback,
+        func=lambda call: True  # Manejar todos los callbacks
     )
     
     logger.info("Handler para callbacks registrado correctamente")

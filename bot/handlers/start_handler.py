@@ -1,8 +1,9 @@
-from telebot import TeleBot
 from telebot.types import Message
 import logging
 import traceback
 
+# Importar la instancia del bot directamente
+from bot.bot_instance import bot
 from bot.keyboards.markup_creator import welcome_markup
 from bot.utils.messages import welcome_message
 from db.repository.user_repo import UserRepository
@@ -11,14 +12,13 @@ from db.database import SessionLocal
 # Configuración de logging para este módulo
 logger = logging.getLogger(__name__)
 
-def start_command(message: Message, bot: TeleBot):
+def start_command(message):
     """
     Maneja el comando /start del bot.
     Muestra el mensaje de bienvenida y los botones principales.
     
     Args:
         message: Mensaje del usuario
-        bot: Instancia del bot
     """
     try:
         # Log para depuración
@@ -91,20 +91,19 @@ def start_command(message: Message, bot: TeleBot):
         except Exception as reply_error:
             logger.error(f"No se pudo enviar mensaje de error: {str(reply_error)}")
 
-def register_start_handlers(bot: TeleBot):
+def register_start_handlers(bot_instance):
     """
     Registra todos los handlers relacionados con el inicio del bot.
     
     Args:
-        bot: Instancia del bot
+        bot_instance: Instancia del bot
     """
     logger.info("Registrando handler para comando /start")
     
-    # Registrar el handler del comando /start - CORREGIDO
-    bot.register_message_handler(
-        callback=start_command,
-        commands=['start'],
-        pass_bot=True
+    # Registrar el handler del comando /start de manera simplificada
+    bot_instance.register_message_handler(
+        start_command,
+        commands=['start']
     )
     
     logger.info("Handler para comando /start registrado correctamente")
