@@ -472,7 +472,7 @@ def perform_group_security_check(bot, group_id):
         # Convertir group_id a string para comparación consistente
         group_id_str = str(group_id)
         
-        logger.info(f"Iniciando verificación automática de seguridad del grupo {group_id_str}")
+        logger.info(f"Iniciando verificación de seguridad del grupo {group_id_str}")
         
         # Verificar que el bot tenga permisos necesarios
         try:
@@ -485,7 +485,7 @@ def perform_group_security_check(bot, group_id):
                     try:
                         bot.send_message(
                             chat_id=admin_id,
-                            text=f"⚠️ ALERTA DE SEGURIDAD CRÍTICA: El bot no tiene permisos de administrador en el grupo VIP.\n\nLa verificación automática de seguridad no puede ejecutarse. Por favor, haga al bot administrador del grupo."
+                            text=f"⚠️ ALERTA DE SEGURIDAD CRÍTICA: El bot no tiene permisos de administrador en el grupo VIP.\n\nLa verificación de seguridad no puede ejecutarse. Por favor, haga al bot administrador del grupo inmediatamente."
                         )
                     except Exception as e:
                         logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
@@ -498,7 +498,7 @@ def perform_group_security_check(bot, group_id):
                     try:
                         bot.send_message(
                             chat_id=admin_id,
-                            text=f"⚠️ ALERTA DE SEGURIDAD CRÍTICA: El bot es administrador pero no tiene permiso específico para expulsar miembros en el grupo VIP.\n\nPor favor, edite los permisos del bot y active 'Expulsar usuarios'."
+                            text=f"⚠️ ALERTA DE SEGURIDAD CRÍTICA: El bot es administrador pero no tiene permiso específico para expulsar miembros en el grupo VIP.\n\nPor favor, edite los permisos del bot y active 'Expulsar usuarios' inmediatamente."
                         )
                     except Exception as e:
                         logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
@@ -528,8 +528,20 @@ def perform_group_security_check(bot, group_id):
         members = []
         try:
             # Obtener miembros visibles (hasta 200, límite de Telegram)
-            chat_members = bot.get_chat_members(chat_id=group_id, offset=0, limit=200)
-            members.extend(chat_members)
+            # Utilizar get_chat_members_count primero para saber cuántos miembros hay
+            members_count = bot.get_chat_members_count(chat_id=group_id)
+            logger.info(f"El grupo tiene aproximadamente {members_count} miembros")
+            
+            # Obtener miembros en lotes de 50
+            offset = 0
+            while offset < min(members_count, 1000):  # Límite de 1000 para evitar bucles infinitos
+                chat_members = bot.get_chat_members(chat_id=group_id, offset=offset, limit=50)
+                if not chat_members:
+                    break
+                members.extend(chat_members)
+                offset += 50
+                logger.info(f"Obtenidos {len(members)} miembros hasta ahora")
+            
             logger.info(f"Obtenidos {len(members)} miembros del grupo para verificación")
         except Exception as e:
             logger.error(f"Error al obtener miembros del grupo: {e}")
@@ -538,7 +550,7 @@ def perform_group_security_check(bot, group_id):
                 try:
                     bot.send_message(
                         chat_id=admin_id,
-                        text=f"⚠️ Error en verificación automática: No se pudieron obtener miembros del grupo.\nError: {str(e)}"
+                        text=f"⚠️ Error en verificación de seguridad: No se pudieron obtener todos los miembros del grupo.\nError: {str(e)}"
                     )
                 except:
                     pass
@@ -546,6 +558,9 @@ def perform_group_security_check(bot, group_id):
         
         # Identificar miembros no autorizados
         unauthorized_members = []
+        authorized_count = 0
+        admin_count = 0
+        bot_count = 0
         
         for member in members:
             member_id = member.user.id
@@ -553,11 +568,13 @@ def perform_group_security_check(bot, group_id):
             
             # Omitir bots
             if member.user.is_bot:
+                bot_count += 1
                 logger.debug(f"Omitiendo bot: {username}")
                 continue
                 
             # Omitir administradores
             if member_id in admin_ids:
+                admin_count += 1
                 logger.debug(f"Omitiendo administrador: {username}")
                 continue
             
@@ -565,74 +582,104 @@ def perform_group_security_check(bot, group_id):
             subscription = db.get_active_subscription(member_id)
             if not subscription:
                 logger.warning(f"⚠️ MIEMBRO NO AUTORIZADO: {member_id} (@{username})")
-                unauthorized_members.append((member_id, username))
-                
-                # Información del usuario para los logs
-                first_name = getattr(member.user, 'first_name', '') or ''
-                last_name = getattr(member.user, 'last_name', '') or ''
-                full_name = f"{first_name} {last_name}".strip() or "Usuario"
-                
-                # Intentar expulsar de inmediato sin esperar
-                try:
-                    logger.info(f"Expulsando a usuario no autorizado: {member_id} (@{username})")
-                    
-                    # Notificar al grupo sobre la expulsión
-                    bot.send_message(
-                        chat_id=group_id,
-                        text=f"🛑 SEGURIDAD: Usuario {full_name} (@{username}) no tiene suscripción activa y será expulsado automáticamente."
-                    )
-                    
-                    # Expulsar al usuario
-                    ban_result = bot.ban_chat_member(
-                        chat_id=group_id,
-                        user_id=member_id
-                    )
-                    
-                    # Desbanear inmediatamente para permitir que vuelva a unirse si obtiene suscripción
-                    unban_result = bot.unban_chat_member(
-                        chat_id=group_id,
-                        user_id=member_id,
-                        only_if_banned=True
-                    )
-                    
-                    # Registrar la expulsión en la base de datos
-                    db.record_expulsion(member_id, "Verificación automática - Sin suscripción activa")
-                    
-                    # Enviar mensaje privado al usuario
-                    try:
-                        bot.send_message(
-                            chat_id=member_id,
-                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara volver a unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
-                        )
-                    except Exception as e:
-                        logger.error(f"No se pudo enviar mensaje privado a {member_id}: {e}")
-                    
-                    # Notificar a los administradores
-                    for admin_id in ADMIN_IDS:
-                        try:
-                            bot.send_message(
-                                chat_id=admin_id,
-                                text=f"🛑 SEGURIDAD AUTOMÁTICA: Usuario {full_name} (@{username}) ID:{member_id} fue expulsado por no tener suscripción activa."
-                            )
-                        except Exception as e:
-                            logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
-                    
-                except Exception as e:
-                    logger.error(f"ERROR al expulsar a usuario no autorizado {member_id}: {e}")
+                unauthorized_members.append((member_id, username, member.user))
+            else:
+                authorized_count += 1
+                logger.debug(f"Miembro autorizado: {username}")
         
-        # Resumen final
-        logger.info(f"Verificación de seguridad completada: {len(unauthorized_members)} miembros no autorizados identificados y expulsados")
+        # Log resumen antes de empezar expulsiones
+        logger.info(f"Resumen de verificación: {len(unauthorized_members)} no autorizados, {authorized_count} autorizados, {admin_count} administradores, {bot_count} bots")
         
-        # Notificar resultados a administradores
+        # Mostrar lista de usuarios no autorizados a los administradores
         if unauthorized_members:
+            unauthorized_list = "\n".join([f"• {user[1]} (ID: {user[0]})" for user in unauthorized_members[:20]])
+            if len(unauthorized_members) > 20:
+                unauthorized_list += f"\n... y {len(unauthorized_members) - 20} más"
+                
             for admin_id in ADMIN_IDS:
                 try:
                     bot.send_message(
                         chat_id=admin_id,
-                        text=f"✅ Verificación automática completada: Se expulsaron {len(unauthorized_members)} usuarios sin suscripción activa."
+                        text=f"⚠️ SEGURIDAD: Se encontraron {len(unauthorized_members)} usuarios sin suscripción activa:\n\n{unauthorized_list}\n\nSe procederá con la expulsión automática."
                     )
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
+            
+            # Enviar mensaje al grupo sobre la verificación
+            try:
+                bot.send_message(
+                    chat_id=group_id,
+                    text=f"🛡️ VERIFICACIÓN DE SEGURIDAD: Se detectaron {len(unauthorized_members)} usuarios sin suscripción activa que serán expulsados."
+                )
+            except Exception as e:
+                logger.error(f"No se pudo enviar mensaje al grupo: {e}")
+        
+        # Expulsar a los miembros no autorizados
+        expulsion_count = 0
+        expulsion_errors = 0
+        
+        for member_id, username, user_obj in unauthorized_members:
+            try:
+                # Información del usuario para los logs
+                first_name = getattr(user_obj, 'first_name', '') or ''
+                last_name = getattr(user_obj, 'last_name', '') or ''
+                full_name = f"{first_name} {last_name}".strip() or "Usuario"
+                
+                logger.info(f"Expulsando a usuario no autorizado: {member_id} (@{username})")
+                
+                # Expulsar al usuario
+                ban_result = bot.ban_chat_member(
+                    chat_id=group_id,
+                    user_id=member_id
+                )
+                
+                # Desbanear inmediatamente para permitir que vuelva a unirse si obtiene suscripción
+                unban_result = bot.unban_chat_member(
+                    chat_id=group_id,
+                    user_id=member_id,
+                    only_if_banned=True
+                )
+                
+                # Registrar la expulsión en la base de datos
+                db.record_expulsion(member_id, "Verificación de seguridad - Sin suscripción activa")
+                
+                # Enviar mensaje privado al usuario
+                try:
+                    bot.send_message(
+                        chat_id=member_id,
+                        text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara volver a unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
+                    )
+                except Exception as e:
+                    logger.error(f"No se pudo enviar mensaje privado a {member_id}: {e}")
+                
+                expulsion_count += 1
+                
+            except Exception as e:
+                logger.error(f"ERROR al expulsar a usuario no autorizado {member_id}: {e}")
+                expulsion_errors += 1
+        
+        # Resumen final
+        logger.info(f"Verificación de seguridad completada: {expulsion_count} miembros expulsados, {expulsion_errors} errores")
+        
+        # Notificar resultados a administradores
+        for admin_id in ADMIN_IDS:
+            try:
+                bot.send_message(
+                    chat_id=admin_id,
+                    text=f"✅ Verificación de seguridad completada:\n• {expulsion_count} usuarios expulsados\n• {expulsion_errors} errores de expulsión\n• {authorized_count} usuarios con suscripción válida"
+                )
+            except:
+                pass
+        
+        # Notificar al grupo sobre la finalización
+        if expulsion_count > 0:
+            try:
+                bot.send_message(
+                    chat_id=group_id,
+                    text=f"✅ Verificación de seguridad completada: {expulsion_count} usuarios sin suscripción activa han sido expulsados."
+                )
+            except Exception as e:
+                logger.error(f"No se pudo enviar mensaje final al grupo: {e}")
         
         return True
         
@@ -643,16 +690,62 @@ def perform_group_security_check(bot, group_id):
             try:
                 bot.send_message(
                     chat_id=admin_id,
-                    text=f"❌ Error en verificación automática de seguridad: {str(e)}"
+                    text=f"❌ Error en verificación de seguridad: {str(e)}"
                 )
             except:
                 pass
         return False
 
+def check_and_fix_bot_permissions(message, bot):
+    """Verifica y corrige los permisos del bot en el grupo VIP"""
+    try:
+        user_id = message.from_user.id
+        
+        # Verificar que sea un administrador
+        if user_id not in ADMIN_IDS:
+            return
+            
+        from config import GROUP_CHAT_ID
+        if not GROUP_CHAT_ID:
+            bot.reply_to(message, "❌ Error: GROUP_CHAT_ID no está configurado")
+            return
+            
+        # Obtener información del bot en el grupo
+        try:
+            bot_member = bot.get_chat_member(GROUP_CHAT_ID, bot.get_me().id)
+            
+            status_message = f"📊 Estado del bot en el grupo:\n"
+            
+            # Verificar si es administrador
+            if bot_member.status not in ['administrator', 'creator']:
+                status_message += "❌ El bot NO es administrador del grupo. Debe ser promovido a administrador.\n"
+            else:
+                status_message += "✅ El bot es administrador del grupo.\n"
+                
+                # Verificar permisos específicos
+                if not getattr(bot_member, 'can_restrict_members', False):
+                    status_message += "❌ El bot NO tiene permiso para expulsar usuarios. Este permiso es OBLIGATORIO.\n"
+                else:
+                    status_message += "✅ El bot tiene permiso para expulsar usuarios.\n"
+                    
+                if not getattr(bot_member, 'can_invite_users', False):
+                    status_message += "⚠️ El bot no tiene permiso para invitar usuarios (recomendado).\n"
+                else:
+                    status_message += "✅ El bot tiene permiso para invitar usuarios.\n"
+            
+            # Enviar mensaje con el estado
+            bot.reply_to(message, status_message)
+            
+        except Exception as e:
+            bot.reply_to(message, f"❌ Error al verificar permisos: {str(e)}")
+            
+    except Exception as e:
+        logger.error(f"Error en check_and_fix_bot_permissions: {str(e)}")
 
 # 2. MEJORA DEL COMANDO /verify_all
 # Reemplaza la función handle_verify_all_members con esta versión mejorada:
 
+# Esta función ya existe en el código pero asegúrate de que esté correctamente configurada
 def handle_verify_all_members(message, bot):
     """
     Comando para verificar y expulsar manualmente a todos los miembros no autorizados del grupo
@@ -662,18 +755,18 @@ def handle_verify_all_members(message, bot):
         chat_id = message.chat.id
         
         # Log para depuración
-        logger.info(f"Comando /verify_all recibido de usuario {user_id} en chat {chat_id}")
+        logger.info(f"Comando {message.text} recibido de usuario {user_id} en chat {chat_id}")
         
         # Verificar que sea un administrador
         if user_id not in ADMIN_IDS:
-            logger.info(f"Usuario {user_id} intentó usar /verify_all pero no es administrador")
+            logger.info(f"Usuario {user_id} intentó usar {message.text} pero no es administrador")
             bot.reply_to(message, "⚠️ Este comando solo está disponible para administradores.")
             return
         
         # Verificar que el mensaje sea del grupo VIP o de un chat privado con el administrador
         from config import GROUP_CHAT_ID
         if str(chat_id) != str(GROUP_CHAT_ID) and message.chat.type != 'private':
-            logger.info(f"Comando /verify_all usado en chat incorrecto {chat_id}")
+            logger.info(f"Comando {message.text} usado en chat incorrecto {chat_id}")
             bot.reply_to(message, f"⚠️ Este comando solo funciona en el grupo VIP o en chat privado con el bot.")
             return
         
@@ -867,6 +960,11 @@ def handle_new_chat_members(message, bot):
 
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
+
+    bot.register_message_handler(
+    lambda message: check_and_fix_bot_permissions(message, bot),
+    commands=['check_bot_permissions']
+    )   
     # Handler para el comando /start
     bot.register_message_handler(lambda message: handle_start(message, bot), commands=['start'])
     
