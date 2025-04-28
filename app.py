@@ -701,6 +701,74 @@ def index():
     """Página simple para confirmar que el servidor está funcionando"""
     return "Bot Server Running!", 200
 
+# Justo antes de set_webhook()
+def verify_bot_permissions():
+    """Verifica que el bot tenga los permisos correctos en el grupo VIP"""
+    try:
+        from config import GROUP_CHAT_ID, ADMIN_IDS, BOT_TOKEN
+        import requests
+        
+        if not GROUP_CHAT_ID:
+            logger.warning("GROUP_CHAT_ID no está configurado, omitiendo verificación de permisos")
+            return
+        
+        # Usar la API directamente para evitar circularidad de importaciones
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getChatMember"
+        params = {
+            "chat_id": GROUP_CHAT_ID,
+            "user_id": bot.get_me().id
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        if not data.get("ok"):
+            logger.error(f"Error al verificar permisos del bot: {data.get('description')}")
+            for admin_id in ADMIN_IDS:
+                requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    params={
+                        "chat_id": admin_id,
+                        "text": f"⚠️ ALERTA: El bot no puede acceder al grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPor favor, añada el bot al grupo y asígnele permisos de administrador."
+                    }
+                )
+            return
+        
+        chat_member = data.get("result", {})
+        status = chat_member.get("status")
+        
+        if status not in ["administrator", "creator"]:
+            logger.error(f"El bot no es administrador en el grupo VIP. Status: {status}")
+            for admin_id in ADMIN_IDS:
+                requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    params={
+                        "chat_id": admin_id,
+                        "text": f"⚠️ ALERTA: El bot no es administrador en el grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPor favor, haga al bot administrador para que pueda expulsar usuarios no autorizados."
+                    }
+                )
+            return
+        
+        # Verificar permiso específico para expulsar
+        can_restrict = chat_member.get("can_restrict_members", False)
+        
+        if not can_restrict:
+            logger.error("El bot es administrador pero no tiene permiso para expulsar miembros")
+            for admin_id in ADMIN_IDS:
+                requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    params={
+                        "chat_id": admin_id,
+                        "text": f"⚠️ ALERTA: El bot es administrador pero NO tiene permiso para EXPULSAR USUARIOS en el grupo VIP.\n\nPor favor, edite los permisos del bot y active 'Expulsar usuarios'."
+                    }
+                )
+            return
+        
+        logger.info(f"✅ Permisos del bot verificados correctamente: {status}, can_restrict_members: {can_restrict}")
+        
+    except Exception as e:
+        logger.error(f"Error al verificar permisos del bot: {e}")
+
 def set_webhook():
     """Configura el webhook de Telegram"""
     try:
@@ -767,6 +835,12 @@ if __name__ == "__main__":
                 chat_id=message.chat.id,
                 text="❌ Ocurrió un error. Por favor, intenta nuevamente más tarde."
             )
+    
+    # Registrar handler para nuevos miembros que se unen al grupo
+    @bot.message_handler(content_types=['new_chat_members'])
+    def handle_new_members_direct(message):
+        logger.info(f"Nuevo miembro detectado en chat {message.chat.id}: {[member.id for member in message.new_chat_members]}")
+        bot_handlers.handle_new_chat_members(message, bot)
     
     # Manejar callbacks de los botones del menú principal
     @bot.callback_query_handler(func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms', 'tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'] or call.data.startswith('payment_paypal_'))
@@ -990,6 +1064,9 @@ if __name__ == "__main__":
     
     # Registramos también el handler para otros comandos
     bot_handlers.register_handlers(bot)
+    
+    # Verificar permisos del bot antes de iniciar
+    bot_handlers.verify_bot_permissions()
     
     # Verificar si estamos en desarrollo local o en producción
     if os.environ.get('ENVIRONMENT') == 'development':
