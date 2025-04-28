@@ -38,10 +38,23 @@ def webhook():
             
             # Registrar el tipo de actualización
             if update.message:
-                logger.info(f"Mensaje recibido de {update.message.from_user.id}: {update.message.text}")
+                if update.message.text:
+                    logger.info(f"Mensaje recibido de {update.message.from_user.id}: {update.message.text}")
+                else:
+                    logger.info(f"Evento recibido de {update.message.from_user.id}")
+                    
+                # Manejar directamente new_chat_members aquí
+                if update.message.new_chat_members:
+                    logger.info(f"Nuevos miembros detectados: {[m.id for m in update.message.new_chat_members]}")
+                    try:
+                        bot_handlers.handle_new_chat_members(update.message, bot)
+                        return 'OK', 200
+                    except Exception as e:
+                        logger.error(f"Error procesando nuevos miembros: {str(e)}")
                 
-                # Manejar directamente el comando /start aquí por ahora
+                # Continuar con el manejo del mensaje /start
                 if update.message.text == '/start':
+                    # [código existente para /start]
                     logger.info("¡Comando /start detectado! Enviando respuesta directa...")
                     
                     try:

@@ -892,14 +892,18 @@ def handle_new_chat_members(message, bot):
     try:
         from config import GROUP_CHAT_ID
         
+        logger.info(f"Procesando nuevos miembros en el chat {message.chat.id}")
+        
         # Verificar que sea el grupo VIP
         if str(message.chat.id) != str(GROUP_CHAT_ID):
+            logger.info(f"Chat {message.chat.id} no es el grupo VIP ({GROUP_CHAT_ID}), ignorando")
             return
             
         # Obtener los nuevos miembros
         for new_member in message.new_chat_members:
             # Omitir si es el propio bot
             if new_member.id == bot.get_me().id:
+                logger.info("El bot se unió al grupo, ignorando")
                 continue
                 
             # Verificar si el usuario tiene suscripción activa
@@ -915,7 +919,7 @@ def handle_new_chat_members(message, bot):
             
             if not subscription:
                 # No tiene suscripción activa, expulsar
-                logger.warning(f"Usuario sin suscripción detectado al unirse: {username} (ID: {user_id})")
+                logger.warning(f"⚠️ USUARIO SIN SUSCRIPCIÓN DETECTADO: {user_id} (@{username})")
                 
                 try:
                     # Enviar mensaje al grupo
@@ -925,14 +929,20 @@ def handle_new_chat_members(message, bot):
                     )
                     
                     # Expulsar al usuario
-                    bot.ban_chat_member(chat_id=message.chat.id, user_id=user_id)
+                    logger.info(f"Expulsando a usuario sin suscripción: {user_id}")
+                    ban_result = bot.ban_chat_member(
+                        chat_id=message.chat.id,
+                        user_id=user_id
+                    )
+                    logger.info(f"Resultado de expulsión: {ban_result}")
                     
                     # Desbanear inmediatamente para permitir que vuelva a unirse si obtiene suscripción
-                    bot.unban_chat_member(
+                    unban_result = bot.unban_chat_member(
                         chat_id=message.chat.id,
                         user_id=user_id,
                         only_if_banned=True
                     )
+                    logger.info(f"Resultado de desbaneo: {unban_result}")
                     
                     # Registrar la expulsión
                     db.record_expulsion(user_id, "Verificación de nuevo miembro - Sin suscripción activa")
@@ -952,7 +962,7 @@ def handle_new_chat_members(message, bot):
                 logger.info(f"Usuario {username} (ID: {user_id}) se unió al grupo con suscripción válida")
     
     except Exception as e:
-        logger.error(f"Error en handle_new_chat_members: {str(e)}")
+        logger.error(f"Error general en handle_new_chat_members: {str(e)}")
 
 
 # 4. MEJORA EN LA FUNCIÓN DE REGISTRO DE HANDLERS
