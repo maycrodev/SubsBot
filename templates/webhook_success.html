@@ -1,73 +1,784 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Suscripción VIP</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f5f5;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            text-align: center;
-        }
-        .container {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            max-width: 500px;
-            width: 90%;
-        }
-        h1 {
-            color: #2e86de;
-            margin-bottom: 20px;
-        }
-        .message {
-            color: #333;
-            line-height: 1.6;
-            margin-bottom: 25px;
-        }
-        .success {
-            color: #27ae60;
-            font-weight: bold;
-        }
-        .error {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-        .button {
-            display: inline-block;
-            background-color: #2e86de;
-            color: white;
-            text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            font-weight: bold;
-            transition: background-color 0.3s;
-        }
-        .button:hover {
-            background-color: #1c71c7;
-        }
-        .logo {
-            margin-bottom: 20px;
-            font-size: 48px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Velvet VIP Premium</title>
+  <style>
+    /* Root variables with new color palette */
+    :root {
+      --cream: #EDE7C7;
+      --deep-red: #BB0000;
+      --burgundy: #580202;
+      --dark-brown: #200E01;
+      --primary-gradient: linear-gradient(135deg, var(--burgundy) 0%, var(--deep-red) 100%);
+      --secondary-gradient: linear-gradient(135deg, var(--deep-red) 0%, var(--burgundy) 100%);
+      --accent-gradient: linear-gradient(135deg, var(--dark-brown) 0%, var(--burgundy) 100%);
+      --bg-color: var(--cream);
+      --bg-gradient: linear-gradient(135deg, #ffffff 0%, var(--cream) 100%);
+      --text-dark: var(--dark-brown);
+      --text-light: #ffffff;
+      --transition: 0.4s cubic-bezier(0.215, 0.61, 0.355, 1);
+      --font-primary: 'Playfair Display', 'Times New Roman', serif;
+      --font-secondary: 'Poppins', 'Segoe UI', sans-serif;
+    }
+    
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+    }
+    
+    body {
+      font-family: var(--font-secondary);
+      background: var(--bg-gradient);
+      color: var(--text-dark);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: hidden;
+      perspective: 1000px;
+      padding: 20px;
+    }
+    
+    /* Improved animated background elements */
+    .bg-element {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(60px);
+      z-index: -1;
+      opacity: 0.3;
+      animation: floatAnimation 20s infinite alternate ease-in-out;
+    }
+    
+    .bg-element.one {
+      width: 500px;
+      height: 500px;
+      background: var(--primary-gradient);
+      top: -150px;
+      left: -100px;
+      animation-duration: 25s;
+    }
+    
+    .bg-element.two {
+      width: 400px;
+      height: 400px;
+      background: var(--secondary-gradient);
+      bottom: -100px;
+      right: -50px;
+      animation-duration: 20s;
+      animation-delay: 2s;
+    }
+    
+    .bg-element.three {
+      width: 300px;
+      height: 300px;
+      background: var(--accent-gradient);
+      top: 40%;
+      left: 10%;
+      animation-duration: 30s;
+      animation-delay: 1s;
+    }
+    
+    @keyframes floatAnimation {
+      0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+      25% { transform: translate(50px, 20px) rotate(5deg) scale(1.1); }
+      50% { transform: translate(20px, 50px) rotate(10deg) scale(0.9); }
+      75% { transform: translate(-30px, 30px) rotate(5deg) scale(1.05); }
+      100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    }
+    
+    /* Enhanced Container with golden border */
+    .container {
+      position: relative;
+      max-width: 1100px;
+      width: 100%;
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+      overflow: hidden;
+      transform-style: preserve-3d;
+      animation: containerReveal 1.2s var(--transition);
+      border: 1px solid rgba(237, 231, 199, 0.5);
+    }
+    
+    @keyframes containerReveal {
+      from { opacity: 0; transform: translateY(40px) rotateX(10deg); }
+      to { opacity: 1; transform: translateY(0) rotateX(0); }
+    }
+    
+    /* Elegant Header section */
+    header {
+      background: var(--primary-gradient);
+      padding: 60px 30px 80px;
+      text-align: center;
+      color: white;
+      position: relative;
+      overflow: hidden;
+      clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
+    }
+    
+    .brand-logo {
+      font-family: var(--font-primary);
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      background: linear-gradient(to right, var(--cream) 0%, #ffffff 50%, var(--cream) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer 3s infinite;
+      background-size: 200% auto;
+    }
+    
+    @keyframes shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    
+    header .logo {
+      font-size: 70px;
+      position: relative;
+      display: inline-block;
+      animation: logoAnimation 5s infinite alternate ease-in-out;
+      margin-bottom: 15px;
+    }
+    
+    @keyframes logoAnimation {
+      0% { transform: translateY(0) rotate(0); filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2)); }
+      100% { transform: translateY(-15px) rotate(5deg); filter: drop-shadow(0 15px 25px rgba(0,0,0,0.3)); }
+    }
+    
+    header h1 {
+      font-family: var(--font-primary);
+      font-size: 3.5rem;
+      font-weight: 800;
+      margin-top: 15px;
+      letter-spacing: 1px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      animation: titleReveal 1.4s var(--transition);
+    }
+    
+    @keyframes titleReveal {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .header-shapes {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      opacity: 0.2;
+      pointer-events: none;
+    }
+    
+    .header-shape {
+      position: absolute;
+      background: var(--cream);
+      border-radius: 50%;
+    }
+    
+    .header-shape.one {
+      width: 150px;
+      height: 150px;
+      top: -40px;
+      left: 10%;
+      animation: shapeFloat 12s infinite alternate ease-in-out;
+    }
+    
+    .header-shape.two {
+      width: 100px;
+      height: 100px;
+      bottom: 20px;
+      right: 15%;
+      animation: shapeFloat 9s 1s infinite alternate ease-in-out;
+    }
+    
+    .header-shape.three {
+      width: 70px;
+      height: 70px;
+      top: 40%;
+      right: 5%;
+      animation: shapeFloat 15s 2s infinite alternate ease-in-out;
+    }
+    
+    @keyframes shapeFloat {
+      0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+      100% { transform: translate(20px, 20px) scale(1.2) rotate(10deg); }
+    }
+    
+    /* Message section with improved styling */
+    .message-wrapper {
+      padding: 50px 30px;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+      transform: translateY(-40px);
+      background: white;
+      border-radius: 20px 20px 0 0;
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.05);
+    }
+    
+    .message {
+      font-size: 1.4rem;
+      line-height: 1.6;
+      margin-bottom: 35px;
+      font-weight: 500;
+      animation: messageReveal 1.6s var(--transition);
+    }
+    
+    @keyframes messageReveal {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .message.success { 
+      color: var(--burgundy); 
+      text-shadow: 0 2px 10px rgba(88,2,2,0.1);
+    }
+    
+    .message.error { 
+      color: #d63031; 
+      text-shadow: 0 2px 10px rgba(214,48,49,0.1);
+    }
+    
+    .button {
+      display: inline-block;
+      background: var(--secondary-gradient);
+      color: white;
+      text-decoration: none;
+      padding: 18px 44px;
+      border-radius: 50px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      box-shadow: 0 10px 20px rgba(88,2,2,0.3);
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+      animation: buttonReveal 1.8s var(--transition);
+    }
+    
+    @keyframes buttonReveal {
+      from { opacity: 0; transform: translateY(20px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    
+    .button:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 25px rgba(88,2,2,0.4);
+    }
+    
+    .button:active {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 15px rgba(88,2,2,0.4);
+    }
+    
+    .button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: all 0.8s;
+    }
+    
+    .button:hover::before {
+      left: 100%;
+    }
+    
+    /* Expanded Features section with 6 cards */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 25px;
+      padding: 20px 30px 50px;
+      background: white;
+    }
+    
+    .feature-card {
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.08);
+      text-align: center;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+      z-index: 1;
+      animation: featureReveal 1.2s var(--transition);
+      animation-fill-mode: both;
+      border: 1px solid rgba(237, 231, 199, 0.3);
+    }
+    
+    .feature-card:nth-child(1) { animation-delay: 0.2s; }
+    .feature-card:nth-child(2) { animation-delay: 0.4s; }
+    .feature-card:nth-child(3) { animation-delay: 0.6s; }
+    .feature-card:nth-child(4) { animation-delay: 0.8s; }
+    .feature-card:nth-child(5) { animation-delay: 1.0s; }
+    .feature-card:nth-child(6) { animation-delay: 1.2s; }
+    
+    @keyframes featureReveal {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: var(--primary-gradient);
+      z-index: -1;
+      transition: all var(--transition);
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-15px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+    
+    .feature-card:hover::before {
+      height: 100%;
+      opacity: 0.1;
+    }
+    
+    .feature-card .icon {
+      font-size: 3.5rem;
+      margin-bottom: 20px;
+      display: inline-block;
+      transition: all var(--transition);
+    }
+    
+    .feature-card:nth-child(1) .icon { color: var(--burgundy); }
+    .feature-card:nth-child(2) .icon { color: var(--deep-red); }
+    .feature-card:nth-child(3) .icon { color: var(--dark-brown); }
+    .feature-card:nth-child(4) .icon { color: var(--burgundy); }
+    .feature-card:nth-child(5) .icon { color: var(--deep-red); }
+    .feature-card:nth-child(6) .icon { color: var(--dark-brown); }
+    
+    .feature-card:hover .icon {
+      transform: scale(1.2) rotate(10deg);
+    }
+    
+    .feature-card h3 {
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      transition: all var(--transition);
+      font-family: var(--font-primary);
+      color: var(--text-dark);
+    }
+    
+    .feature-card p {
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #555;
+      transition: all var(--transition);
+    }
+    
+    /* New Benefits section with counter effect */
+    .benefits {
+      padding: 80px 30px;
+      background: var(--bg-color);
+      clip-path: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
+      position: relative;
+      text-align: center;
+    }
+    
+    .benefits-title {
+      font-family: var(--font-primary);
+      text-align: center;
+      font-size: 2.5rem;
+      margin-bottom: 60px;
+      color: var(--text-dark);
+      font-weight: 700;
+      position: relative;
+      display: inline-block;
+    }
+    
+    .benefits-title::after {
+      content: '';
+      position: absolute;
+      bottom: -15px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 3px;
+      background: var(--primary-gradient);
+      border-radius: 2px;
+    }
+    
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 40px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    .benefit-item {
+      text-align: center;
+      animation: benefitReveal 1.2s var(--transition);
+      animation-fill-mode: both;
+    }
+    
+    .benefit-item:nth-child(1) { animation-delay: 0.3s; }
+    .benefit-item:nth-child(2) { animation-delay: 0.6s; }
+    .benefit-item:nth-child(3) { animation-delay: 0.9s; }
+    .benefit-item:nth-child(4) { animation-delay: 1.2s; }
+    
+    @keyframes benefitReveal {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .benefit-counter {
+      font-family: var(--font-primary);
+      font-size: 4rem;
+      font-weight: 700;
+      color: var(--burgundy);
+      margin-bottom: 15px;
+      display: inline-block;
+      position: relative;
+    }
+    
+    .benefit-counter::after {
+      content: '+';
+      position: absolute;
+      top: 0;
+      right: -20px;
+      font-size: 2.5rem;
+      color: var(--deep-red);
+    }
+    
+    .benefit-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+    
+    /* Call to Action section */
+    .cta-section {
+      padding: 60px 30px;
+      text-align: center;
+      background: white;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .cta-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(45deg, rgba(88,2,2,0.03) 0%, rgba(32,14,1,0.03) 100%);
+      z-index: 0;
+    }
+    
+    .cta-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .cta-title {
+      font-family: var(--font-primary);
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 20px;
+      animation: fadeInUp 1s var(--transition);
+    }
+    
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .cta-text {
+      font-size: 1.2rem;
+      line-height: 1.6;
+      color: #555;
+      margin-bottom: 30px;
+      animation: fadeInUp 1.2s var(--transition);
+    }
+    
+    .cta-button {
+      display: inline-block;
+      background: var(--accent-gradient);
+      color: white;
+      text-decoration: none;
+      padding: 18px 44px;
+      border-radius: 50px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      box-shadow: 0 10px 20px rgba(32,14,1,0.25);
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+      animation: fadeInUp 1.4s var(--transition);
+    }
+    
+    .cta-button:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 25px rgba(32,14,1,0.35);
+    }
+    
+    .cta-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: all 0.8s;
+    }
+    
+    .cta-button:hover::before {
+      left: 100%;
+    }
+    
+    /* Footer with improved styling */
+    footer {
+      padding: 40px 30px;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #555;
+      background: white;
+      position: relative;
+      border-top: 1px solid rgba(237, 231, 199, 0.5);
+    }
+    
+    .footer-wave {
+      position: absolute;
+      top: -50px;
+      left: 0;
+      width: 100%;
+      height: 50px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23EDE7C7' fill-opacity='0.3' d='M0,160L48,170.7C96,181,192,203,288,186.7C384,171,480,117,576,117.3C672,117,768,171,864,197.3C960,224,1056,224,1152,197.3C1248,171,1344,117,1392,90.7L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
+      background-size: cover;
+    }
+    
+    .social-links {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    
+    .social-link {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--primary-gradient);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 10px;
+      font-size: 1.2rem;
+      transition: all var(--transition);
+    }
+    
+    .social-link:hover {
+      transform: translateY(-5px) scale(1.1);
+      box-shadow: 0 10px 20px rgba(88,2,2,0.2);
+    }
+    
+    .copyright {
+      margin-top: 20px;
+      font-weight: 500;
+    }
+    
+    /* Enhanced responsive adjustments */
+    @media (max-width: 768px) {
+      header {
+        padding: 40px 20px 60px;
+      }
+      
+      .brand-logo {
+        font-size: 2.3rem;
+      }
+      
+      header h1 {
+        font-size: 2.3rem;
+      }
+      
+      .message {
+        font-size: 1.2rem;
+      }
+      
+      .features {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      
+      .benefits-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      
+      .feature-card {
+        padding: 25px 20px;
+      }
+      
+      .cta-title {
+        font-size: 2rem;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .brand-logo {
+        font-size: 2rem;
+      }
+      
+      header h1 {
+        font-size: 1.8rem;
+      }
+      
+      .logo {
+        font-size: 60px;
+      }
+      
+      .message {
+        font-size: 1.1rem;
+      }
+      
+      .button, .cta-button {
+        padding: 14px 28px;
+        font-size: 1rem;
+      }
+      
+      .benefits-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .benefit-counter {
+        font-size: 3.5rem;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">🎟️</div>
-        <h1>Suscripción VIP</h1>
-        <div class="message {% if 'error' in message.lower() %}error{% else %}success{% endif %}">
-            {{ message }}
-        </div>
-        <a href="https://t.me/VIPSubscriptionBot" class="button">Volver a Telegram</a>
+  <!-- Background animated elements -->
+  <div class="bg-element one"></div>
+  <div class="bg-element two"></div>
+  <div class="bg-element three"></div>
+  
+  <div class="container">
+    <header>
+      <div class="header-shapes">
+        <div class="header-shape one"></div>
+        <div class="header-shape two"></div>
+        <div class="header-shape three"></div>
+      </div>
+      <div class="brand-logo">Velvet VIP</div>
+      <div class="logo">🎟️</div>
+      <h1>Suscripción VIP Premium</h1>
+    </header>
+    
+    <div class="message-wrapper">
+      <div class="message {{ 'error' in message.lower() and 'error' or 'success' }}">
+        {{ message }}
+      </div>
+      <a href="https://t.me/VIPSubscriptionBot" class="button">Volver a Telegram</a>
     </div>
+    
+    <section class="features">
+      <div class="feature-card">
+        <div class="icon">🔒</div>
+        <h3>Acceso Exclusivo</h3>
+        <p>Contenido premium y beneficios reservados únicamente para suscriptores VIP de nuestro selecto grupo.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="icon">🎁</div>
+        <h3>Recompensas Premium</h3>
+        <p>Recibe regalos exclusivos y recompensas mensuales que aumentan el valor de tu suscripción al máximo.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="icon">⚡</div>
+        <h3>Soporte Prioritario</h3>
+        <p>Atención rápida y personalizada las 24 horas para resolver cualquier duda al instante.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="icon">🔔</div>
+        <h3>Notificaciones Anticipadas</h3>
+        <p>Recibe alertas exclusivas antes que nadie sobre lanzamientos, eventos y oportunidades limitadas.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="icon">💎</div>
+        <h3>Contenido Exclusivo</h3>
+        <p>Accede a recursos premium, guías detalladas y análisis avanzados no disponibles para usuarios estándar.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="icon">🚀</div>
+        <h3>Eventos VIP</h3>
+        <p>Participa en eventos exclusivos donde podrás conectar con otros miembros premium y expertos del sector.</p>
+      </div>
+    </section>
+    
+    <section class="benefits">
+      <h2 class="benefits-title">Beneficios Comprobados</h2>
+      <div class="benefits-grid">
+        <div class="benefit-item">
+          <div class="benefit-counter">98</div>
+          <div class="benefit-text">Satisfacción del cliente</div>
+        </div>
+        
+        <div class="benefit-item">
+          <div class="benefit-counter">24</div>
+          <div class="benefit-text">Atención al cliente</div>
+        </div>
+        
+        <div class="benefit-item">
+          <div class="benefit-counter">365</div>
+          <div class="benefit-text">Días de acceso premium</div>
+        </div>
+        
+        <div class="benefit-item">
+          <div class="benefit-counter">50</div>
+          <div class="benefit-text">Beneficios exclusivos</div>
+        </div>
+      </div>
+    </section>
+    
+    <section class="cta-section">
+      <div class="cta-bg"></div>
+      <div class="cta-content">
+        <h2 class="cta-title">¿Estás listo para la experiencia VIP?</h2>
+        <p class="cta-text">Únete a nuestro selecto grupo de miembros premium y descubre un mundo de beneficios exclusivos, atención personalizada y contenido de alta calidad que transformará tu experiencia.</p>
+        <a href="https://t.me/VelvetSub_Bot" class="cta-button">Suscríbete Ahora</a>
+      </div>
+    </section>
+    
+    <footer>
+      <div class="footer-wave"></div>
+      <div class="social-links">
+        <a href="#" class="social-link">📱</a>
+        <a href="#" class="social-link">📷</a>
+        <a href="#" class="social-link">🐦</a>
+      </div>
+      <div class="copyright">
+        &copy; 2025 Velvet VIP Premium. Todos los derechos reservados.
+      </div>
+    </footer>
+  </div>
 </body>
 </html>
