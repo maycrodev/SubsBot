@@ -6,29 +6,21 @@
   <title>Velvet VIP Premium</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.css">
   <style>
-    /* Root variables mantienen la paleta de colores original */
+    /* Reset y variables */
     :root {
+      --deep-burgundy: #5B100F;
+      --burgundy-light: #7A1614;
       --cream: #EDE7C7;
-      --deep-red: #BB0000;
-      --burgundy: #580202;
-      --dark-brown: #200E01;
-      --primary-gradient: linear-gradient(135deg, var(--burgundy) 0%, var(--deep-red) 100%);
-      --secondary-gradient: linear-gradient(135deg, var(--deep-red) 0%, var(--burgundy) 100%);
-      --accent-gradient: linear-gradient(135deg, var(--dark-brown) 0%, var(--burgundy) 100%);
+      --black: #000000;
+      --white: #FFFFFF;
       --success-green: #27ae60;
-      --bg-color: var(--cream);
-      --bg-gradient: linear-gradient(135deg, #ffffff 0%, var(--cream) 100%);
-      --text-dark: var(--dark-brown);
-      --text-light: #ffffff;
-      --transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1);
       --font-primary: 'Playfair Display', 'Times New Roman', serif;
       --font-secondary: 'Poppins', 'Segoe UI', sans-serif;
+      --transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1);
     }
     
-    /* Reset y estilos base */
     * { 
       box-sizing: border-box; 
       margin: 0; 
@@ -37,385 +29,45 @@
     
     body {
       font-family: var(--font-secondary);
-      background: #FFFFFF;
-      color: var(--text-dark);
+      color: var(--white);
       min-height: 100vh;
       overflow-x: hidden;
       line-height: 1.6;
       font-weight: 400;
-    }
-
-    /* Contenedor principal con sombra refinada */
-    .container {
-      max-width: 100%;
       margin: 0;
-      padding: 0;
-      position: relative;
-      background: #FFFFFF;
-      overflow: hidden;
+      background: linear-gradient(to bottom, var(--black), var(--deep-burgundy));
+      background-attachment: fixed;
     }
 
-    /* Overlay sutíl para el fondo */
-    .bg-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, rgba(237,231,199,0.03) 0%, rgba(255,255,255,0) 100%);
-      z-index: -1;
-    }
-    
-    /* Header moderno y minimalista */
-    header {
-      background: var(--primary-gradient);
-      padding: 90px 0 120px;
-      position: relative;
-      overflow: hidden;
-      clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-    }
-    
-    .header-content {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 2rem;
-      text-align: center;
-      position: relative;
-      z-index: 2;
-    }
-    
-    .brand-logo {
-      font-family: var(--font-primary);
-      font-size: 2.5rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      margin-bottom: 10px;
-      color: white;
-      position: relative;
-      display: inline-block;
-    }
-    
-    .brand-logo::after {
-      content: '';
-      position: absolute;
-      bottom: -5px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 80px;
-      height: 2px;
-      background: var(--cream);
-    }
-    
-    .header-icon {
-      font-size: 1.5rem;
-      margin-right: 8px;
-      vertical-align: middle;
-    }
-    
-    header h1 {
-      font-family: var(--font-primary);
-      font-size: 3.5rem;
-      font-weight: 800;
-      margin-top: 1.5rem;
-      letter-spacing: 0px;
-      color: var(--text-light);
-      max-width: 800px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    
-    header p {
-      color: rgba(255,255,255,0.9);
-      max-width: 600px;
-      margin: 1.5rem auto 0;
-      font-size: 1.1rem;
-      font-weight: 300;
-      font-style: italic;
-    }
-
-    /* Diseño geométrico refinado en el header */
-    .header-shapes {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-      opacity: 0.1;
-      pointer-events: none;
-    }
-    
-    .header-shape {
-      position: absolute;
-      border-radius: 2px;
-      background: var(--cream);
-      transform: rotate(45deg);
-    }
-    
-    .header-shape.one {
-      width: 180px;
-      height: 180px;
-      top: -40px;
-      left: 10%;
-    }
-    
-    .header-shape.two {
-      width: 120px;
-      height: 120px;
-      bottom: 20px;
-      right: 15%;
-    }
-    
-    .header-shape.three {
-      width: 80px;
-      height: 80px;
-      top: 40%;
-      right: 25%;
-    }
-
-    /* Sección de mensajes con diseño moderno */
-    .message-section {
-      background: #FFFFFF;
-      text-align: center;
-      position: relative;
-      z-index: 2;
-      padding: 0;
-      margin-top: -50px;
-    }
-    
-    .message-wrapper {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 40px 30px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 15px 50px rgba(0,0,0,0.08);
-      transform: translateY(-30px);
-    }
-    
-    .message {
-      font-size: 1.3rem;
-      line-height: 1.6;
-      margin-bottom: 30px;
-      font-weight: 500;
-    }
-    
-    .message.success { 
-      color: var(--burgundy); 
-    }
-    
-    .message.error { 
-      color: #d63031; 
-    }
-    
-    .button {
-      display: inline-block;
-      background: var(--secondary-gradient);
-      color: white;
-      text-decoration: none;
-      padding: 16px 36px;
-      border-radius: 4px;
-      font-size: 1rem;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      box-shadow: 0 5px 15px rgba(88,2,2,0.2);
-      transition: all var(--transition);
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .button:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 20px rgba(88,2,2,0.3);
-    }
-    
-    /* Grid de beneficios moderna */
-    .benefits-section {
-      padding: 120px 40px 100px;
-      background: #FFFFFF;
-      position: relative;
-      text-align: center;
-    }
-    
-    .section-title {
-      font-family: var(--font-primary);
-      text-align: center;
-      font-size: 2.2rem;
-      margin-bottom: 60px;
-      color: var(--text-dark);
-      font-weight: 700;
-      position: relative;
-      display: inline-block;
-    }
-    
-    .section-title::after {
-      content: '';
-      position: absolute;
-      bottom: -15px;
-      left: 0;
-      width: 60px;
-      height: 3px;
-      background: var(--burgundy);
-      border-radius: 1px;
-    }
-    
-    .benefits-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 30px;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    
-    .benefit-item {
-      text-align: center;
-      padding: 30px 20px;
-      border-radius: 6px;
-      background: white;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-      transition: all var(--transition);
-    }
-    
-    .benefit-item:hover {
-      transform: translateY(-10px);
-      box-shadow: 0 15px 30px rgba(0,0,0,0.1);
-    }
-    
-    .benefit-counter {
-      font-family: var(--font-primary);
-      font-size: 3.5rem;
-      font-weight: 700;
-      color: var(--burgundy);
-      margin-bottom: 15px;
-      display: inline-block;
-      position: relative;
-    }
-    
-    .benefit-counter::after {
-      content: '+';
-      position: absolute;
-      top: 5px;
-      right: -20px;
-      font-size: 2rem;
-      color: var(--deep-red);
-    }
-    
-    .benefit-text {
-      font-size: 1.1rem;
-      font-weight: 500;
-      color: var(--text-dark);
-    }
-
-    /* Características con diseño enfocado en la elegancia */
-    .features-section {
-      padding: 100px 40px;
-      background: var(--bg-color);
-      position: relative;
-    }
-    
-    .features-container {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    
-    .features-header {
-      text-align: left;
-      margin-bottom: 60px;
-    }
-    
-    .features-title {
-      font-family: var(--font-primary);
-      font-size: 2.2rem;
-      margin-bottom: 20px;
-      color: var(--text-dark);
-      font-weight: 700;
-      position: relative;
-      display: inline-block;
-    }
-    
-    .features-title::after {
-      content: '';
-      position: absolute;
-      bottom: -10px;
-      left: 0;
-      width: 60px;
-      height: 3px;
-      background: var(--burgundy);
-      border-radius: 1px;
-    }
-    
-    .features-subtitle {
-      font-size: 1.1rem;
-      color: #555;
-      max-width: 700px;
-    }
-    
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-      gap: 30px;
-    }
-    
-    .feature-card {
-      background: white;
-      padding: 30px;
-      border-radius: 6px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-      transition: all var(--transition);
+    /* Contenedor principal */
+    .main-container {
+      min-height: 100vh;
       display: flex;
-      align-items: flex-start;
-    }
-    
-    .feature-card:hover {
-      transform: translateY(-10px);
-      box-shadow: 0 15px 30px rgba(0,0,0,0.1);
-    }
-    
-    .feature-icon {
-      font-size: 2rem;
-      color: var(--burgundy);
-      margin-right: 20px;
-      flex-shrink: 0;
-    }
-    
-    .feature-content {
-      text-align: left;
-    }
-    
-    .feature-content h3 {
-      font-size: 1.3rem;
-      margin-bottom: 10px;
-      font-weight: 600;
-      color: var(--text-dark);
-    }
-    
-    .feature-content p {
-      font-size: 1rem;
-      color: #555;
-      line-height: 1.6;
-    }
-
-    /* CTA con diseño enfocado */
-    .cta-section {
-      padding: 100px 40px;
-      text-align: center;
-      background: white;
-      position: relative;
-    }
-    
-    .cta-container {
-      max-width: 900px;
-      margin: 0 auto;
-      background: var(--primary-gradient);
-      padding: 60px 40px;
-      border-radius: 8px;
-      box-shadow: 0 20px 50px rgba(88,2,2,0.1);
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px;
       position: relative;
       overflow: hidden;
     }
-    
-    .cta-pattern {
+
+    /* Ticket de verificación */
+    .verification-ticket {
+      background: linear-gradient(135deg, var(--deep-burgundy) 0%, var(--burgundy-light) 100%);
+      border-radius: 16px;
+      padding: 40px 30px;
+      width: 90%;
+      max-width: 500px;
+      margin-top: 20vh;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.4);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transform: translateY(50px);
+      opacity: 0;
+    }
+
+    .ticket-pattern {
       position: absolute;
       top: 0;
       left: 0;
@@ -425,691 +77,412 @@
       background-size: 20px 20px;
       opacity: 0.3;
     }
-    
-    .cta-title {
-      font-family: var(--font-primary);
-      font-size: 2.2rem;
-      color: white;
-      margin-bottom: 20px;
-      position: relative;
-      z-index: 1;
-    }
-    
-    .cta-text {
-      font-size: 1.1rem;
-      line-height: 1.6;
-      color: rgba(255,255,255,0.9);
-      margin-bottom: 30px;
-      max-width: 700px;
-      margin-left: auto;
-      margin-right: auto;
-      position: relative;
-      z-index: 1;
-    }
-    
-    .cta-button {
-      display: inline-block;
-      background: white;
-      color: var(--burgundy);
-      text-decoration: none;
-      padding: 16px 36px;
-      border-radius: 4px;
-      font-size: 1rem;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-      transition: all var(--transition);
-      position: relative;
-      z-index: 1;
-    }
-    
-    .cta-button:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 15px 30px rgba(0,0,0,0.2);
-    }
 
-    /* Footer elegante */
-    footer {
-      padding: 60px 40px 40px;
-      background: var(--dark-brown);
-      color: white;
-      position: relative;
-    }
-    
-    .footer-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 40px;
-    }
-    
-    .footer-col h4 {
+    .verification-title {
       font-family: var(--font-primary);
-      font-size: 1.3rem;
-      margin-bottom: 20px;
-      position: relative;
-      display: inline-block;
-    }
-    
-    .footer-col h4::after {
-      content: '';
-      position: absolute;
-      bottom: -10px;
-      left: 0;
-      width: 40px;
-      height: 2px;
-      background: var(--cream);
-    }
-    
-    .footer-links {
-      list-style: none;
-    }
-    
-    .footer-links li {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--white);
       margin-bottom: 10px;
     }
-    
-    .footer-links a {
-      color: rgba(255,255,255,0.8);
-      text-decoration: none;
-      transition: all 0.3s;
-    }
-    
-    .footer-links a:hover {
-      color: var(--cream);
-      padding-left: 5px;
-    }
-    
-    .social-links {
-      display: flex;
-      margin-top: 20px;
-    }
-    
-    .social-link {
-      width: 36px;
-      height: 36px;
-      border-radius: 4px;
-      background: rgba(255,255,255,0.1);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 10px;
-      font-size: 1rem;
-      transition: all var(--transition);
-    }
-    
-    .social-link:hover {
-      background: var(--burgundy);
-      transform: translateY(-3px);
-    }
-    
-    .copyright {
-      text-align: center;
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      color: rgba(255,255,255,0.6);
-      font-size: 0.9rem;
+
+    .verification-subtitle {
+      font-size: 1.2rem;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 30px;
     }
 
-    /* Animaciones refinadas */
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes slideInRight {
-      from { opacity: 0; transform: translateX(50px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-    
-    @keyframes scaleIn {
-      from { opacity: 0; transform: scale(0.9); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    
-    /* Estilos para la animación de bienvenida */
-    .welcome-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, rgba(32,14,1,0.95) 0%, rgba(88,2,2,0.95) 100%);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 10000;
-      overflow: hidden;
-    }
-    
-    .animation-container {
-      position: relative;
-      width: 100%;
-      max-width: 600px;
-      height: 400px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    
-    .welcome-animation {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-    }
-    
-    .welcome-text {
-      font-family: var(--font-primary);
-      color: white;
-      text-align: center;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 100%;
-    }
-    
-    .welcome-text.first {
-      font-size: 4rem;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
-    
-    .welcome-text.second {
-      font-size: 2.2rem;
-      font-weight: 600;
-      letter-spacing: 1px;
-      opacity: 0;
-    }
-    
-    .check-animation {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-    
     .check-circle {
-      width: 100px;
-      height: 100px;
+      width: 80px;
+      height: 80px;
       background: var(--success-green);
       border-radius: 50%;
       display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
+      margin: 0 auto 30px;
       box-shadow: 0 10px 30px rgba(39,174,96,0.5);
     }
-    
+
     .check-circle i {
       color: white;
-      font-size: 50px;
+      font-size: 40px;
     }
-    
-    .stars-container {
+
+    .telegram-button {
+      display: inline-block;
+      background: var(--white);
+      color: var(--deep-burgundy);
+      text-decoration: none;
+      padding: 14px 32px;
+      border-radius: 30px;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      transition: all var(--transition);
+    }
+
+    .telegram-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+
+    .telegram-button i {
+      margin-right: 8px;
+    }
+
+    /* Información del servicio */
+    .info-container {
+      width: 90%;
+      max-width: 1000px;
+      margin-top: 60px;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+
+    .section-title {
+      font-family: var(--font-primary);
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 40px;
+      color: var(--white);
+      font-weight: 700;
+      position: relative;
+      display: inline-block;
+    }
+
+    .section-title::after {
+      content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 2px;
+      background: var(--cream);
     }
-    
+
+    /* Grid de beneficios */
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      margin-bottom: 60px;
+    }
+
+    .benefit-item {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 25px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all var(--transition);
+    }
+
+    .benefit-item:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .benefit-icon {
+      font-size: 2rem;
+      color: var(--cream);
+      margin-bottom: 15px;
+    }
+
+    .benefit-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--white);
+    }
+
+    .benefit-text {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Mensaje de bienvenida */
+    .welcome-message {
+      text-align: center;
+      margin: 40px 0 60px;
+      padding: 0 20px;
+    }
+
+    .welcome-message h2 {
+      font-family: var(--font-primary);
+      font-size: 1.8rem;
+      margin-bottom: 15px;
+      color: var(--cream);
+    }
+
+    .welcome-message p {
+      font-size: 1rem;
+      color: rgba(255, 255, 255, 0.8);
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* Footer simple */
+    .footer {
+      margin-top: auto;
+      text-align: center;
+      padding: 30px 0;
+      opacity: 0.6;
+      font-size: 0.9rem;
+    }
+
+    /* Efectos decorativos */
     .star {
       position: absolute;
       color: #FFD700;
       filter: drop-shadow(0 0 5px rgba(255,215,0,0.7));
+      opacity: 0;
     }
-    
-    .star-1 {
-      top: 20%;
-      left: 20%;
-      font-size: 20px;
-    }
-    
-    .star-2 {
-      top: 15%;
-      right: 25%;
-      font-size: 25px;
-    }
-    
-    .star-3 {
-      bottom: 30%;
-      left: 15%;
-      font-size: 18px;
-    }
-    
-    .star-4 {
-      bottom: 20%;
-      right: 18%;
-      font-size: 22px;
-    }
-    
-    .star-5 {
-      top: 40%;
-      right: 10%;
-      font-size: 15px;
-    }
-    
-    .star-6 {
-      bottom: 40%;
-      left: 10%;
-      font-size: 16px;
-    }
-    
-    /* Toques seductores */
-    .seductive-glow {
-      position: absolute;
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(187,0,0,0.3) 0%, rgba(255,255,255,0) 70%);
-      filter: blur(20px);
-      pointer-events: none;
-      z-index: -1;
-    }
-    
-    .seductive-glow.one {
-      top: 20%;
-      left: 30%;
-      animation: floatAnimation 15s infinite alternate ease-in-out;
-    }
-    
-    .seductive-glow.two {
-      bottom: 30%;
-      right: 25%;
-      animation: floatAnimation 12s 1s infinite alternate ease-in-out;
-    }
-    
-    @keyframes floatAnimation {
-      0% { transform: translate(0, 0) scale(1); }
-      100% { transform: translate(20px, 20px) scale(1.2); }
-    }
-    
-    /* Media queries para responsividad */
-    @media (max-width: 1024px) {
-      .benefits-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      
-      .features-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-    
+
+    /* Media queries */
     @media (max-width: 768px) {
-      header {
-        padding: 70px 0 100px;
-      }
-      
-      header h1 {
-        font-size: 2.8rem;
-      }
-      
-      .brand-logo {
+      .verification-title {
         font-size: 2rem;
       }
       
-      .features-grid {
-        grid-template-columns: 1fr;
+      .verification-subtitle {
+        font-size: 1rem;
       }
       
-      .cta-container {
-        padding: 40px 30px;
+      .section-title {
+        font-size: 1.7rem;
       }
       
-      .cta-title {
-        font-size: 2rem;
+      .welcome-message h2 {
+        font-size: 1.5rem;
       }
-      
-      .welcome-text.first {
-        font-size: 3rem;
-      }
-      
-      .welcome-text.second {
-        font-size: 1.8rem;
+    }
+
+    @media (max-width: 480px) {
+      .verification-ticket {
+        padding: 30px 20px;
       }
       
       .check-circle {
-        width: 80px;
-        height: 80px;
+        width: 60px;
+        height: 60px;
       }
       
       .check-circle i {
-        font-size: 40px;
-      }
-    }
-    
-    @media (max-width: 576px) {
-      header h1 {
-        font-size: 2.2rem;
+        font-size: 30px;
       }
       
       .benefits-grid {
-        grid-template-columns: 1fr;
-      }
-      
-      .section-title,
-      .features-title,
-      .cta-title {
-        font-size: 1.8rem;
-      }
-      
-      .message {
-        font-size: 1.1rem;
-      }
-      
-      .footer-container {
-        grid-template-columns: 1fr;
-      }
-      
-      .welcome-text.first {
-        font-size: 2.5rem;
-      }
-      
-      .welcome-text.second {
-        font-size: 1.4rem;
-      }
-      
-      .check-circle {
-        width: 70px;
-        height: 70px;
-      }
-      
-      .check-circle i {
-        font-size: 35px;
+        gap: 20px;
       }
     }
   </style>
 </head>
 <body>
-  <div class="bg-overlay"></div>
-  <div class="seductive-glow one"></div>
-  <div class="seductive-glow two"></div>
-  
-  <div class="container">
-    <header>
-      <div class="header-shapes">
-        <div class="header-shape one"></div>
-        <div class="header-shape two"></div>
-        <div class="header-shape three"></div>
+  <div class="main-container">
+    <!-- Ticket de verificación -->
+    <div class="verification-ticket" id="ticket">
+      <div class="ticket-pattern"></div>
+      <div class="check-circle">
+        <i class="fas fa-check"></i>
       </div>
-      <div class="header-content">
-        <div class="brand-logo"><i class="header-icon fas fa-crown"></i>Velvet VIP</div>
-        <h1>Experiencia Premium Exclusiva</h1>
-        <p>Acceso a contenido exclusivo, soporte prioritario y beneficios especiales diseñados para miembros selectos.</p>
+      <h1 class="verification-title">¡GRACIAS!</h1>
+      <p class="verification-subtitle">TU SUSCRIPCIÓN FUE ACTIVADA</p>
+      <a href="https://t.me/VIPSubscriptionBot" class="telegram-button">
+        <i class="fab fa-telegram-plane"></i>Volver a Telegram
+      </a>
+    </div>
+
+    <!-- Información adicional -->
+    <div class="info-container" id="info">
+      <div class="welcome-message">
+        <h2>Bienvenido a la Experiencia Premium</h2>
+        <p>Has desbloqueado acceso a nuestro contenido exclusivo y beneficios especiales diseñados solo para miembros selectos.</p>
       </div>
-    </header>
-    
-    <section class="message-section">
-      <div class="message-wrapper" data-aos="fade-up">
-        <div class="message {{ 'error' in message.lower() and 'error' or 'success' }}">
-          {{ message }}
-        </div>
-        <a href="https://t.me/VIPSubscriptionBot" class="button">Volver a Telegram</a>
-      </div>
-    </section>
-    
-    <section class="benefits-section">
-      <h2 class="section-title" data-aos="fade-up">Estadísticas Premium</h2>
+
+      <h3 class="section-title">Beneficios Exclusivos</h3>
       <div class="benefits-grid">
-        <div class="benefit-item" data-aos="fade-up" data-aos-delay="100">
-          <div class="benefit-counter">98</div>
-          <div class="benefit-text">Satisfacción del cliente</div>
+        <div class="benefit-item">
+          <div class="benefit-icon">
+            <i class="fas fa-lock"></i>
+          </div>
+          <h4 class="benefit-title">Acceso VIP</h4>
+          <p class="benefit-text">Contenido premium y beneficios reservados únicamente para suscriptores selectos.</p>
         </div>
         
-        <div class="benefit-item" data-aos="fade-up" data-aos-delay="200">
-          <div class="benefit-counter">24</div>
-          <div class="benefit-text">Atención al cliente</div>
+        <div class="benefit-item">
+          <div class="benefit-icon">
+            <i class="fas fa-gift"></i>
+          </div>
+          <h4 class="benefit-title">Recompensas Premium</h4>
+          <p class="benefit-text">Recibe regalos exclusivos y recompensas que aumentan el valor de tu suscripción.</p>
         </div>
         
-        <div class="benefit-item" data-aos="fade-up" data-aos-delay="300">
-          <div class="benefit-counter">365</div>
-          <div class="benefit-text">Días de acceso premium</div>
+        <div class="benefit-item">
+          <div class="benefit-icon">
+            <i class="fas fa-bolt"></i>
+          </div>
+          <h4 class="benefit-title">Soporte Prioritario</h4>
+          <p class="benefit-text">Atención rápida y personalizada las 24 horas para resolver cualquier duda.</p>
         </div>
         
-        <div class="benefit-item" data-aos="fade-up" data-aos-delay="400">
-          <div class="benefit-counter">50</div>
-          <div class="benefit-text">Beneficios exclusivos</div>
+        <div class="benefit-item">
+          <div class="benefit-icon">
+            <i class="fas fa-bell"></i>
+          </div>
+          <h4 class="benefit-title">Notificaciones Anticipadas</h4>
+          <p class="benefit-text">Recibe alertas exclusivas antes que nadie sobre lanzamientos y oportunidades.</p>
         </div>
       </div>
-    </section>
+    </div>
+
+    <!-- Estrellas decorativas -->
+    <i class="star fas fa-star" style="top: 15%; left: 10%; font-size: 20px;"></i>
+    <i class="star fas fa-star" style="top: 25%; right: 15%; font-size: 24px;"></i>
+    <i class="star fas fa-star" style="bottom: 40%; left: 20%; font-size: 16px;"></i>
+    <i class="star fas fa-star" style="bottom: 20%; right: 10%; font-size: 18px;"></i>
     
-    <section class="features-section">
-      <div class="features-container">
-        <div class="features-header" data-aos="fade-up">
-          <h2 class="features-title">Beneficios Exclusivos</h2>
-          <p class="features-subtitle">Diseñados meticulosamente para ofrecerte la mejor experiencia premium del mercado con atención personalizada.</p>
-        </div>
-        
-        <div class="features-grid">
-          <div class="feature-card" data-aos="fade-up" data-aos-delay="100">
-            <div class="feature-icon"><i class="fas fa-lock"></i></div>
-            <div class="feature-content">
-              <h3>Acceso Exclusivo</h3>
-              <p>Contenido premium y beneficios reservados únicamente para suscriptores VIP de nuestro selecto grupo.</p>
-            </div>
-          </div>
-          
-          <div class="feature-card" data-aos="fade-up" data-aos-delay="200">
-            <div class="feature-icon"><i class="fas fa-gift"></i></div>
-            <div class="feature-content">
-              <h3>Recompensas Premium</h3>
-              <p>Recibe regalos exclusivos y recompensas mensuales que aumentan el valor de tu suscripción al máximo.</p>
-            </div>
-          </div>
-          
-          <div class="feature-card" data-aos="fade-up" data-aos-delay="300">
-            <div class="feature-icon"><i class="fas fa-bolt"></i></div>
-            <div class="feature-content">
-              <h3>Soporte Prioritario</h3>
-              <p>Atención rápida y personalizada las 24 horas para resolver cualquier duda al instante.</p>
-            </div>
-          </div>
-          
-          <div class="feature-card" data-aos="fade-up" data-aos-delay="400">
-            <div class="feature-icon"><i class="fas fa-bell"></i></div>
-            <div class="feature-content">
-              <h3>Notificaciones Anticipadas</h3>
-              <p>Recibe alertas exclusivas antes que nadie sobre lanzamientos, eventos y oportunidades limitadas.</p>
-            </div>
-          </div>
-          
-          <div class="feature-card" data-aos="fade-up" data-aos-delay="500">
-            <div class="feature-icon"><i class="fas fa-gem"></i></div>
-            <div class="feature-content">
-              <h3>Contenido Exclusivo</h3>
-              <p>Accede a recursos premium, guías detalladas y análisis avanzados no disponibles para usuarios estándar.</p>
-            </div>
-          </div>
-          
-          <div class="feature-card" data-aos="fade-up" data-aos-delay="600">
-            <div class="feature-icon"><i class="fas fa-rocket"></i></div>
-            <div class="feature-content">
-              <h3>Eventos VIP</h3>
-              <p>Participa en eventos exclusivos donde podrás conectar con otros miembros premium y expertos del sector.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-    
-    <section class="cta-section">
-      <div class="cta-container" data-aos="fade-up">
-        <div class="cta-pattern"></div>
-        <h2 class="cta-title">Eleva tu experiencia al siguiente nivel</h2>
-        <p class="cta-text">Únete a nuestro selecto grupo de miembros premium y descubre un mundo de beneficios exclusivos, atención personalizada y contenido de alta calidad.</p>
-        <a href="https://t.me/VelvetSub_Bot" class="cta-button">Suscríbete Ahora</a>
-      </div>
-    </section>
-    
-    <footer>
-      <div class="footer-container">
-        <div class="footer-col">
-          <h4>Velvet VIP</h4>
-          <p>La mejor experiencia premium diseñada para usuarios exigentes que buscan exclusividad y calidad en cada detalle.</p>
-          <div class="social-links">
-            <a href="#" class="social-link"><i class="fab fa-telegram"></i></a>
-            <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
-            <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
-          </div>
-        </div>
-        
-        <div class="footer-col">
-          <h4>Enlaces</h4>
-          <ul class="footer-links">
-            <li><a href="#">Inicio</a></li>
-            <li><a href="#">Servicios</a></li>
-            <li><a href="#">Planes</a></li>
-            <li><a href="#">Contacto</a></li>
-          </ul>
-        </div>
-        
-        <div class="footer-col">
-          <h4>Soporte</h4>
-          <ul class="footer-links">
-            <li><a href="#">Preguntas frecuentes</a></li>
-            <li><a href="#">Términos y condiciones</a></li>
-            <li><a href="#">Política de privacidad</a></li>
-            <li><a href="#">Ayuda</a></li>
-          </ul>
-        </div>
-      </div>
-      
-      <div class="copyright">
-        &copy; 2025 Velvet VIP Premium. Todos los derechos reservados.
-      </div>
-    </footer>
+    <!-- Footer simple -->
+    <div class="footer" id="footer">
+      &copy; 2025 Velvet VIP Premium. Todos los derechos reservados.
+    </div>
   </div>
-  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      // Ocultar contenido inicial
-      document.querySelector('.container').style.display = 'none';
+      // Ocultar inicialmente contenido adicional
+      gsap.set('#info', { opacity: 0, y: 30 });
+      gsap.set('#footer', { opacity: 0 });
+      gsap.set('.star', { opacity: 0, scale: 0 });
       
-      // Crear overlay para la animación de bienvenida
-      const welcomeOverlay = document.createElement('div');
-      welcomeOverlay.className = 'welcome-overlay';
+      // Animación inicial con GSAP
+      const tl = gsap.timeline();
       
-      // Crear contenedor de la animación
-      const animationContainer = document.createElement('div');
-      animationContainer.className = 'animation-container';
-      
-      // Añadir contenido de la animación
-      animationContainer.innerHTML = `
-        <div class="welcome-animation">
-          <div class="welcome-text first">GRACIAS!</div>
-          <div class="welcome-text second">TU SUSCRIPCIÓN FUÉ ACTIVADA</div>
-          <div class="check-animation">
-            <div class="check-circle">
-              <i class="fas fa-check"></i>
-            </div>
-          </div>
-          <div class="stars-container">
-            <i class="star fas fa-star star-1"></i>
-            <i class="star fas fa-star star-2"></i>
-            <i class="star fas fa-star star-3"></i>
-            <i class="star fas fa-star star-4"></i>
-            <i class="star fas fa-star star-5"></i>
-            <i class="star fas fa-star star-6"></i>
-          </div>
-        </div>
-      `;
-      
-      welcomeOverlay.appendChild(animationContainer);
-      document.body.appendChild(welcomeOverlay);
-      
-      // Ejecutar animación con GSAP
-      const tl = gsap.timeline({
-        onComplete: function() {
-          // Al completar la animación, mostrar la página y eliminar el overlay
-          setTimeout(function() {
-            gsap.to(welcomeOverlay, {
-              opacity: 0,
-              duration: 0.5,
-              onComplete: function() {
-                welcomeOverlay.remove();
-                document.querySelector('.container').style.display = 'block';
-                
-                // Inicializar AOS después de mostrar el contenido
-                AOS.init({
-                  duration: 800,
-                  easing: 'ease',
-                  once: true,
-                  offset: 100
-                });
-              }
-            });
-          }, 1000);
-        }
+      // Primero mostrar solo "GRACIAS!"
+      tl.set('#ticket .verification-subtitle, #ticket .telegram-button, #ticket .check-circle', { 
+        opacity: 0 
       });
       
-      // Secuencia de animación
-      tl.from('.welcome-text.first', {
+      // Animación de "GRACIAS!"
+      tl.to('#ticket', {
+        opacity: 1,
+        y: 0,
+        duration: 1,
+        ease: "power3.out"
+      })
+      .from('.verification-title', {
         opacity: 0,
-        y: -50,
+        y: -20,
         duration: 0.8,
         ease: "back.out(1.7)"
       })
-      .to('.welcome-text.first', {
+      
+      // Después de un momento, ocultar "GRACIAS!"
+      .to('.verification-title', {
         opacity: 0,
         y: -30,
         duration: 0.5,
         delay: 0.8
       })
-      .from('.welcome-text.second', {
-        opacity: 0,
-        y: 30,
+      
+      // Mostrar "TU SUSCRIPCIÓN FUE ACTIVADA"
+      .to('.verification-subtitle', {
+        opacity: 1,
+        y: 0,
         duration: 0.8,
         ease: "power3.out"
       })
-      .from('.check-circle', {
-        scale: 0,
-        opacity: 0,
+      
+      // Mostrar círculo verde con check
+      .to('.check-circle', {
+        opacity: 1,
+        scale: 1,
         duration: 0.6,
         ease: "elastic.out(1, 0.5)"
       }, "-=0.2")
+      
       .from('.check-circle .fa-check', {
         scale: 0,
         opacity: 0,
         duration: 0.4,
         ease: "back.out(2.5)"
       }, "-=0.1")
-      .from('.star', {
-        opacity: 0,
-        scale: 0,
-        duration: 0.8,
+      
+      // Mostrar botón de Telegram
+      .to('.telegram-button', {
+        opacity: 1,
+        y: 0,
+        duration: 0.6,
+        ease: "power2.out"
+      })
+      
+      // Animar estrellas
+      .to('.star', {
+        opacity: 1,
+        scale: 1.2,
+        duration: 0.5,
         stagger: 0.1,
         ease: "elastic.out(1, 0.5)"
-      }, "-=0.3");
+      }, "-=0.5")
       
-      // Animación de los destellos
+      // Mover ticket hacia arriba
+      .to('#ticket', {
+        y: -50,
+        scale: 0.9,
+        duration: 1,
+        delay: 1,
+        ease: "power2.inOut"
+      })
+      
+      // Mostrar información
+      .to('#info', {
+        opacity: 1,
+        y: 0,
+        duration: 1,
+        ease: "power2.out"
+      }, "-=0.5")
+      
+      // Mostrar footer
+      .to('#footer', {
+        opacity: 0.6,
+        duration: 0.5
+      }, "-=0.5");
+      
+      // Animación continua de estrellas
       gsap.to('.star', {
-        rotation: "+=20",
+        rotation: "+=360",
         scale: 1.2,
-        duration: 1.5,
+        duration: 4,
         repeat: -1,
         yoyo: true,
-        stagger: 0.2,
+        stagger: 0.5,
         ease: "sine.inOut"
       });
       
-      // Simulación de variable message para vista previa
-      // En producción, esto sería reemplazado por la variable real
-      if (typeof message === 'undefined') {
-        const messageElement = document.querySelector('.message');
-        messageElement.textContent = "¡Felicidades! Tu suscripción VIP Premium ha sido activada correctamente.";
-        messageElement.classList.add("success");
-      }
+      // Efecto sutil de flotación para el ticket
+      gsap.to('#ticket', {
+        y: "-=10",
+        duration: 2,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        delay: 6 // Comenzar después de que la animación principal haya terminado
+      });
+      
+      // Efecto sutil de resplandor para los beneficios
+      gsap.to('.benefit-item', {
+        boxShadow: "0 5px 20px rgba(237,231,199,0.1)",
+        duration: 2,
+        repeat: -1,
+        yoyo: true,
+        stagger: 0.3,
+        ease: "sine.inOut",
+        delay: 6
+      });
     });
   </script>
 </body>
