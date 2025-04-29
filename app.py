@@ -312,6 +312,109 @@ def webhook():
         logger.error(f"Error al procesar webhook: {str(e)}")
         return 'Error interno', 500
 
+# Añadir esta ruta a tu archivo app.py
+
+@app.route('/admin/get-telegram-user', methods=['GET'])
+def get_telegram_user():
+    """Endpoint para obtener información de un usuario de Telegram"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            logger.warning(f"Intento de acceso no autorizado: {admin_id}")
+            return jsonify({"success": False, "error": "Acceso no autorizado"}), 401
+        
+        # Este endpoint puede usarse para obtener información de cualquier usuario de Telegram
+        # pero es importante protegerlo adecuadamente
+        target_user_id = request.args.get('user_id', admin_id)  # Si no se especifica user_id, usa admin_id
+        
+        # Verificar si el BOT_TOKEN está configurado
+        if not BOT_TOKEN:
+            logger.error("BOT_TOKEN no está configurado para acceder a la API de Telegram")
+            return jsonify({
+                "success": False, 
+                "error": "Configuración del bot incorrecta"
+            })
+        
+        # Usar la API de Telegram para obtener información del usuario
+        import requests
+        
+        # Primero intentamos obtener información del chat
+        api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/getChat"
+        params = {"chat_id": target_user_id}
+        
+        logger.info(f"Consultando API de Telegram para usuario {target_user_id}")
+        response = requests.get(api_url, params=params)
+        
+        if response.status_code != 200:
+            logger.error(f"Error al consultar API de Telegram: {response.status_code}, {response.text}")
+            return jsonify({
+                "success": False,
+                "error": f"Error API Telegram: {response.text[:100]}..."
+            })
+        
+        # Procesar la respuesta
+        chat_data = response.json()
+        
+        if not chat_data.get('ok'):
+            logger.error(f"API de Telegram respondió error: {chat_data.get('description')}")
+            return jsonify({
+                "success": False,
+                "error": chat_data.get('description', 'Error desconocido')
+            })
+            
+        # Obtener los datos del usuario
+        result = chat_data.get('result', {})
+        
+        # Preparar datos básicos
+        user_info = {
+            "success": True,
+            "user_id": target_user_id,
+            "username": result.get('username'),
+            "first_name": result.get('first_name'),
+            "last_name": result.get('last_name'),
+            "photo_url": None
+        }
+        
+        # Intentar obtener la foto de perfil
+        try:
+            # Solo si hay un objeto de foto de perfil
+            if result.get('photo'):
+                # Obtener la foto de perfil más reciente del usuario (foto pequeña)
+                photos_url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos"
+                photos_params = {"user_id": target_user_id, "limit": 1}
+                
+                photos_response = requests.get(photos_url, params=photos_params)
+                photos_data = photos_response.json()
+                
+                if photos_data.get('ok') and photos_data.get('result', {}).get('total_count', 0) > 0:
+                    # Obtener el file_id de la primera foto (la más reciente)
+                    photo = photos_data['result']['photos'][0][0]  # [0][0] es la foto más pequeña
+                    file_id = photo.get('file_id')
+                    
+                    # Obtener información del archivo
+                    file_url = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile"
+                    file_params = {"file_id": file_id}
+                    
+                    file_response = requests.get(file_url, params=file_params)
+                    file_data = file_response.json()
+                    
+                    if file_data.get('ok'):
+                        file_path = file_data['result']['file_path']
+                        
+                        # Construir URL de la foto
+                        photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+                        user_info["photo_url"] = photo_url
+        except Exception as e:
+            logger.error(f"Error al obtener foto de perfil: {str(e)}")
+            # No fallamos todo el proceso si solo falla la foto
+        
+        return jsonify(user_info)
+        
+    except Exception as e:
+        logger.error(f"Error en get_telegram_user: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/paypal/webhook', methods=['POST'])
 def paypal_webhook():
     """Maneja los webhooks de PayPal"""
