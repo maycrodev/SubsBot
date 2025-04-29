@@ -6,13 +6,14 @@
   <title>Velvet VIP Premium</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
   <style>
     /* Reset y variables */
     :root {
       --deep-burgundy: #5B100F;
       --burgundy-light: #7A1614;
       --cream: #EDE7C7;
+      --gold: #D4AF37;
       --black: #000000;
       --white: #FFFFFF;
       --success-green: #27ae60;
@@ -35,8 +36,27 @@
       line-height: 1.6;
       font-weight: 400;
       margin: 0;
-      background: linear-gradient(to bottom, var(--black), var(--deep-burgundy));
+      background: linear-gradient(135deg, var(--black), var(--deep-burgundy));
       background-attachment: fixed;
+      position: relative;
+    }
+
+    /* Fondo de partículas */
+    .particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(237, 231, 199, 0.3);
+      pointer-events: none;
     }
 
     /* Contenedor principal */
@@ -49,6 +69,31 @@
       padding: 20px;
       position: relative;
       overflow: hidden;
+      z-index: 1;
+    }
+
+    /* Mensaje inicial de GRACIAS */
+    .initial-message {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 10;
+      width: 100%;
+    }
+    
+    .initial-title {
+      font-family: var(--font-primary);
+      font-size: 5rem;
+      font-weight: 700;
+      color: var(--white);
+      text-shadow: 0 0 20px rgba(212, 175, 55, 0.7);
+      letter-spacing: 5px;
+    }
+
+    .initial-title span {
+      display: inline-block;
     }
 
     /* Ticket de verificación */
@@ -58,13 +103,25 @@
       padding: 40px 30px;
       width: 90%;
       max-width: 500px;
-      margin-top: 20vh;
+      margin-top: 10vh; /* Reducido para dejar más espacio a los beneficios */
       box-shadow: 0 15px 50px rgba(0,0,0,0.4);
       text-align: center;
       position: relative;
       overflow: hidden;
       transform: translateY(50px);
-      opacity: 0;
+      /* Añadido: Borde dorado con animación */
+      border: 3px solid var(--gold);
+      animation: borderGlow 3s infinite alternate;
+    }
+
+    /* Añadido: Animación del borde dorado */
+    @keyframes borderGlow {
+      0% {
+        box-shadow: 0 0 5px var(--gold), 0 0 10px var(--gold), inset 0 0 5px var(--gold);
+      }
+      100% {
+        box-shadow: 0 0 15px var(--gold), 0 0 30px var(--gold), inset 0 0 10px var(--gold);
+      }
     }
 
     .ticket-pattern {
@@ -78,23 +135,30 @@
       opacity: 0.3;
     }
 
-    .verification-title {
-      font-family: var(--font-primary);
-      font-size: 2.5rem;
-      font-weight: 700;
-      color: var(--white);
-      margin-bottom: 10px;
+    .ticket-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 120%;
+      height: 120%;
+      background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.2) 0%, rgba(212, 175, 55, 0) 70%);
+      pointer-events: none;
     }
 
     .verification-subtitle {
-      font-size: 1.2rem;
+      font-family: var(--font-primary); /* Cambiado: Mismo font que el GRACIAS! */
+      font-size: 2rem; /* Cambiado: Texto más grande */
       color: rgba(255,255,255,0.9);
       margin-bottom: 30px;
+      font-weight: 600;
+      letter-spacing: 1px; /* Añadido: Más espacio entre letras para mayor elegancia */
+      text-shadow: 0 2px 5px rgba(0,0,0,0.4); /* Añadido: Sombra para mayor profundidad */
     }
 
     .check-circle {
-      width: 80px;
-      height: 80px;
+      width: 110px; /* Cambiado: Check más grande */
+      height: 110px; /* Cambiado: Check más grande */
       background: var(--success-green);
       border-radius: 50%;
       display: flex;
@@ -102,11 +166,38 @@
       justify-content: center;
       margin: 0 auto 30px;
       box-shadow: 0 10px 30px rgba(39,174,96,0.5);
+      position: relative;
+    }
+
+    .check-circle::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--success-green);
+      opacity: 0.6;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 0.6;
+      }
+      70% {
+        transform: scale(1.3);
+        opacity: 0;
+      }
+      100% {
+        transform: scale(1.3);
+        opacity: 0;
+      }
     }
 
     .check-circle i {
       color: white;
-      font-size: 40px;
+      font-size: 55px; /* Cambiado: Ícono check más grande */
     }
 
     .telegram-button {
@@ -114,22 +205,42 @@
       background: var(--white);
       color: var(--deep-burgundy);
       text-decoration: none;
-      padding: 14px 32px;
+      padding: 16px 34px;
       border-radius: 30px;
-      font-size: 1rem;
+      font-size: 1.1rem;
       font-weight: 600;
       letter-spacing: 0.5px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.2);
       transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+      z-index: 5; /* Valor Z aumentado para asegurar visibilidad */
+      margin-top: 20px; /* Añadido: Espacio adicional antes del botón */
+    }
+
+    .telegram-button::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: 0.5s;
+      z-index: -1;
     }
 
     .telegram-button:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+      transform: translateY(-5px);
+      box-shadow: 0 12px 25px rgba(0,0,0,0.3);
+    }
+
+    .telegram-button:hover::after {
+      left: 100%;
     }
 
     .telegram-button i {
-      margin-right: 8px;
+      margin-right: 10px;
     }
 
     /* Información del servicio */
@@ -137,14 +248,13 @@
       width: 90%;
       max-width: 1000px;
       margin-top: 60px;
-      opacity: 0;
       transform: translateY(30px);
     }
 
     .section-title {
       font-family: var(--font-primary);
       text-align: center;
-      font-size: 2rem;
+      font-size: 2.2rem;
       margin-bottom: 40px;
       color: var(--white);
       font-weight: 700;
@@ -158,9 +268,10 @@
       bottom: -10px;
       left: 50%;
       transform: translateX(-50%);
-      width: 60px;
-      height: 2px;
-      background: var(--cream);
+      width: 80px;
+      height: 3px;
+      background: var(--gold);
+      border-radius: 2px;
     }
 
     /* Grid de beneficios */
@@ -169,110 +280,185 @@
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 30px;
       margin-bottom: 60px;
+      opacity: 1 !important; /* Forzar visibilidad */
+      visibility: visible !important; /* Forzar visibilidad */
+      transform: none !important; /* Evitar transformaciones que puedan ocultar */
     }
 
     .benefit-item {
       background: rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(10px);
-      border-radius: 12px;
-      padding: 25px;
+      border-radius: 15px;
+      padding: 30px;
       text-align: center;
       border: 1px solid rgba(255, 255, 255, 0.1);
       transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+      visibility: visible; /* Asegurar que sea visible */
+      opacity: 1; /* Asegurar que sea visible */
+    }
+
+    .benefit-item::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(237, 231, 199, 0.1) 0%, rgba(237, 231, 199, 0) 70%);
+      opacity: 0;
+      transition: all 0.8s ease;
     }
 
     .benefit-item:hover {
-      transform: translateY(-5px);
+      transform: translateY(-8px);
       background: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .benefit-item:hover::after {
+      opacity: 1;
+      transform: scale(1.1);
     }
 
     .benefit-icon {
-      font-size: 2rem;
-      color: var(--cream);
-      margin-bottom: 15px;
+      font-size: 2.5rem;
+      color: var(--gold);
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      transform-style: preserve-3d;
+    }
+
+    .benefit-item:hover .benefit-icon {
+      transform: rotateY(180deg);
     }
 
     .benefit-title {
-      font-size: 1.2rem;
+      font-size: 1.3rem;
       font-weight: 600;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       color: var(--white);
     }
 
     .benefit-text {
-      font-size: 0.9rem;
+      font-size: 1rem;
       color: rgba(255, 255, 255, 0.8);
+      line-height: 1.6;
     }
 
     /* Mensaje de bienvenida */
     .welcome-message {
       text-align: center;
-      margin: 40px 0 60px;
+      margin: 60px 0 70px;
       padding: 0 20px;
+      position: relative;
+    }
+
+    .welcome-message::before {
+      content: '';
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
     }
 
     .welcome-message h2 {
       font-family: var(--font-primary);
-      font-size: 1.8rem;
-      margin-bottom: 15px;
+      font-size: 2rem;
+      margin-bottom: 20px;
       color: var(--cream);
+      text-shadow: 0 3px 10px rgba(0,0,0,0.2);
     }
 
     .welcome-message p {
-      font-size: 1rem;
+      font-size: 1.1rem;
       color: rgba(255, 255, 255, 0.8);
       max-width: 700px;
       margin: 0 auto;
+      line-height: 1.8;
     }
 
     /* Footer simple */
     .footer {
       margin-top: auto;
       text-align: center;
-      padding: 30px 0;
+      padding: 40px 0;
       opacity: 0.6;
       font-size: 0.9rem;
+      position: relative;
+    }
+
+    .footer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
     }
 
     /* Efectos decorativos */
     .star {
       position: absolute;
-      color: #FFD700;
-      filter: drop-shadow(0 0 5px rgba(255,215,0,0.7));
-      opacity: 0;
+      color: var(--gold);
+      filter: drop-shadow(0 0 8px rgba(212,175,55,0.8));
+      z-index: 2;
     }
 
     /* Media queries */
     @media (max-width: 768px) {
-      .verification-title {
-        font-size: 2rem;
+      .initial-title {
+        font-size: 3.5rem;
       }
       
       .verification-subtitle {
-        font-size: 1rem;
+        font-size: 1.6rem; /* Ajustado para tamaños más pequeños */
       }
       
       .section-title {
-        font-size: 1.7rem;
+        font-size: 1.8rem;
       }
       
       .welcome-message h2 {
-        font-size: 1.5rem;
+        font-size: 1.6rem;
+      }
+
+      .check-circle {
+        width: 90px; /* Ajustado para tamaños más pequeños */
+        height: 90px; /* Ajustado para tamaños más pequeños */
+      }
+      
+      .check-circle i {
+        font-size: 45px; /* Ajustado para tamaños más pequeños */
       }
     }
 
     @media (max-width: 480px) {
+      .initial-title {
+        font-size: 3rem;
+      }
+
       .verification-ticket {
         padding: 30px 20px;
       }
       
+      .verification-subtitle {
+        font-size: 1.4rem; /* Ajustado para tamaños más pequeños */
+      }
+      
       .check-circle {
-        width: 60px;
-        height: 60px;
+        width: 80px; /* Ajustado para tamaños más pequeños */
+        height: 80px; /* Ajustado para tamaños más pequeños */
       }
       
       .check-circle i {
-        font-size: 30px;
+        font-size: 40px; /* Ajustado para tamaños más pequeños */
       }
       
       .benefits-grid {
@@ -282,16 +468,26 @@
   </style>
 </head>
 <body>
+  <!-- Fondo de partículas -->
+  <div class="particles" id="particles"></div>
+
   <div class="main-container">
+    <!-- Mensaje inicial de GRACIAS -->
+    <div class="initial-message" id="initial-message">
+      <h1 class="initial-title">
+        <span>¡</span><span>G</span><span>R</span><span>A</span><span>C</span><span>I</span><span>A</span><span>S</span><span>!</span>
+      </h1>
+    </div>
+    
     <!-- Ticket de verificación -->
     <div class="verification-ticket" id="ticket">
       <div class="ticket-pattern"></div>
+      <div class="ticket-glow" id="ticket-glow"></div>
       <div class="check-circle">
         <i class="fas fa-check"></i>
       </div>
-      <h1 class="verification-title">¡GRACIAS!</h1>
       <p class="verification-subtitle">TU SUSCRIPCIÓN FUE ACTIVADA</p>
-      <a href="https://t.me/VIPSubscriptionBot" class="telegram-button">
+      <a href="https://t.me/VIPSubscriptionBot" class="telegram-button" id="telegram-button">
         <i class="fab fa-telegram-plane"></i>Volver a Telegram
       </a>
     </div>
@@ -300,17 +496,17 @@
     <div class="info-container" id="info">
       <div class="welcome-message">
         <h2>Bienvenido a la Experiencia Premium</h2>
-        <p>Has desbloqueado acceso a nuestro contenido exclusivo y beneficios especiales diseñados solo para miembros selectos.</p>
+        <p>Has desbloqueado acceso a nuestro contenido exclusivo y beneficios especiales diseñados solo para miembros selectos. Prepárate para disfrutar de una experiencia personalizada al más alto nivel.</p>
       </div>
 
       <h3 class="section-title">Beneficios Exclusivos</h3>
-      <div class="benefits-grid">
+      <div class="benefits-grid" id="benefits-grid">
         <div class="benefit-item">
           <div class="benefit-icon">
-            <i class="fas fa-lock"></i>
+            <i class="fas fa-crown"></i>
           </div>
           <h4 class="benefit-title">Acceso VIP</h4>
-          <p class="benefit-text">Contenido premium y beneficios reservados únicamente para suscriptores selectos.</p>
+          <p class="benefit-text">Contenido premium y beneficios reservados únicamente para suscriptores selectos. Disfruta de experiencias exclusivas.</p>
         </div>
         
         <div class="benefit-item">
@@ -318,7 +514,7 @@
             <i class="fas fa-gift"></i>
           </div>
           <h4 class="benefit-title">Recompensas Premium</h4>
-          <p class="benefit-text">Recibe regalos exclusivos y recompensas que aumentan el valor de tu suscripción.</p>
+          <p class="benefit-text">Recibe regalos exclusivos y recompensas periódicas que aumentan el valor de tu suscripción.</p>
         </div>
         
         <div class="benefit-item">
@@ -326,7 +522,7 @@
             <i class="fas fa-bolt"></i>
           </div>
           <h4 class="benefit-title">Soporte Prioritario</h4>
-          <p class="benefit-text">Atención rápida y personalizada las 24 horas para resolver cualquier duda.</p>
+          <p class="benefit-text">Atención rápida y personalizada las 24 horas para resolver cualquier duda o solicitud.</p>
         </div>
         
         <div class="benefit-item">
@@ -334,16 +530,22 @@
             <i class="fas fa-bell"></i>
           </div>
           <h4 class="benefit-title">Notificaciones Anticipadas</h4>
-          <p class="benefit-text">Recibe alertas exclusivas antes que nadie sobre lanzamientos y oportunidades.</p>
+          <p class="benefit-text">Recibe alertas exclusivas antes que nadie sobre lanzamientos especiales y oportunidades únicas.</p>
         </div>
       </div>
     </div>
 
-    <!-- Estrellas decorativas -->
+    <!-- Estrellas decorativas con más cantidad -->
     <i class="star fas fa-star" style="top: 15%; left: 10%; font-size: 20px;"></i>
     <i class="star fas fa-star" style="top: 25%; right: 15%; font-size: 24px;"></i>
     <i class="star fas fa-star" style="bottom: 40%; left: 20%; font-size: 16px;"></i>
     <i class="star fas fa-star" style="bottom: 20%; right: 10%; font-size: 18px;"></i>
+    <i class="star fas fa-star" style="top: 35%; left: 25%; font-size: 14px;"></i>
+    <i class="star fas fa-star" style="top: 60%; right: 20%; font-size: 22px;"></i>
+    <i class="star fas fa-star" style="bottom: 60%; left: 15%; font-size: 19px;"></i>
+    <i class="star fas fa-star" style="top: 70%; right: 25%; font-size: 15px;"></i>
+    <i class="star fas fa-star" style="top: 10%; right: 30%; font-size: 17px;"></i>
+    <i class="star fas fa-star" style="bottom: 30%; left: 30%; font-size: 21px;"></i>
     
     <!-- Footer simple -->
     <div class="footer" id="footer">
@@ -354,135 +556,337 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      // Ocultar inicialmente contenido adicional
-      gsap.set('#info', { opacity: 0, y: 30 });
+      // Asegurar que el botón de Telegram siempre sea visible
+      const telegramButton = document.getElementById('telegram-button');
+      if (telegramButton) {
+        // Aplicar estilos para asegurar visibilidad
+        telegramButton.style.opacity = '1';
+        telegramButton.style.visibility = 'visible';
+        telegramButton.style.zIndex = '10';
+        
+        // Agregar un destacado para el botón
+        telegramButton.style.boxShadow = '0 0 15px rgba(255,255,255,0.7), 0 0 25px rgba(212,175,55,0.6)';
+      }
+      
+      // Crear partículas de fondo
+      const particlesContainer = document.getElementById('particles');
+      const particleCount = window.innerWidth < 768 ? 50 : 100;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('particle');
+        
+        // Tamaño aleatorio
+        const size = Math.random() * 4 + 1;
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        
+        // Posición aleatoria
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.top = `${Math.random() * 100}%`;
+        
+        // Opacidad aleatoria
+        particle.style.opacity = Math.random() * 0.6 + 0.2;
+        
+        particlesContainer.appendChild(particle);
+        
+        // Animación aleatoria para cada partícula
+        gsap.to(particle, {
+          y: `${Math.random() * 200 - 100}`,
+          x: `${Math.random() * 200 - 100}`,
+          opacity: Math.random() * 0.5 + 0.1,
+          duration: Math.random() * 20 + 10,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut",
+          delay: Math.random() * 5
+        });
+      }
+    
+      // Inicialización para elementos que deben estar ocultos al principio
+      gsap.set('#ticket', { opacity: 0, y: 50 });
+      gsap.set('#info', { opacity: 0, y: 50 });
       gsap.set('#footer', { opacity: 0 });
       gsap.set('.star', { opacity: 0, scale: 0 });
+      gsap.set('#ticket-glow', { opacity: 0 });
       
-      // Animación inicial con GSAP
+      // Asegurar que los beneficios estén configurados correctamente
+      gsap.set('.benefits-grid', { opacity: 1, visibility: "visible" });
+      gsap.set('.benefit-item', { opacity: 1, visibility: "visible" });
+      
+      // Configuración para la animación de letras
+      const titleLetters = document.querySelectorAll('.initial-title span');
+      gsap.set(titleLetters, { opacity: 0, y: 50 });
+      
+      // Animación inicial con GSAP - Usando la secuencia del código original
       const tl = gsap.timeline();
       
-      // Primero mostrar solo "GRACIAS!"
-      tl.set('#ticket .verification-subtitle, #ticket .telegram-button, #ticket .check-circle', { 
-        opacity: 0 
-      });
-      
-      // Animación de "GRACIAS!"
-      tl.to('#ticket', {
+      // PASO 1: Mostrar el "GRACIAS!" inicial con animación letra por letra
+      tl.to(titleLetters, {
         opacity: 1,
         y: 0,
-        duration: 1,
-        ease: "power3.out"
-      })
-      .from('.verification-title', {
-        opacity: 0,
-        y: -20,
-        duration: 0.8,
+        duration: 0.5,
+        stagger: 0.05,
         ease: "back.out(1.7)"
       })
       
-      // Después de un momento, ocultar "GRACIAS!"
-      .to('.verification-title', {
-        opacity: 0,
-        y: -30,
+      // Añadir efecto de brillar al título
+      .to('.initial-title', {
+        textShadow: "0 0 30px rgba(212,175,55,0.9)",
         duration: 0.5,
-        delay: 0.8
+        repeat: 1,
+        yoyo: true,
+        ease: "power2.inOut"
+      }, "-=0.3")
+      
+      // Mantener visible un momento y luego desvanecer
+      .to('#initial-message', {
+        opacity: 0,
+        duration: 0.5,
+        delay: 0.5,
+        ease: "power2.out"
       })
       
-      // Mostrar "TU SUSCRIPCIÓN FUE ACTIVADA"
-      .to('.verification-subtitle', {
+      // PASO 2: Mostrar el ticket con estrellas
+      .to('#ticket', {
         opacity: 1,
         y: 0,
-        duration: 0.8,
+        duration: 0.6,
         ease: "power3.out"
       })
       
-      // Mostrar círculo verde con check
-      .to('.check-circle', {
-        opacity: 1,
-        scale: 1,
-        duration: 0.6,
+      // Animar elementos dentro del ticket
+      .from('.check-circle', {
+        scale: 0,
+        opacity: 0,
+        duration: 0.4,
         ease: "elastic.out(1, 0.5)"
       }, "-=0.2")
       
       .from('.check-circle .fa-check', {
         scale: 0,
         opacity: 0,
-        duration: 0.4,
+        duration: 0.3,
         ease: "back.out(2.5)"
-      }, "-=0.1")
+      }, "-=0.2")
       
-      // Mostrar botón de Telegram
-      .to('.telegram-button', {
+      .from('.verification-subtitle', {
+        y: 30,
+        opacity: 0,
+        duration: 0.4,
+        ease: "power2.out"
+      }, "-=0.2")
+      
+      // IMPORTANTE: Este paso ha sido modificado para garantizar que el botón sea visible
+      // aunque la animación temporal cambie su opacidad
+      .from('.telegram-button', {
+        y: 30,
+        opacity: 0,
+        duration: 0.4,
+        ease: "power2.out",
+        onComplete: function() {
+          // Volver a asegurar que el botón sea visible después de su animación
+          if (telegramButton) {
+            telegramButton.style.opacity = '1';
+            telegramButton.style.visibility = 'visible';
+          }
+        }
+      }, "-=0.2")
+      
+      // Añadir estrellas
+      .to('.star', {
+        opacity: 1,
+        scale: 1,
+        rotation: 360,
+        duration: 0.4,
+        stagger: 0.05,
+        ease: "elastic.out(1, 0.5)"
+      }, "-=0.3")
+      
+      // Activar resplandor del ticket
+      .to('#ticket-glow', {
+        opacity: 0.8,
+        duration: 1.2,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut"
+      }, "-=0.3")
+      
+      // PASO 3: Mover ticket hacia arriba
+      .to('#ticket', {
+        y: -70,
+        scale: 0.95,
+        duration: 0.7,
+        delay: 0.3,
+        ease: "power2.inOut"
+      })
+      
+      // PASO 4: Mostrar el resto de información
+      .to('#info', {
         opacity: 1,
         y: 0,
         duration: 0.6,
         ease: "power2.out"
-      })
+      }, "-=0.4")
       
-      // Animar estrellas
-      .to('.star', {
-        opacity: 1,
-        scale: 1.2,
+      // Animar título de bienvenida
+      .from('.welcome-message h2', {
+        y: 30,
+        opacity: 0,
         duration: 0.5,
-        stagger: 0.1,
-        ease: "elastic.out(1, 0.5)"
-      }, "-=0.5")
-      
-      // Mover ticket hacia arriba
-      .to('#ticket', {
-        y: -50,
-        scale: 0.9,
-        duration: 1,
-        delay: 1,
-        ease: "power2.inOut"
-      })
-      
-      // Mostrar información
-      .to('#info', {
-        opacity: 1,
-        y: 0,
-        duration: 1,
         ease: "power2.out"
-      }, "-=0.5")
+      }, "-=0.4")
       
-      // Mostrar footer
+      .from('.welcome-message p', {
+        y: 20,
+        opacity: 0,
+        duration: 0.5,
+        ease: "power2.out"
+      }, "-=0.3")
+      
+      .from('.section-title', {
+        y: 20,
+        opacity: 0,
+        duration: 0.5,
+        ease: "power2.out"
+      }, "-=0.3")
+      
+      // Asegurarnos que los beneficios sean visibles de inmediato
+      .to('.benefits-grid', {
+        opacity: 1,
+        duration: 0.1
+      }, "-=0.3")
+      
+      // Animar cada tarjeta de beneficios por separado
+      .from('.benefit-item', {
+        y: 30,
+        opacity: 0,
+        scale: 0.95,
+        duration: 0.5,
+        stagger: 0.08,
+        ease: "back.out(1.5)",
+        clearProps: "opacity,transform,scale" // Asegura que los beneficios sean completamente visibles
+      }, "-=0.3")
+      
+      // Animar iconos dentro de cada beneficio
+      .from('.benefit-icon', {
+        rotateY: 180,
+        opacity: 0.5,
+        duration: 0.4,
+        stagger: 0.08,
+        ease: "back.out(1.7)",
+        clearProps: "opacity" // Asegura que los iconos sean completamente visibles
+      }, "-=0.8")
+      
+      // Mostrar footer con fade suave
       .to('#footer', {
         opacity: 0.6,
         duration: 0.5
-      }, "-=0.5");
+      }, "-=0.3");
+      
+      // Animaciones continuas
       
       // Animación continua de estrellas
       gsap.to('.star', {
-        rotation: "+=360",
-        scale: 1.2,
-        duration: 4,
-        repeat: -1,
-        yoyo: true,
-        stagger: 0.5,
-        ease: "sine.inOut"
-      });
-      
-      // Efecto sutil de flotación para el ticket
-      gsap.to('#ticket', {
-        y: "-=10",
-        duration: 2,
-        repeat: -1,
-        yoyo: true,
-        ease: "sine.inOut",
-        delay: 6 // Comenzar después de que la animación principal haya terminado
-      });
-      
-      // Efecto sutil de resplandor para los beneficios
-      gsap.to('.benefit-item', {
-        boxShadow: "0 5px 20px rgba(237,231,199,0.1)",
-        duration: 2,
+        rotation: "random(360, 720)",
+        scale: "random(1, 1.4)",
+        duration: "random(3, 5)",
         repeat: -1,
         yoyo: true,
         stagger: 0.3,
         ease: "sine.inOut",
-        delay: 6
+        delay: 1.5
       });
+      
+      // Efecto de flotación para el ticket
+      gsap.to('#ticket', {
+        y: "-=15",
+        duration: 2.5,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut",
+        delay: 2.5
+      });
+      
+      // Efecto de rotación para los iconos de beneficios
+      gsap.to('.benefit-icon', {
+        rotateY: 180,
+        duration: 3,
+        repeat: -1,
+        yoyo: true,
+        stagger: 0.5,
+        ease: "power1.inOut",
+        delay: 3
+      });
+      
+      // Efecto de resplandor para los elementos de beneficios
+      const benefitItems = document.querySelectorAll('.benefit-item');
+      benefitItems.forEach((item, index) => {
+        // Añadir efecto de hover automático
+        gsap.to(item, {
+          boxShadow: "0 10px 30px rgba(212,175,55,0.15)",
+          y: -8,
+          duration: 1.5,
+          delay: 3 + index * 0.3,
+          repeat: 1,
+          yoyo: true,
+          ease: "sine.inOut"
+        });
+        
+        // Hacer que el efecto de resplandor se active periódicamente
+        gsap.to(item.querySelector('.benefit-icon'), {
+          color: "#FFFFFF",
+          textShadow: "0 0 15px rgba(212,175,55,0.8)",
+          duration: 1,
+          delay: 3.5 + index * 0.3,
+          repeat: 1,
+          yoyo: true,
+          ease: "sine.inOut"
+        });
+      });
+      
+      // Click en botón de Telegram para añadir efecto especial
+      document.querySelector('.telegram-button').addEventListener('click', function(e) {
+        gsap.to(this, {
+          scale: 0.95,
+          duration: 0.1,
+          onComplete: function() {
+            gsap.to(e.currentTarget, {
+              scale: 1,
+              duration: 0.2
+            });
+          }
+        });
+      });
+      
+      // Verificador de visibilidad del botón - cada 2 segundos por 10 segundos
+      let checkVisibility = setInterval(function() {
+        if (telegramButton) {
+          if (telegramButton.offsetParent === null || 
+              getComputedStyle(telegramButton).opacity < 0.9 || 
+              getComputedStyle(telegramButton).visibility !== 'visible') {
+            
+            // El botón no es visible, forzar su visibilidad
+            telegramButton.style.display = 'inline-block';
+            telegramButton.style.opacity = '1';
+            telegramButton.style.visibility = 'visible';
+            telegramButton.style.zIndex = '100';
+            
+            // Destacar temporalmente el botón
+            gsap.to(telegramButton, {
+              boxShadow: "0 0 20px rgba(255,255,255,0.9), 0 0 30px rgba(212,175,55,0.7)",
+              duration: 0.5,
+              repeat: 1,
+              yoyo: true
+            });
+          }
+        }
+      }, 2000);
+      
+      // Detener el verificador después de 10 segundos
+      setTimeout(function() {
+        clearInterval(checkVisibility);
+      }, 10000);
     });
   </script>
 </body>
