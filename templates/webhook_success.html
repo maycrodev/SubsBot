@@ -4,8 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Velvet VIP Premium</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.css">
   <style>
-    /* Root variables con la misma paleta de colores */
+    /* Root variables mantienen la paleta de colores original */
     :root {
       --cream: #EDE7C7;
       --deep-red: #BB0000;
@@ -14,175 +18,80 @@
       --primary-gradient: linear-gradient(135deg, var(--burgundy) 0%, var(--deep-red) 100%);
       --secondary-gradient: linear-gradient(135deg, var(--deep-red) 0%, var(--burgundy) 100%);
       --accent-gradient: linear-gradient(135deg, var(--dark-brown) 0%, var(--burgundy) 100%);
+      --success-green: #27ae60;
       --bg-color: var(--cream);
       --bg-gradient: linear-gradient(135deg, #ffffff 0%, var(--cream) 100%);
       --text-dark: var(--dark-brown);
       --text-light: #ffffff;
-      --transition: 0.4s cubic-bezier(0.215, 0.61, 0.355, 1);
+      --transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1);
       --font-primary: 'Playfair Display', 'Times New Roman', serif;
       --font-secondary: 'Poppins', 'Segoe UI', sans-serif;
     }
     
+    /* Reset y estilos base */
     * { 
       box-sizing: border-box; 
       margin: 0; 
       padding: 0; 
     }
     
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700&display=swap');
-    
     body {
       font-family: var(--font-secondary);
-      background: var(--bg-gradient);
+      background: #FFFFFF;
       color: var(--text-dark);
       min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
       overflow-x: hidden;
-      perspective: 1500px;
-      padding: 20px;
+      line-height: 1.6;
+      font-weight: 400;
     }
-    
-    /* Elementos de fondo sofisticados */
-    .bg-element {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(80px);
-      z-index: -1;
-      opacity: 0.2;
-      transition: all 1.5s ease-in-out;
-    }
-    
-    .bg-element.one {
-      width: 600px;
-      height: 600px;
-      background: var(--primary-gradient);
-      top: -200px;
-      left: -150px;
-      animation: morphAnimation 25s infinite alternate ease-in-out;
-    }
-    
-    .bg-element.two {
-      width: 500px;
-      height: 500px;
-      background: var(--secondary-gradient);
-      bottom: -150px;
-      right: -100px;
-      animation: morphAnimation 20s 2s infinite alternate ease-in-out;
-    }
-    
-    .bg-element.three {
-      width: 400px;
-      height: 400px;
-      background: var(--accent-gradient);
-      top: 40%;
-      left: 15%;
-      animation: morphAnimation 30s 1s infinite alternate ease-in-out;
-    }
-    
-    @keyframes morphAnimation {
-      0% { 
-        transform: translate(0, 0) rotate(0deg) scale(1); 
-        border-radius: 50%;
-      }
-      25% { 
-        transform: translate(50px, 20px) rotate(5deg) scale(1.1); 
-        border-radius: 60% 40% 70% 30%;
-      }
-      50% { 
-        transform: translate(20px, 50px) rotate(10deg) scale(0.9); 
-        border-radius: 30% 70% 40% 60%;
-      }
-      75% { 
-        transform: translate(-30px, 30px) rotate(5deg) scale(1.05); 
-        border-radius: 40% 60% 30% 70%;
-      }
-      100% { 
-        transform: translate(0, 0) rotate(0deg) scale(1); 
-        border-radius: 50%;
-      }
-    }
-    
-    /* Contenedor mejorado con efecto de profundidad */
+
+    /* Contenedor principal con sombra refinada */
     .container {
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
       position: relative;
-      max-width: 1200px;
-      width: 100%;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 
-        0 15px 35px rgba(0,0,0,0.1),
-        0 5px 15px rgba(0,0,0,0.05);
+      background: #FFFFFF;
       overflow: hidden;
-      transform-style: preserve-3d;
-      animation: containerReveal 1.2s var(--transition);
-      border: 1px solid rgba(237, 231, 199, 0.4);
     }
-    
-    @keyframes containerReveal {
-      from { 
-        opacity: 0; 
-        transform: translateY(50px) rotateX(5deg); 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-      }
-      to { 
-        opacity: 1; 
-        transform: translateY(0) rotateX(0); 
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.05);
-      }
-    }
-    
-    /* Header moderno y sofisticado */
-    header {
-      background: var(--primary-gradient);
-      padding: 70px 40px 90px;
-      text-align: center;
-      color: white;
-      position: relative;
-      overflow: hidden;
-      clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
-    }
-    
-    /* Efecto de partículas para el fondo del header */
-    .particles-container {
-      position: absolute;
+
+    /* Overlay sutíl para el fondo */
+    .bg-overlay {
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
+      background: linear-gradient(135deg, rgba(237,231,199,0.03) 0%, rgba(255,255,255,0) 100%);
+      z-index: -1;
+    }
+    
+    /* Header moderno y minimalista */
+    header {
+      background: var(--primary-gradient);
+      padding: 90px 0 120px;
+      position: relative;
       overflow: hidden;
-      opacity: 0.15;
+      clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
     }
     
-    .particle {
-      position: absolute;
-      width: 6px;
-      height: 6px;
-      background: white;
-      border-radius: 50%;
-      opacity: 0;
-      animation: particleFloat 3s infinite ease-out;
-    }
-    
-    @keyframes particleFloat {
-      0% { transform: translateY(0) translateX(0); opacity: 0; }
-      20% { opacity: 0.8; }
-      100% { transform: translateY(-100px) translateX(20px); opacity: 0; }
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      text-align: center;
+      position: relative;
+      z-index: 2;
     }
     
     .brand-logo {
       font-family: var(--font-primary);
-      font-size: 3.2rem;
-      font-weight: 800;
+      font-size: 2.5rem;
+      font-weight: 700;
       letter-spacing: 2px;
       margin-bottom: 10px;
-      background: linear-gradient(to right, var(--cream) 0%, #ffffff 50%, var(--cream) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: shimmer 3s infinite;
-      background-size: 200% auto;
+      color: white;
       position: relative;
       display: inline-block;
     }
@@ -193,107 +102,111 @@
       bottom: -5px;
       left: 50%;
       transform: translateX(-50%);
-      width: 0;
+      width: 80px;
       height: 2px;
       background: var(--cream);
-      transition: all 0.5s ease;
-      animation: borderExpand 1.5s forwards 0.5s;
     }
     
-    @keyframes borderExpand {
-      from { width: 0; }
-      to { width: 80%; }
-    }
-    
-    @keyframes shimmer {
-      0% { background-position: -200% center; }
-      100% { background-position: 200% center; }
-    }
-    
-    header .logo {
-      font-size: 72px;
-      position: relative;
-      display: inline-block;
-      margin-bottom: 20px;
-      animation: logoFloat 6s infinite ease-in-out;
-    }
-    
-    @keyframes logoFloat {
-      0%, 100% { 
-        transform: translateY(0); 
-        filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2));
-      }
-      50% { 
-        transform: translateY(-15px); 
-        filter: drop-shadow(0 15px 25px rgba(0,0,0,0.3));
-      }
+    .header-icon {
+      font-size: 1.5rem;
+      margin-right: 8px;
+      vertical-align: middle;
     }
     
     header h1 {
       font-family: var(--font-primary);
-      font-size: 3.8rem;
+      font-size: 3.5rem;
       font-weight: 800;
-      margin-top: 15px;
-      letter-spacing: 1px;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-      opacity: 0;
-      transform: translateY(30px);
-      animation: titleReveal 1.4s var(--transition) forwards 0.4s;
+      margin-top: 1.5rem;
+      letter-spacing: 0px;
+      color: var(--text-light);
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
     }
     
-    @keyframes titleReveal {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
+    header p {
+      color: rgba(255,255,255,0.9);
+      max-width: 600px;
+      margin: 1.5rem auto 0;
+      font-size: 1.1rem;
+      font-weight: 300;
+      font-style: italic;
+    }
+
+    /* Diseño geométrico refinado en el header */
+    .header-shapes {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      opacity: 0.1;
+      pointer-events: none;
     }
     
-    /* Message section con diseño profesional */
-    .message-wrapper {
-      padding: 60px 40px;
+    .header-shape {
+      position: absolute;
+      border-radius: 2px;
+      background: var(--cream);
+      transform: rotate(45deg);
+    }
+    
+    .header-shape.one {
+      width: 180px;
+      height: 180px;
+      top: -40px;
+      left: 10%;
+    }
+    
+    .header-shape.two {
+      width: 120px;
+      height: 120px;
+      bottom: 20px;
+      right: 15%;
+    }
+    
+    .header-shape.three {
+      width: 80px;
+      height: 80px;
+      top: 40%;
+      right: 25%;
+    }
+
+    /* Sección de mensajes con diseño moderno */
+    .message-section {
+      background: #FFFFFF;
       text-align: center;
       position: relative;
       z-index: 2;
-      transform: translateY(-40px);
+      padding: 0;
+      margin-top: -50px;
+    }
+    
+    .message-wrapper {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 30px;
       background: white;
-      border-radius: 20px 20px 0 0;
-      box-shadow: 0 -10px 30px rgba(0,0,0,0.08);
+      border-radius: 8px;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.08);
+      transform: translateY(-30px);
     }
     
     .message {
-      font-size: 1.5rem;
+      font-size: 1.3rem;
       line-height: 1.6;
-      margin-bottom: 40px;
+      margin-bottom: 30px;
       font-weight: 500;
-      opacity: 0;
-      animation: messageReveal 1.6s var(--transition) forwards 0.6s;
-      position: relative;
-      padding: 0 10px;
-    }
-    
-    .message::before {
-      content: '';
-      position: absolute;
-      top: -10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 40px;
-      height: 3px;
-      background: var(--burgundy);
-      border-radius: 2px;
-    }
-    
-    @keyframes messageReveal {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
     }
     
     .message.success { 
       color: var(--burgundy); 
-      text-shadow: 0 1px 5px rgba(88,2,2,0.1);
     }
     
     .message.error { 
       color: #d63031; 
-      text-shadow: 0 1px 5px rgba(214,48,49,0.1);
     }
     
     .button {
@@ -301,861 +214,901 @@
       background: var(--secondary-gradient);
       color: white;
       text-decoration: none;
-      padding: 18px 44px;
-      border-radius: 8px;
-      font-size: 1.1rem;
+      padding: 16px 36px;
+      border-radius: 4px;
+      font-size: 1rem;
       font-weight: 600;
       letter-spacing: 0.5px;
-      box-shadow: 0 10px 20px rgba(88,2,2,0.25);
-      transition: all 0.4s ease;
+      box-shadow: 0 5px 15px rgba(88,2,2,0.2);
+      transition: all var(--transition);
       position: relative;
       overflow: hidden;
-      opacity: 0;
-      animation: buttonReveal 1.8s var(--transition) forwards 0.8s;
-      border: none;
-      transform: translateZ(0);
-    }
-    
-    @keyframes buttonReveal {
-      from { opacity: 0; transform: translateY(20px) scale(0.95); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
     }
     
     .button:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 15px 25px rgba(88,2,2,0.35);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(88,2,2,0.3);
     }
     
-    .button:active {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 15px rgba(88,2,2,0.35);
-    }
-    
-    .button::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-      transition: all 0.8s;
-    }
-    
-    .button:hover::before {
-      left: 100%;
-    }
-    
-    /* Features section con estilo profesional */
-    .features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 30px;
-      padding: 30px 40px 60px;
-      background: white;
-    }
-    
-    .feature-card {
-      background: white;
-      padding: 40px 30px;
-      border-radius: 12px;
-      box-shadow: 
-        0 10px 30px rgba(0,0,0,0.05),
-        0 1px 3px rgba(0,0,0,0.03);
-      text-align: center;
-      transition: all 0.5s ease;
-      position: relative;
-      overflow: hidden;
-      z-index: 1;
-      opacity: 0;
-      transform: translateY(40px);
-      animation: featureReveal 1.2s var(--transition) forwards;
-      animation-fill-mode: both;
-      border: 1px solid rgba(237, 231, 199, 0.2);
-    }
-    
-    .feature-card:nth-child(1) { animation-delay: 0.2s; }
-    .feature-card:nth-child(2) { animation-delay: 0.4s; }
-    .feature-card:nth-child(3) { animation-delay: 0.6s; }
-    .feature-card:nth-child(4) { animation-delay: 0.8s; }
-    .feature-card:nth-child(5) { animation-delay: 1.0s; }
-    .feature-card:nth-child(6) { animation-delay: 1.2s; }
-    
-    @keyframes featureReveal {
-      from { opacity: 0; transform: translateY(40px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .feature-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 4px;
-      height: 0;
-      background: var(--primary-gradient);
-      z-index: -1;
-      transition: height 0.5s ease;
-    }
-    
-    .feature-card:hover {
-      transform: translateY(-10px) scale(1.02);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.08);
-    }
-    
-    .feature-card:hover::before {
-      height: 100%;
-    }
-    
-    .feature-card .icon {
-      font-size: 3.8rem;
-      margin-bottom: 25px;
-      display: inline-block;
-      transition: all 0.5s ease;
-      position: relative;
-    }
-    
-    .feature-card .icon::after {
-      content: '';
-      position: absolute;
-      bottom: -10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
-      height: 2px;
-      background: var(--burgundy);
-      transition: all 0.5s ease;
-      opacity: 0;
-    }
-    
-    .feature-card:hover .icon::after {
-      width: 40px;
-      opacity: 1;
-    }
-    
-    .feature-card:nth-child(1) .icon { color: var(--burgundy); }
-    .feature-card:nth-child(2) .icon { color: var(--deep-red); }
-    .feature-card:nth-child(3) .icon { color: var(--dark-brown); }
-    .feature-card:nth-child(4) .icon { color: var(--burgundy); }
-    .feature-card:nth-child(5) .icon { color: var(--deep-red); }
-    .feature-card:nth-child(6) .icon { color: var(--dark-brown); }
-    
-    .feature-card:hover .icon {
-      transform: translateY(-10px);
-    }
-    
-    .feature-card h3 {
-      margin-bottom: 15px;
-      font-size: 1.6rem;
-      font-weight: 700;
-      transition: all var(--transition);
-      font-family: var(--font-primary);
-      color: var(--text-dark);
-      position: relative;
-      display: inline-block;
-    }
-    
-    .feature-card p {
-      font-size: 1.05rem;
-      line-height: 1.7;
-      color: #444;
-      transition: all var(--transition);
-    }
-    
-    /* Benefits section con efecto 3D */
-    .benefits {
-      padding: 100px 40px;
-      background: linear-gradient(135deg, rgba(237, 231, 199, 0.6) 0%, rgba(237, 231, 199, 0.9) 100%);
-      clip-path: polygon(0 10%, 100% 0, 100% 90%, 0 100%);
+    /* Grid de beneficios moderna */
+    .benefits-section {
+      padding: 120px 40px 100px;
+      background: #FFFFFF;
       position: relative;
       text-align: center;
-      transform-style: preserve-3d;
-      perspective: 1000px;
     }
     
-    .benefits::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: 
-        radial-gradient(circle at 10% 20%, rgba(88, 2, 2, 0.03) 0%, transparent 20%),
-        radial-gradient(circle at 90% 80%, rgba(88, 2, 2, 0.03) 0%, transparent 20%);
-      z-index: -1;
-    }
-    
-    .benefits-title {
+    .section-title {
       font-family: var(--font-primary);
       text-align: center;
-      font-size: 2.8rem;
-      margin-bottom: 70px;
+      font-size: 2.2rem;
+      margin-bottom: 60px;
       color: var(--text-dark);
       font-weight: 700;
       position: relative;
       display: inline-block;
-      opacity: 0;
-      transform: translateY(30px);
-      animation: titleFadeIn 1s ease forwards;
-      animation-play-state: paused;
     }
     
-    .benefits.animate .benefits-title {
-      animation-play-state: running;
-    }
-    
-    @keyframes titleFadeIn {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .benefits-title::after {
+    .section-title::after {
       content: '';
       position: absolute;
       bottom: -15px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
+      left: 0;
+      width: 60px;
       height: 3px;
-      background: var(--primary-gradient);
-      border-radius: 2px;
-      transition: width 1s ease;
-    }
-    
-    .benefits.animate .benefits-title::after {
-      width: 100px;
+      background: var(--burgundy);
+      border-radius: 1px;
     }
     
     .benefits-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 50px;
-      max-width: 1000px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 30px;
+      max-width: 1200px;
       margin: 0 auto;
-      perspective: 1000px;
     }
     
     .benefit-item {
       text-align: center;
-      opacity: 0;
-      transform: translateY(40px) rotateX(20deg);
-      transition: all 0.6s ease;
-      transform-style: preserve-3d;
+      padding: 30px 20px;
+      border-radius: 6px;
+      background: white;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+      transition: all var(--transition);
     }
     
-    .benefits.animate .benefit-item {
-      opacity: 1;
-      transform: translateY(0) rotateX(0);
+    .benefit-item:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 15px 30px rgba(0,0,0,0.1);
     }
-    
-    .benefits.animate .benefit-item:nth-child(1) { transition-delay: 0.2s; }
-    .benefits.animate .benefit-item:nth-child(2) { transition-delay: 0.4s; }
-    .benefits.animate .benefit-item:nth-child(3) { transition-delay: 0.6s; }
-    .benefits.animate .benefit-item:nth-child(4) { transition-delay: 0.8s; }
     
     .benefit-counter {
       font-family: var(--font-primary);
-      font-size: 4.5rem;
+      font-size: 3.5rem;
       font-weight: 700;
       color: var(--burgundy);
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       display: inline-block;
       position: relative;
-      transform: translateZ(50px);
     }
     
     .benefit-counter::after {
       content: '+';
       position: absolute;
-      top: 0;
-      right: -25px;
-      font-size: 2.5rem;
+      top: 5px;
+      right: -20px;
+      font-size: 2rem;
       color: var(--deep-red);
     }
     
     .benefit-text {
-      font-size: 1.2rem;
-      font-weight: 600;
+      font-size: 1.1rem;
+      font-weight: 500;
       color: var(--text-dark);
-      transform: translateZ(30px);
+    }
+
+    /* Características con diseño enfocado en la elegancia */
+    .features-section {
+      padding: 100px 40px;
+      background: var(--bg-color);
+      position: relative;
     }
     
-    /* CTA Section con efecto de parallax */
+    .features-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .features-header {
+      text-align: left;
+      margin-bottom: 60px;
+    }
+    
+    .features-title {
+      font-family: var(--font-primary);
+      font-size: 2.2rem;
+      margin-bottom: 20px;
+      color: var(--text-dark);
+      font-weight: 700;
+      position: relative;
+      display: inline-block;
+    }
+    
+    .features-title::after {
+      content: '';
+      position: absolute;
+      bottom: -10px;
+      left: 0;
+      width: 60px;
+      height: 3px;
+      background: var(--burgundy);
+      border-radius: 1px;
+    }
+    
+    .features-subtitle {
+      font-size: 1.1rem;
+      color: #555;
+      max-width: 700px;
+    }
+    
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 30px;
+    }
+    
+    .feature-card {
+      background: white;
+      padding: 30px;
+      border-radius: 6px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+      transition: all var(--transition);
+      display: flex;
+      align-items: flex-start;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+    }
+    
+    .feature-icon {
+      font-size: 2rem;
+      color: var(--burgundy);
+      margin-right: 20px;
+      flex-shrink: 0;
+    }
+    
+    .feature-content {
+      text-align: left;
+    }
+    
+    .feature-content h3 {
+      font-size: 1.3rem;
+      margin-bottom: 10px;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+    
+    .feature-content p {
+      font-size: 1rem;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    /* CTA con diseño enfocado */
     .cta-section {
-      padding: 80px 40px;
+      padding: 100px 40px;
       text-align: center;
       background: white;
+      position: relative;
+    }
+    
+    .cta-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--primary-gradient);
+      padding: 60px 40px;
+      border-radius: 8px;
+      box-shadow: 0 20px 50px rgba(88,2,2,0.1);
       position: relative;
       overflow: hidden;
     }
     
-    .parallax-bg {
+    .cta-pattern {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: 
-        radial-gradient(circle at 20% 30%, rgba(88, 2, 2, 0.03) 0%, transparent 40%),
-        radial-gradient(circle at 80% 70%, rgba(32, 14, 1, 0.03) 0%, transparent 40%);
-      z-index: 0;
-      transform: translateZ(-50px);
-      transform-style: preserve-3d;
-    }
-    
-    .cta-content {
-      position: relative;
-      z-index: 1;
-      max-width: 800px;
-      margin: 0 auto;
-      perspective: 1000px;
-      transform-style: preserve-3d;
+      background-image: radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px);
+      background-size: 20px 20px;
+      opacity: 0.3;
     }
     
     .cta-title {
       font-family: var(--font-primary);
-      font-size: 2.8rem;
-      font-weight: 700;
-      color: var(--text-dark);
-      margin-bottom: 25px;
-      opacity: 0;
-      transform: translateY(30px);
-      transition: all 0.8s ease;
-    }
-    
-    .cta-section.animate .cta-title {
-      opacity: 1;
-      transform: translateY(0);
+      font-size: 2.2rem;
+      color: white;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
     }
     
     .cta-text {
-      font-size: 1.3rem;
-      line-height: 1.7;
-      color: #444;
-      margin-bottom: 40px;
-      opacity: 0;
-      transform: translateY(30px);
-      transition: all 0.8s ease;
-      transition-delay: 0.2s;
-    }
-    
-    .cta-section.animate .cta-text {
-      opacity: 1;
-      transform: translateY(0);
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 30px;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+      position: relative;
+      z-index: 1;
     }
     
     .cta-button {
       display: inline-block;
-      background: var(--accent-gradient);
-      color: white;
+      background: white;
+      color: var(--burgundy);
       text-decoration: none;
-      padding: 18px 44px;
-      border-radius: 8px;
-      font-size: 1.1rem;
+      padding: 16px 36px;
+      border-radius: 4px;
+      font-size: 1rem;
       font-weight: 600;
       letter-spacing: 0.5px;
-      box-shadow: 0 10px 20px rgba(32,14,1,0.25);
-      transition: all 0.4s ease;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+      transition: all var(--transition);
       position: relative;
-      overflow: hidden;
-      opacity: 0;
-      transform: translateY(30px);
-      transition: all 0.8s ease;
-      transition-delay: 0.4s;
-    }
-    
-    .cta-section.animate .cta-button {
-      opacity: 1;
-      transform: translateY(0);
+      z-index: 1;
     }
     
     .cta-button:hover {
-      transform: translateY(-5px) scale(1.03);
-      box-shadow: 0 15px 25px rgba(32,14,1,0.35);
+      transform: translateY(-3px);
+      box-shadow: 0 15px 30px rgba(0,0,0,0.2);
     }
-    
-    .cta-button::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-      transition: all 0.8s;
-    }
-    
-    .cta-button:hover::before {
-      left: 100%;
-    }
-    
-    /* Footer moderno */
+
+    /* Footer elegante */
     footer {
-      padding: 50px 40px;
-      text-align: center;
-      font-size: 0.95rem;
-      color: #444;
-      background: white;
-      position: relative;
-      border-top: 1px solid rgba(237, 231, 199, 0.3);
-    }
-    
-    .footer-wave {
-      position: absolute;
-      top: -50px;
-      left: 0;
-      width: 100%;
-      height: 50px;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%23EDE7C7' fill-opacity='0.2' d='M0,160L48,170.7C96,181,192,203,288,186.7C384,171,480,117,576,117.3C672,117,768,171,864,197.3C960,224,1056,224,1152,197.3C1248,171,1344,117,1392,90.7L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
-      background-size: cover;
-    }
-    
-    .social-links {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 25px;
-    }
-    
-    .social-link {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      background: var(--primary-gradient);
+      padding: 60px 40px 40px;
+      background: var(--dark-brown);
       color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 10px;
-      font-size: 1.2rem;
-      transition: all 0.4s ease;
       position: relative;
-      overflow: hidden;
     }
     
-    .social-link:hover {
-      transform: translateY(-5px) scale(1.05);
-      box-shadow: 0 10px 20px rgba(88,2,2,0.15);
+    .footer-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 40px;
     }
     
-    .social-link::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-      transform: rotate(45deg);
-      transition: all 0.6s ease;
-    }
-    
-    .social-link:hover::before {
-      animation: shine 1.5s;
-    }
-    
-    @keyframes shine {
-      0% { transform: rotate(45deg) translateY(0); }
-      100% { transform: rotate(45deg) translateY(100%); }
-    }
-    
-    .copyright {
-      margin-top: 25px;
-      font-weight: 500;
+    .footer-col h4 {
+      font-family: var(--font-primary);
+      font-size: 1.3rem;
+      margin-bottom: 20px;
       position: relative;
       display: inline-block;
     }
     
-    .copyright::before {
+    .footer-col h4::after {
       content: '';
       position: absolute;
-      top: -15px;
-      left: 50%;
-      transform: translateX(-50%);
+      bottom: -10px;
+      left: 0;
       width: 40px;
       height: 2px;
-      background: var(--burgundy);
-      opacity: 0.3;
-      border-radius: 2px;
+      background: var(--cream);
     }
     
-    /* Animación para hacer que las partículas parezcan aleatorias */
-    .particle:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; animation-duration: 3s; }
-    .particle:nth-child(2) { top: 70%; left: 20%; animation-delay: 0.3s; animation-duration: 3.5s; }
-    .particle:nth-child(3) { top: 40%; left: 30%; animation-delay: 0.6s; animation-duration: 3.2s; }
-    .particle:nth-child(4) { top: 60%; left: 40%; animation-delay: 0.9s; animation-duration: 3.7s; }
-    .particle:nth-child(5) { top: 30%; left: 50%; animation-delay: 1.2s; animation-duration: 3.1s; }
-    .particle:nth-child(6) { top: 80%; left: 60%; animation-delay: 1.5s; animation-duration: 3.4s; }
-    .particle:nth-child(7) { top: 50%; left: 70%; animation-delay: 1.8s; animation-duration: 3.3s; }
-    .particle:nth-child(8) { top: 10%; left: 80%; animation-delay: 2.1s; animation-duration: 3.8s; }
-    .particle:nth-child(9) { top: 90%; left: 90%; animation-delay: 2.4s; animation-duration: 3.9s; }
-    .particle:nth-child(10) { top: 25%; left: 95%; animation-delay: 2.7s; animation-duration: 3.6s; }
-    .particle:nth-child(11) { top: 15%; left: 85%; animation-delay: 3.0s; animation-duration: 4.0s; }
-    .particle:nth-child(12) { top: 55%; left: 15%; animation-delay: 3.3s; animation-duration: 3.5s; }
-    .particle:nth-child(13) { top: 75%; left: 55%; animation-delay: 3.6s; animation-duration: 3.2s; }
-    .particle:nth-child(14) { top: 35%; left: 75%; animation-delay: 3.9s; animation-duration: 3.7s; }
-    .particle:nth-child(15) { top: 85%; left: 35%; animation-delay: 4.2s; animation-duration: 3.3s; }
+    .footer-links {
+      list-style: none;
+    }
     
-    /* Mejoras responsivas */
-    @media (max-width: 1100px) {
-      header h1 {
-        font-size: 3.2rem;
+    .footer-links li {
+      margin-bottom: 10px;
+    }
+    
+    .footer-links a {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      transition: all 0.3s;
+    }
+    
+    .footer-links a:hover {
+      color: var(--cream);
+      padding-left: 5px;
+    }
+    
+    .social-links {
+      display: flex;
+      margin-top: 20px;
+    }
+    
+    .social-link {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 10px;
+      font-size: 1rem;
+      transition: all var(--transition);
+    }
+    
+    .social-link:hover {
+      background: var(--burgundy);
+      transform: translateY(-3px);
+    }
+    
+    .copyright {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+      font-size: 0.9rem;
+    }
+
+    /* Animaciones refinadas */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(50px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    
+    /* Estilos para la animación de bienvenida */
+    .welcome-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(32,14,1,0.95) 0%, rgba(88,2,2,0.95) 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      overflow: hidden;
+    }
+    
+    .animation-container {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      height: 400px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .welcome-animation {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .welcome-text {
+      font-family: var(--font-primary);
+      color: white;
+      text-align: center;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+    }
+    
+    .welcome-text.first {
+      font-size: 4rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    
+    .welcome-text.second {
+      font-size: 2.2rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      opacity: 0;
+    }
+    
+    .check-animation {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    
+    .check-circle {
+      width: 100px;
+      height: 100px;
+      background: var(--success-green);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 10px 30px rgba(39,174,96,0.5);
+    }
+    
+    .check-circle i {
+      color: white;
+      font-size: 50px;
+    }
+    
+    .stars-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    
+    .star {
+      position: absolute;
+      color: #FFD700;
+      filter: drop-shadow(0 0 5px rgba(255,215,0,0.7));
+    }
+    
+    .star-1 {
+      top: 20%;
+      left: 20%;
+      font-size: 20px;
+    }
+    
+    .star-2 {
+      top: 15%;
+      right: 25%;
+      font-size: 25px;
+    }
+    
+    .star-3 {
+      bottom: 30%;
+      left: 15%;
+      font-size: 18px;
+    }
+    
+    .star-4 {
+      bottom: 20%;
+      right: 18%;
+      font-size: 22px;
+    }
+    
+    .star-5 {
+      top: 40%;
+      right: 10%;
+      font-size: 15px;
+    }
+    
+    .star-6 {
+      bottom: 40%;
+      left: 10%;
+      font-size: 16px;
+    }
+    
+    /* Toques seductores */
+    .seductive-glow {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(187,0,0,0.3) 0%, rgba(255,255,255,0) 70%);
+      filter: blur(20px);
+      pointer-events: none;
+      z-index: -1;
+    }
+    
+    .seductive-glow.one {
+      top: 20%;
+      left: 30%;
+      animation: floatAnimation 15s infinite alternate ease-in-out;
+    }
+    
+    .seductive-glow.two {
+      bottom: 30%;
+      right: 25%;
+      animation: floatAnimation 12s 1s infinite alternate ease-in-out;
+    }
+    
+    @keyframes floatAnimation {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(20px, 20px) scale(1.2); }
+    }
+    
+    /* Media queries para responsividad */
+    @media (max-width: 1024px) {
+      .benefits-grid {
+        grid-template-columns: repeat(2, 1fr);
       }
       
-      .benefits {
-        padding: 80px 30px;
-        clip-path: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
       }
     }
     
     @media (max-width: 768px) {
       header {
-        padding: 50px 25px 70px;
-      }
-      
-      .brand-logo {
-        font-size: 2.5rem;
+        padding: 70px 0 100px;
       }
       
       header h1 {
-        font-size: 2.6rem;
+        font-size: 2.8rem;
       }
       
-      .message {
-        font-size: 1.3rem;
+      .brand-logo {
+        font-size: 2rem;
       }
       
-      .features {
+      .features-grid {
         grid-template-columns: 1fr;
-        gap: 25px;
       }
       
-      .benefits-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 30px;
-      }
-      
-      .feature-card {
-        padding: 30px 25px;
+      .cta-container {
+        padding: 40px 30px;
       }
       
       .cta-title {
-        font-size: 2.3rem;
+        font-size: 2rem;
       }
       
-      .benefit-counter {
-        font-size: 3.8rem;
+      .welcome-text.first {
+        font-size: 3rem;
+      }
+      
+      .welcome-text.second {
+        font-size: 1.8rem;
+      }
+      
+      .check-circle {
+        width: 80px;
+        height: 80px;
+      }
+      
+      .check-circle i {
+        font-size: 40px;
       }
     }
     
-    @media (max-width: 480px) {
-      .brand-logo {
-        font-size: 2.2rem;
-      }
-      
+    @media (max-width: 576px) {
       header h1 {
-        font-size: 2rem;
-      }
-      
-      .logo {
-        font-size: 60px;
-      }
-      
-      .message {
-        font-size: 1.1rem;
-      }
-      
-      .message-wrapper {
-        padding: 40px 20px;
-      }
-      
-      .button, .cta-button {
-        padding: 16px 32px;
-        font-size: 1rem;
+        font-size: 2.2rem;
       }
       
       .benefits-grid {
         grid-template-columns: 1fr;
       }
       
-      .benefit-counter {
-        font-size: 3.5rem;
-      }
-      
+      .section-title,
+      .features-title,
       .cta-title {
-        font-size: 2rem;
+        font-size: 1.8rem;
       }
       
-      .cta-text {
+      .message {
         font-size: 1.1rem;
+      }
+      
+      .footer-container {
+        grid-template-columns: 1fr;
+      }
+      
+      .welcome-text.first {
+        font-size: 2.5rem;
+      }
+      
+      .welcome-text.second {
+        font-size: 1.4rem;
+      }
+      
+      .check-circle {
+        width: 70px;
+        height: 70px;
+      }
+      
+      .check-circle i {
+        font-size: 35px;
       }
     }
   </style>
 </head>
 <body>
-  <!-- Elementos de fondo animados -->
-  <div class="bg-element one"></div>
-  <div class="bg-element two"></div>
-  <div class="bg-element three"></div>
+  <div class="bg-overlay"></div>
+  <div class="seductive-glow one"></div>
+  <div class="seductive-glow two"></div>
   
   <div class="container">
     <header>
-      <!-- Efecto de partículas -->
-      <div class="particles-container">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
+      <div class="header-shapes">
+        <div class="header-shape one"></div>
+        <div class="header-shape two"></div>
+        <div class="header-shape three"></div>
       </div>
-      <div class="brand-logo">Velvet VIP</div>
-      <div class="logo">🎟️</div>
-      <h1>Suscripción VIP Premium</h1>
+      <div class="header-content">
+        <div class="brand-logo"><i class="header-icon fas fa-crown"></i>Velvet VIP</div>
+        <h1>Experiencia Premium Exclusiva</h1>
+        <p>Acceso a contenido exclusivo, soporte prioritario y beneficios especiales diseñados para miembros selectos.</p>
+      </div>
     </header>
     
-    <div class="message-wrapper">
-      <div class="message {{ 'error' in message.lower() and 'error' or 'success' }}">
-        {{ message }}
-      </div>
-      <a href="https://t.me/VIPSubscriptionBot" class="button">Volver a Telegram</a>
-    </div>
-    
-    <section class="features">
-      <div class="feature-card">
-        <div class="icon">🔒</div>
-        <h3>Acceso Exclusivo</h3>
-        <p>Contenido premium y beneficios reservados únicamente para suscriptores VIP de nuestro selecto grupo.</p>
-      </div>
-      
-      <div class="feature-card">
-        <div class="icon">🎁</div>
-        <h3>Recompensas Premium</h3>
-        <p>Recibe regalos exclusivos y recompensas mensuales que aumentan el valor de tu suscripción al máximo.</p>
-      </div>
-      
-      <div class="feature-card">
-        <div class="icon">⚡</div>
-        <h3>Soporte Prioritario</h3>
-        <p>Atención rápida y personalizada las 24 horas para resolver cualquier duda al instante.</p>
-      </div>
-      
-      <div class="feature-card">
-        <div class="icon">🔔</div>
-        <h3>Notificaciones Anticipadas</h3>
-        <p>Recibe alertas exclusivas antes que nadie sobre lanzamientos, eventos y oportunidades limitadas.</p>
-      </div>
-      
-      <div class="feature-card">
-        <div class="icon">💎</div>
-        <h3>Contenido Exclusivo</h3>
-        <p>Accede a recursos premium, guías detalladas y análisis avanzados no disponibles para usuarios estándar.</p>
-      </div>
-      
-      <div class="feature-card">
-        <div class="icon">🚀</div>
-        <h3>Eventos VIP</h3>
-        <p>Participa en eventos exclusivos donde podrás conectar con otros miembros premium y expertos del sector.</p>
+    <section class="message-section">
+      <div class="message-wrapper" data-aos="fade-up">
+        <div class="message {{ 'error' in message.lower() and 'error' or 'success' }}">
+          {{ message }}
+        </div>
+        <a href="https://t.me/VIPSubscriptionBot" class="button">Volver a Telegram</a>
       </div>
     </section>
     
-    <section class="benefits">
-      <h2 class="benefits-title">Beneficios Comprobados</h2>
+    <section class="benefits-section">
+      <h2 class="section-title" data-aos="fade-up">Estadísticas Premium</h2>
       <div class="benefits-grid">
-        <div class="benefit-item">
+        <div class="benefit-item" data-aos="fade-up" data-aos-delay="100">
           <div class="benefit-counter">98</div>
           <div class="benefit-text">Satisfacción del cliente</div>
         </div>
         
-        <div class="benefit-item">
+        <div class="benefit-item" data-aos="fade-up" data-aos-delay="200">
           <div class="benefit-counter">24</div>
           <div class="benefit-text">Atención al cliente</div>
         </div>
         
-        <div class="benefit-item">
+        <div class="benefit-item" data-aos="fade-up" data-aos-delay="300">
           <div class="benefit-counter">365</div>
           <div class="benefit-text">Días de acceso premium</div>
         </div>
         
-        <div class="benefit-item">
+        <div class="benefit-item" data-aos="fade-up" data-aos-delay="400">
           <div class="benefit-counter">50</div>
           <div class="benefit-text">Beneficios exclusivos</div>
         </div>
       </div>
     </section>
     
+    <section class="features-section">
+      <div class="features-container">
+        <div class="features-header" data-aos="fade-up">
+          <h2 class="features-title">Beneficios Exclusivos</h2>
+          <p class="features-subtitle">Diseñados meticulosamente para ofrecerte la mejor experiencia premium del mercado con atención personalizada.</p>
+        </div>
+        
+        <div class="features-grid">
+          <div class="feature-card" data-aos="fade-up" data-aos-delay="100">
+            <div class="feature-icon"><i class="fas fa-lock"></i></div>
+            <div class="feature-content">
+              <h3>Acceso Exclusivo</h3>
+              <p>Contenido premium y beneficios reservados únicamente para suscriptores VIP de nuestro selecto grupo.</p>
+            </div>
+          </div>
+          
+          <div class="feature-card" data-aos="fade-up" data-aos-delay="200">
+            <div class="feature-icon"><i class="fas fa-gift"></i></div>
+            <div class="feature-content">
+              <h3>Recompensas Premium</h3>
+              <p>Recibe regalos exclusivos y recompensas mensuales que aumentan el valor de tu suscripción al máximo.</p>
+            </div>
+          </div>
+          
+          <div class="feature-card" data-aos="fade-up" data-aos-delay="300">
+            <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+            <div class="feature-content">
+              <h3>Soporte Prioritario</h3>
+              <p>Atención rápida y personalizada las 24 horas para resolver cualquier duda al instante.</p>
+            </div>
+          </div>
+          
+          <div class="feature-card" data-aos="fade-up" data-aos-delay="400">
+            <div class="feature-icon"><i class="fas fa-bell"></i></div>
+            <div class="feature-content">
+              <h3>Notificaciones Anticipadas</h3>
+              <p>Recibe alertas exclusivas antes que nadie sobre lanzamientos, eventos y oportunidades limitadas.</p>
+            </div>
+          </div>
+          
+          <div class="feature-card" data-aos="fade-up" data-aos-delay="500">
+            <div class="feature-icon"><i class="fas fa-gem"></i></div>
+            <div class="feature-content">
+              <h3>Contenido Exclusivo</h3>
+              <p>Accede a recursos premium, guías detalladas y análisis avanzados no disponibles para usuarios estándar.</p>
+            </div>
+          </div>
+          
+          <div class="feature-card" data-aos="fade-up" data-aos-delay="600">
+            <div class="feature-icon"><i class="fas fa-rocket"></i></div>
+            <div class="feature-content">
+              <h3>Eventos VIP</h3>
+              <p>Participa en eventos exclusivos donde podrás conectar con otros miembros premium y expertos del sector.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
     <section class="cta-section">
-      <div class="parallax-bg"></div>
-      <div class="cta-content">
-        <h2 class="cta-title">¿Estás listo para la experiencia VIP?</h2>
-        <p class="cta-text">Únete a nuestro selecto grupo de miembros premium y descubre un mundo de beneficios exclusivos, atención personalizada y contenido de alta calidad que transformará tu experiencia.</p>
+      <div class="cta-container" data-aos="fade-up">
+        <div class="cta-pattern"></div>
+        <h2 class="cta-title">Eleva tu experiencia al siguiente nivel</h2>
+        <p class="cta-text">Únete a nuestro selecto grupo de miembros premium y descubre un mundo de beneficios exclusivos, atención personalizada y contenido de alta calidad.</p>
         <a href="https://t.me/VelvetSub_Bot" class="cta-button">Suscríbete Ahora</a>
       </div>
     </section>
     
     <footer>
-      <div class="footer-wave"></div>
-      <div class="social-links">
-        <a href="#" class="social-link">📱</a>
-        <a href="#" class="social-link">📷</a>
-        <a href="#" class="social-link">🐦</a>
+      <div class="footer-container">
+        <div class="footer-col">
+          <h4>Velvet VIP</h4>
+          <p>La mejor experiencia premium diseñada para usuarios exigentes que buscan exclusividad y calidad en cada detalle.</p>
+          <div class="social-links">
+            <a href="#" class="social-link"><i class="fab fa-telegram"></i></a>
+            <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+            <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+          </div>
+        </div>
+        
+        <div class="footer-col">
+          <h4>Enlaces</h4>
+          <ul class="footer-links">
+            <li><a href="#">Inicio</a></li>
+            <li><a href="#">Servicios</a></li>
+            <li><a href="#">Planes</a></li>
+            <li><a href="#">Contacto</a></li>
+          </ul>
+        </div>
+        
+        <div class="footer-col">
+          <h4>Soporte</h4>
+          <ul class="footer-links">
+            <li><a href="#">Preguntas frecuentes</a></li>
+            <li><a href="#">Términos y condiciones</a></li>
+            <li><a href="#">Política de privacidad</a></li>
+            <li><a href="#">Ayuda</a></li>
+          </ul>
+        </div>
       </div>
+      
       <div class="copyright">
         &copy; 2025 Velvet VIP Premium. Todos los derechos reservados.
       </div>
     </footer>
   </div>
   
-  <!-- Scripts para las animaciones avanzadas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
   <script>
-    // Función para activar animaciones basadas en el scroll
-    function checkScroll() {
-      const benefitsSection = document.querySelector('.benefits');
-      const ctaSection = document.querySelector('.cta-section');
+    document.addEventListener('DOMContentLoaded', function() {
+      // Ocultar contenido inicial
+      document.querySelector('.container').style.display = 'none';
       
-      if (benefitsSection) {
-        const benefitsSectionTop = benefitsSection.getBoundingClientRect().top;
-        const windowHeight = window.innerHeight;
-        
-        if (benefitsSectionTop < windowHeight * 0.75) {
-          benefitsSection.classList.add('animate');
-        }
-      }
+      // Crear overlay para la animación de bienvenida
+      const welcomeOverlay = document.createElement('div');
+      welcomeOverlay.className = 'welcome-overlay';
       
-      if (ctaSection) {
-        const ctaSectionTop = ctaSection.getBoundingClientRect().top;
-        const windowHeight = window.innerHeight;
-        
-        if (ctaSectionTop < windowHeight * 0.75) {
-          ctaSection.classList.add('animate');
-        }
-      }
-    }
-    
-    // Activar animaciones al cargar la página y al hacer scroll
-    window.addEventListener('load', checkScroll);
-    window.addEventListener('scroll', checkScroll);
-    
-    // Función para agregar efecto 3D de parallax a los elementos
-    function handleMouseMove(event) {
-      const container = document.querySelector('.container');
-      const benefitsGrid = document.querySelector('.benefits-grid');
+      // Crear contenedor de la animación
+      const animationContainer = document.createElement('div');
+      animationContainer.className = 'animation-container';
       
-      if (container && benefitsGrid) {
-        // Obtener posición del ratón
-        const mouseX = event.clientX / window.innerWidth - 0.5;
-        const mouseY = event.clientY / window.innerHeight - 0.5;
-        
-        // Aplicar efecto sutil de parallax a los elementos
-        container.style.transform = `perspective(1000px) rotateX(${mouseY * 2}deg) rotateY(${mouseX * -2}deg)`;
-        
-        // Aplicar efecto de profundidad a los contadores
-        const counters = document.querySelectorAll('.benefit-counter');
-        counters.forEach(counter => {
-          counter.style.transform = `translateZ(50px) translateX(${mouseX * -20}px) translateY(${mouseY * -20}px)`;
-        });
-        
-        // Aplicar efecto a los textos de beneficios
-        const texts = document.querySelectorAll('.benefit-text');
-        texts.forEach(text => {
-          text.style.transform = `translateZ(30px) translateX(${mouseX * -10}px) translateY(${mouseY * -10}px)`;
-        });
-      }
-    }
-    
-    // Activar efecto de parallax al mover el ratón (solo en dispositivos desktop)
-    if (window.innerWidth > 1024) {
-      window.addEventListener('mousemove', handleMouseMove);
-    }
-    
-    // Generar partículas adicionales de forma dinámica
-    function createParticles() {
-      const particlesContainer = document.querySelector('.particles-container');
-      if (particlesContainer) {
-        for (let i = 0; i < 20; i++) {
-          const particle = document.createElement('div');
-          particle.classList.add('particle');
-          
-          // Posición aleatoria
-          const posX = Math.random() * 100;
-          const posY = Math.random() * 100;
-          
-          // Tamaño aleatorio
-          const size = Math.random() * 4 + 2;
-          
-          // Retraso aleatorio
-          const delay = Math.random() * 5;
-          
-          // Duración aleatoria
-          const duration = Math.random() * 2 + 2;
-          
-          // Aplicar estilos
-          particle.style.left = `${posX}%`;
-          particle.style.top = `${posY}%`;
-          particle.style.width = `${size}px`;
-          particle.style.height = `${size}px`;
-          particle.style.animationDelay = `${delay}s`;
-          particle.style.animationDuration = `${duration}s`;
-          
-          particlesContainer.appendChild(particle);
-        }
-      }
-    }
-    
-    // Crear partículas adicionales al cargar la página
-    window.addEventListener('load', createParticles);
-    
-    // Función para animar los contadores (efecto de contador)
-    function animateCounters() {
-      const counters = document.querySelectorAll('.benefit-counter');
+      // Añadir contenido de la animación
+      animationContainer.innerHTML = `
+        <div class="welcome-animation">
+          <div class="welcome-text first">GRACIAS!</div>
+          <div class="welcome-text second">TU SUSCRIPCIÓN FUÉ ACTIVADA</div>
+          <div class="check-animation">
+            <div class="check-circle">
+              <i class="fas fa-check"></i>
+            </div>
+          </div>
+          <div class="stars-container">
+            <i class="star fas fa-star star-1"></i>
+            <i class="star fas fa-star star-2"></i>
+            <i class="star fas fa-star star-3"></i>
+            <i class="star fas fa-star star-4"></i>
+            <i class="star fas fa-star star-5"></i>
+            <i class="star fas fa-star star-6"></i>
+          </div>
+        </div>
+      `;
       
-      counters.forEach(counter => {
-        const target = parseInt(counter.innerText);
-        const duration = 2000; // 2 segundos
-        const steps = 50;
-        const stepValue = target / steps;
-        let current = 0;
-        let stepCount = 0;
-        
-        counter.innerText = '0';
-        
-        const interval = setInterval(() => {
-          stepCount++;
-          current = Math.ceil(stepCount * stepValue);
-          
-          if (current > target) current = target;
-          counter.innerText = current;
-          
-          if (current >= target) {
-            clearInterval(interval);
-          }
-        }, duration / steps);
-      });
-    }
-    
-    // Observar cuándo la sección de beneficios esté visible para iniciar animación
-    const benefitsObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          setTimeout(animateCounters, 500);
-          benefitsObserver.unobserve(entry.target);
+      welcomeOverlay.appendChild(animationContainer);
+      document.body.appendChild(welcomeOverlay);
+      
+      // Ejecutar animación con GSAP
+      const tl = gsap.timeline({
+        onComplete: function() {
+          // Al completar la animación, mostrar la página y eliminar el overlay
+          setTimeout(function() {
+            gsap.to(welcomeOverlay, {
+              opacity: 0,
+              duration: 0.5,
+              onComplete: function() {
+                welcomeOverlay.remove();
+                document.querySelector('.container').style.display = 'block';
+                
+                // Inicializar AOS después de mostrar el contenido
+                AOS.init({
+                  duration: 800,
+                  easing: 'ease',
+                  once: true,
+                  offset: 100
+                });
+              }
+            });
+          }, 1000);
         }
       });
-    }, { threshold: 0.5 });
-    
-    window.addEventListener('load', () => {
-      const benefitsSection = document.querySelector('.benefits');
-      if (benefitsSection) {
-        benefitsObserver.observe(benefitsSection);
+      
+      // Secuencia de animación
+      tl.from('.welcome-text.first', {
+        opacity: 0,
+        y: -50,
+        duration: 0.8,
+        ease: "back.out(1.7)"
+      })
+      .to('.welcome-text.first', {
+        opacity: 0,
+        y: -30,
+        duration: 0.5,
+        delay: 0.8
+      })
+      .from('.welcome-text.second', {
+        opacity: 0,
+        y: 30,
+        duration: 0.8,
+        ease: "power3.out"
+      })
+      .from('.check-circle', {
+        scale: 0,
+        opacity: 0,
+        duration: 0.6,
+        ease: "elastic.out(1, 0.5)"
+      }, "-=0.2")
+      .from('.check-circle .fa-check', {
+        scale: 0,
+        opacity: 0,
+        duration: 0.4,
+        ease: "back.out(2.5)"
+      }, "-=0.1")
+      .from('.star', {
+        opacity: 0,
+        scale: 0,
+        duration: 0.8,
+        stagger: 0.1,
+        ease: "elastic.out(1, 0.5)"
+      }, "-=0.3");
+      
+      // Animación de los destellos
+      gsap.to('.star', {
+        rotation: "+=20",
+        scale: 1.2,
+        duration: 1.5,
+        repeat: -1,
+        yoyo: true,
+        stagger: 0.2,
+        ease: "sine.inOut"
+      });
+      
+      // Simulación de variable message para vista previa
+      // En producción, esto sería reemplazado por la variable real
+      if (typeof message === 'undefined') {
+        const messageElement = document.querySelector('.message');
+        messageElement.textContent = "¡Felicidades! Tu suscripción VIP Premium ha sido activada correctamente.";
+        messageElement.classList.add("success");
       }
     });
   </script>
