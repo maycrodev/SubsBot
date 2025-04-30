@@ -1650,7 +1650,70 @@ def handle_whitelist(message, bot):
             
         # Si es "/whitelist list", mostrar la lista de usuarios en whitelist
         if len(command_parts) == 2 and command_parts[1].lower() == 'list':
-            return handle_whitelist_list(message, bot)
+            # Obtener suscripciones activas (whitelist son todas las suscripciones manuales)
+            conn = db.get_db_connection()
+            cursor = conn.cursor()
+            
+            # Consulta para obtener usuarios en whitelist (donde paypal_sub_id es NULL)
+            cursor.execute('''
+            SELECT s.user_id, u.username, u.first_name, u.last_name, s.end_date, s.status
+            FROM subscriptions s
+            JOIN users u ON s.user_id = u.user_id
+            WHERE s.paypal_sub_id IS NULL AND s.status = 'ACTIVE' AND s.end_date > datetime('now')
+            ORDER BY s.end_date ASC
+            ''')
+            
+            whitelist_users = cursor.fetchall()
+            conn.close()
+            
+            if not whitelist_users:
+                bot.send_message(
+                    chat_id=chat_id,
+                    text="📋 *Lista de Whitelist*\n\nNo hay usuarios en la whitelist actualmente.",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            # Formatear la lista de usuarios
+            current_time = datetime.datetime.now()
+            whitelist_entries = []
+            
+            for user in whitelist_users:
+                user_id, username, first_name, last_name, end_date_str, status = user
+                
+                # Nombre para mostrar
+                display_name = f"{first_name or ''} {last_name or ''}".strip() or "Sin nombre"
+                display_username = f"@{username}" if username else ""
+                
+                # Calcular tiempo restante
+                end_date = datetime.datetime.fromisoformat(end_date_str)
+                remaining = end_date - current_time
+                
+                # Formatear tiempo restante
+                if remaining.days > 30:
+                    months = remaining.days // 30
+                    days_left = f"{months} {'mes' if months == 1 else 'meses'}"
+                elif remaining.days > 0:
+                    days_left = f"{remaining.days} {'día' if remaining.days == 1 else 'días'}"
+                elif remaining.seconds > 3600:
+                    hours = remaining.seconds // 3600
+                    days_left = f"{hours} {'hora' if hours == 1 else 'horas'}"
+                else:
+                    days_left = "menos de 1 hora"
+                
+                # Crear entrada para la lista
+                entry = f"• {display_name} {display_username} (ID: `{user_id}`) - {days_left} restantes"
+                whitelist_entries.append(entry)
+            
+            # Enviar mensaje con la lista
+            whitelist_text = "📋 *Lista de Whitelist*\n\n" + "\n\n".join(whitelist_entries)
+            
+            bot.send_message(
+                chat_id=chat_id,
+                text=whitelist_text,
+                parse_mode='Markdown'
+            )
+            return
             
         # Comando para añadir a un usuario
         if len(command_parts) >= 2:
@@ -1767,10 +1830,64 @@ def handle_whitelist_duration(message, bot):
             del admin_states[admin_id]
             return
         
-        # Parsear la duración
-        days = parse_duration(duration_text)
+        # Parsear la duración - función simplificada para el debug
+        days = 0
+        minutes = 0
         
-        if days is None:
+        # Manejar minutos
+        if "minute" in duration_text or "min" in duration_text:
+            parts = duration_text.split()
+            for i, part in enumerate(parts):
+                if part.isdigit() and i < len(parts) - 1:
+                    if "minute" in parts[i+1] or "min" in parts[i+1]:
+                        minutes = int(part)
+                        days = minutes / (24 * 60)  # Convertir minutos a días
+                        break
+        
+        # Manejar horas
+        elif "hour" in duration_text or "hr" in duration_text:
+            parts = duration_text.split()
+            for i, part in enumerate(parts):
+                if part.isdigit() and i < len(parts) - 1:
+                    if "hour" in parts[i+1] or "hr" in parts[i+1]:
+                        hours = int(part)
+                        days = hours / 24  # Convertir horas a días
+                        break
+        
+        # Manejar días
+        elif "day" in duration_text:
+            parts = duration_text.split()
+            for i, part in enumerate(parts):
+                if part.isdigit() and i < len(parts) - 1:
+                    if "day" in parts[i+1]:
+                        days = int(part)
+                        break
+        
+        # Manejar semanas
+        elif "week" in duration_text:
+            parts = duration_text.split()
+            for i, part in enumerate(parts):
+                if part.isdigit() and i < len(parts) - 1:
+                    if "week" in parts[i+1]:
+                        weeks = int(part)
+                        days = weeks * 7
+                        break
+        
+        # Manejar meses
+        elif "month" in duration_text:
+            parts = duration_text.split()
+            for i, part in enumerate(parts):
+                if part.isdigit() and i < len(parts) - 1:
+                    if "month" in parts[i+1]:
+                        months = int(part)
+                        days = months * 30
+                        break
+        
+        # Si no se reconoció ningún formato estándar, intentar solo con el número
+        elif duration_text.isdigit():
+            days = int(duration_text)
+        
+        if days <= 0:
             bot.send_message(
                 chat_id=chat_id,
                 text=(
@@ -1800,16 +1917,8 @@ def handle_whitelist_duration(message, bot):
         plan_id = 'weekly' if days <= 7 else 'monthly'
         
         # Formatear el texto de duración para mostrar
-        duration_display = ""
         if days < 1:  # Menos de un día
-            hours = int(days * 24)
-            minutes = int((days * 24 * 60) % 60)
-            if hours > 0:
-                duration_display += f"{hours} hora{'s' if hours != 1 else ''}"
-                if minutes > 0:
-                    duration_display += f" y {minutes} minuto{'s' if minutes != 1 else ''}"
-            else:
-                duration_display = f"{minutes} minuto{'s' if minutes != 1 else ''}"
+            duration_display = f"{int(days * 24 * 60)} minutos"
         elif days < 7:  # Menos de una semana
             duration_display = f"{days} día{'s' if days != 1 else ''}"
         elif days < 30:  # Menos de un mes
@@ -1832,18 +1941,15 @@ def handle_whitelist_duration(message, bot):
                 months = remaining_days // 30
                 duration_display += f" y {months} mes{'es' if months != 1 else ''}"
         
-        # Editar mensaje original para mostrar procesando
+        # Enviar mensaje de estado
         try:
-            original_message_id = admin_states[admin_id]['message_id']
-            bot.edit_message_text(
+            bot.send_message(
                 chat_id=chat_id,
-                message_id=original_message_id,
                 text="🔄 *Procesando solicitud...*\nPor favor espere mientras se configura el acceso y se genera el enlace de invitación.",
-                parse_mode='Markdown',
-                reply_markup=None
+                parse_mode='Markdown'
             )
-        except Exception as edit_error:
-            logger.error(f"Error al editar mensaje: {str(edit_error)}")
+        except Exception as e:
+            logger.error(f"Error al enviar mensaje de estado: {str(e)}")
         
         # Crear suscripción en la base de datos
         sub_id = db.create_subscription(
@@ -1882,24 +1988,13 @@ def handle_whitelist_duration(message, bot):
         else:
             confirmation_text += "\n⚠️ *Advertencia:* No se pudo generar enlace de invitación. El usuario puede usar /recover para solicitar uno."
         
-        # Actualizar el mensaje original con la confirmación
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=original_message_id,
-                text=confirmation_text,
-                parse_mode='Markdown',
-                disable_web_page_preview=True
-            )
-        except Exception as edit_error:
-            logger.error(f"Error al editar mensaje de confirmación: {str(edit_error)}")
-            # Si falla la edición, enviar un nuevo mensaje
-            bot.send_message(
-                chat_id=chat_id,
-                text=confirmation_text,
-                parse_mode='Markdown',
-                disable_web_page_preview=True
-            )
+        # Enviar mensaje de confirmación
+        bot.send_message(
+            chat_id=chat_id,
+            text=confirmation_text,
+            parse_mode='Markdown',
+            disable_web_page_preview=True
+        )
         
         # Notificar al usuario
         try:
@@ -2422,28 +2517,14 @@ def handle_test_invite(message, bot):
 
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
-
-    bot.register_callback_query_handler(
-        lambda call: handle_whitelist_callback(call, bot),
-        func=lambda call: call.data.startswith("wl_") 
-    )
+    
+    # Registrar comandos de administrador primero
+    register_admin_commands(bot)
 
     # Handler para verificar permisos del bot
     bot.register_message_handler(
         lambda message: check_and_fix_bot_permissions(message, bot),
         commands=['check_bot_permissions']
-    )
-    
-    # Handler para probar la generación de enlaces de invitación (solo admins)
-    bot.register_message_handler(
-        lambda message: handle_test_invite(message, bot),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/test_invite'
-    )
-    
-    # Handler para estadísticas del bot (solo admins)
-    bot.register_message_handler(
-        lambda message: handle_stats_command(message, bot),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text in ['/stats', '/estadisticas']
     )
     
     # Handler para el comando /start
@@ -2474,7 +2555,7 @@ def register_handlers(bot):
     
     # Comando de verificación de permisos para admins
     bot.register_message_handler(
-        lambda message: verify_bot_permissions() and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
+        lambda message: verify_bot_permissions(bot) and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
         func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
     )
     
@@ -2487,6 +2568,10 @@ def register_handlers(bot):
     
     bot.register_callback_query_handler(lambda call: handle_payment_method(call, bot), 
                                       func=lambda call: call.data.startswith('payment_'))
+    
+    # IMPORTANTE: Añadir callback handler para whitelist
+    bot.register_callback_query_handler(lambda call: handle_whitelist_callback(call, bot),
+                                     func=lambda call: call.data == 'whitelist_cancel')
     
     # Handler por defecto para mensajes no reconocidos
     bot.register_message_handler(lambda message: handle_unknown_message(message, bot), func=lambda message: True)
