@@ -167,7 +167,10 @@ def extend_subscription(sub_id: int, new_end_date: datetime.datetime) -> bool:
     cursor = conn.cursor()
     
     cursor.execute('''
-    UPDATE subscriptions SET end_date = ? WHERE sub_id = ?
+    UPDATE subscriptions 
+    SET end_date = ?, 
+        status = 'ACTIVE' 
+    WHERE sub_id = ?
     ''', (new_end_date, sub_id))
     
     affected = cursor.rowcount
