@@ -4,178 +4,168 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administración VIP Bot</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
     <style>
         :root {
             --primary-color: #4361ee;
-            --secondary-color: #3f37c9;
-            --accent-color: #4895ef;
-            --text-color: #333;
+            --primary-color-dark: #3a56d4;
+            --secondary-color: #7209b7;
             --bg-color: #f8f9fa;
+            --text-color: #333;
             --card-bg: #ffffff;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            --hover-bg: #f0f2f5;
-            --border-color: #e6e8eb;
-            --success-color: #38b000;
-            --warning-color: #f48c06;
-            --danger-color: #d90429;
-            --success-bg: #e9f7ef;
-            --warning-bg: #fff4e3;
-            --danger-bg: #ffe3e3;
-            --transition-speed: 0.3s;
+            --border-color: #e6e6e6;
+            --hover-color: #f0f2f5;
+            --header-color: #f1f3f9;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --transition: all 0.3s ease;
+            --status-active: #0ca678;
+            --status-active-bg: #e3fcef;
+            --status-cancelled: #e03131;
+            --status-cancelled-bg: #ffe3e3;
+            --status-suspended: #f08c00;
+            --status-suspended-bg: #fff3bf;
         }
 
-        .dark-mode {
+        [data-theme="dark"] {
             --primary-color: #4cc9f0;
-            --secondary-color: #4895ef;
-            --accent-color: #3a86ff;
-            --text-color: #e0e0e0;
+            --primary-color-dark: #3db8df;
+            --secondary-color: #f72585;
             --bg-color: #121212;
+            --text-color: #e6e6e6;
             --card-bg: #1e1e1e;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            --hover-bg: #2d2d2d;
-            --border-color: #333;
-            --success-color: #57cc99;
-            --warning-color: #ffca3a;
-            --danger-color: #ff5a5f;
-            --success-bg: #132a1c;
-            --warning-bg: #332a0e;
-            --danger-bg: #2d1214;
+            --border-color: #2d2d2d;
+            --hover-color: #2a2a2a;
+            --header-color: #252525;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            --status-active-bg: rgba(12, 166, 120, 0.2);
+            --status-cancelled-bg: rgba(224, 49, 49, 0.2);
+            --status-suspended-bg: rgba(240, 140, 0, 0.2);
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            transition: background-color var(--transition-speed) ease, 
-                      color var(--transition-speed) ease,
-                      border-color var(--transition-speed) ease,
-                      box-shadow var(--transition-speed) ease;
+            transition: var(--transition);
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
-            line-height: 1.6;
-            padding: 0;
             margin: 0;
+            padding: 0;
+            min-height: 100vh;
         }
 
         .container {
-            max-width: 1300px;
-            margin: 20px auto;
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: var(--card-shadow);
-            padding: 25px;
-            position: relative;
-            overflow: hidden;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
 
-        header {
+        .header {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 20px;
+            margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-            border-bottom: 1px solid var(--border-color);
         }
 
-        .user-profile {
+        .admin-info {
             display: flex;
             align-items: center;
             gap: 15px;
         }
 
-        .profile-img {
+        .admin-avatar {
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            object-fit: cover;
+            box-shadow: var(--shadow);
             border: 3px solid var(--primary-color);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-
-        .profile-img:hover {
-            transform: scale(1.05);
-        }
-
-        .user-info h2 {
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
             font-size: 1.5rem;
-            margin-bottom: 0.3rem;
-            color: var(--primary-color);
+            overflow: hidden;
+        }
+        
+        .avatar-text {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
         }
 
-        .user-info p {
-            color: var(--accent-color);
-            font-size: 0.9rem;
+        .admin-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .admin-id {
+            font-size: 0.85rem;
+            color: #888;
         }
 
         .theme-toggle {
-            background-color: transparent;
-            border: 2px solid var(--primary-color);
-            border-radius: 25px;
-            color: var(--primary-color);
-            padding: 8px 20px;
+            background-color: var(--hover-color);
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             cursor: pointer;
             font-weight: 600;
-            transition: all 0.3s ease;
+            color: var(--text-color);
+            box-shadow: var(--shadow);
         }
 
         .theme-toggle:hover {
-            background-color: var(--primary-color);
-            color: white;
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .theme-toggle i {
+            font-size: 1.2rem;
         }
 
         h1, h2, h3 {
             color: var(--primary-color);
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         h1 {
             font-size: 2rem;
-            text-align: center;
-            margin-bottom: 30px;
-            position: relative;
-            display: inline-block;
+            margin-top: 10px;
         }
 
-        h1::after {
-            content: '';
-            position: absolute;
-            width: 50%;
-            height: 4px;
-            background-color: var(--accent-color);
-            bottom: -8px;
-            left: 25%;
-            border-radius: 2px;
-        }
-
-        .section-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .panel-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 25px;
             margin-bottom: 25px;
+            transition: transform 0.3s ease;
         }
 
-        .section-title i {
-            font-size: 1.5rem;
-            color: var(--accent-color);
+        .panel-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
         }
 
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            margin-bottom: 40px;
+            margin-bottom: 20px;
         }
 
         .stat-card {
@@ -183,122 +173,132 @@
             border-radius: 12px;
             padding: 20px;
             text-align: center;
-            box-shadow: var(--card-shadow);
-            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--primary-color);
             transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 5px;
-            background-color: var(--primary-color);
-            top: 0;
-            left: 0;
-            transform: scaleX(0);
-            transform-origin: left;
-            transition: transform 0.3s ease;
         }
 
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
         }
 
-        .stat-card:hover::before {
-            transform: scaleX(1);
+        .stat-card:nth-child(2) {
+            border-left-color: var(--secondary-color);
         }
 
-        .stat-icon {
-            font-size: 28px;
-            color: var(--primary-color);
-            margin-bottom: 15px;
+        .stat-card:nth-child(3) {
+            border-left-color: var(--status-active);
+        }
+
+        .stat-card:nth-child(4) {
+            border-left-color: var(--status-suspended);
         }
 
         .stat-value {
-            font-size: 28px;
-            font-weight: bold;
+            font-size: 2rem;
+            font-weight: 700;
             margin: 10px 0;
             color: var(--primary-color);
         }
 
+        .stat-card:nth-child(2) .stat-value {
+            color: var(--secondary-color);
+        }
+
+        .stat-card:nth-child(3) .stat-value {
+            color: var(--status-active);
+        }
+
+        .stat-card:nth-child(4) .stat-value {
+            color: var(--status-suspended);
+        }
+
         .stat-label {
-            font-size: 16px;
-            color: var(--text-color);
-            opacity: 0.8;
+            font-size: 0.9rem;
+            color: #888;
+            font-weight: 500;
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .stat-card:nth-child(2) .stat-icon {
+            color: var(--secondary-color);
+        }
+
+        .stat-card:nth-child(3) .stat-icon {
+            color: var(--status-active);
+        }
+
+        .stat-card:nth-child(4) .stat-icon {
+            color: var(--status-suspended);
         }
 
         .table-container {
             overflow-x: auto;
-            border-radius: 12px;
-            box-shadow: var(--card-shadow);
-            margin-bottom: 40px;
+            margin-bottom: 20px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            background-color: var(--card-bg);
+            margin: 10px 0;
+            border-radius: 8px;
+            overflow: hidden;
         }
 
         th, td {
-            padding: 15px 20px;
+            padding: 15px;
             text-align: left;
             border-bottom: 1px solid var(--border-color);
         }
 
         th {
-            background-color: rgba(67, 97, 238, 0.08);
+            background-color: var(--header-color);
             font-weight: 600;
-            color: var(--primary-color);
             position: sticky;
             top: 0;
         }
 
-        tr {
-            transition: background-color 0.2s ease;
+        tr:last-child td {
+            border-bottom: none;
         }
 
-        tr:hover {
-            background-color: var(--hover-bg);
+        tr:hover td {
+            background-color: var(--hover-color);
         }
 
         .badge {
             display: inline-block;
             padding: 6px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 0.75rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            transition: all 0.3s ease;
         }
 
         .badge-active {
-            background-color: var(--success-bg);
-            color: var(--success-color);
+            background-color: var(--status-active-bg);
+            color: var(--status-active);
         }
 
         .badge-cancelled {
-            background-color: var(--danger-bg);
-            color: var(--danger-color);
+            background-color: var(--status-cancelled-bg);
+            color: var(--status-cancelled);
         }
 
         .badge-suspended {
-            background-color: var(--warning-bg);
-            color: var(--warning-color);
+            background-color: var(--status-suspended-bg);
+            color: var(--status-suspended);
         }
 
         .sql-container {
-            margin-top: 40px;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: var(--card-shadow);
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
+            margin-top: 30px;
         }
 
         .sql-form {
@@ -312,26 +312,23 @@
             padding: 15px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            font-family: monospace;
-            min-height: 150px;
-            background-color: var(--card-bg);
+            font-family: 'Consolas', 'Monaco', monospace;
+            min-height: 120px;
+            background-color: var(--bg-color);
             color: var(--text-color);
             resize: vertical;
-            transition: all 0.3s ease;
+            transition: border 0.3s ease;
         }
 
         .sql-input:focus {
             outline: none;
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
         }
 
         .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 12px 24px;
+            display: inline-block;
+            padding: 12px 20px;
             background-color: var(--primary-color);
             color: white;
             border: none;
@@ -341,106 +338,104 @@
             text-align: center;
             text-decoration: none;
             transition: all 0.3s ease;
-            font-size: 16px;
-        }
-
-        .btn i {
-            transition: transform 0.3s ease;
         }
 
         .btn:hover {
-            background-color: var(--secondary-color);
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
+            background-color: var(--primary-color-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
-        .btn:hover i {
-            transform: translateX(3px);
+        .btn:active {
+            transform: translateY(0);
         }
 
         .btn-secondary {
-            background-color: transparent;
-            color: var(--primary-color);
-            border: 2px solid var(--primary-color);
+            background-color: var(--hover-color);
+            color: var(--text-color);
         }
 
         .btn-secondary:hover {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-danger {
-            background-color: var(--danger-color);
-        }
-
-        .btn-danger:hover {
-            background-color: #bf0025;
-            box-shadow: 0 5px 15px rgba(217, 4, 41, 0.3);
+            background-color: var(--border-color);
         }
 
         .actions {
             display: flex;
-            flex-wrap: wrap;
             gap: 15px;
-            margin-top: 30px;
-            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
         }
 
-        /* Mensaje flash */
-        .flash-message {
-            padding: 15px 20px;
+        .btn i {
+            margin-right: 8px;
+        }
+
+        .info-message {
+            padding: 15px;
             border-radius: 8px;
-            margin: 15px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            margin: 20px 0;
+            animation: fadeIn 0.5s ease;
         }
 
-        .flash-success {
-            background-color: var(--success-bg);
-            color: var(--success-color);
-            border-left: 4px solid var(--success-color);
+        .error-message {
+            background-color: var(--status-cancelled-bg);
+            color: var(--status-cancelled);
         }
 
-        .flash-error {
-            background-color: var(--danger-bg);
-            color: var(--danger-color);
-            border-left: 4px solid var(--danger-color);
+        .success-message {
+            background-color: var(--status-active-bg);
+            color: var(--status-active);
         }
 
-        /* Animaciones */
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-        .animated-fade {
-            animation: fadeIn 0.5s ease forwards;
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .loading {
+            display: none;
+            justify-content: center;
+            margin: 20px 0;
+            animation: pulse 1.5s infinite;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            color: var(--primary-color);
         }
 
         /* Responsive */
         @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-                margin: 10px;
-            }
-            
-            header {
+            .header {
                 flex-direction: column;
-                align-items: flex-start;
                 gap: 15px;
+                text-align: center;
             }
             
-            .theme-toggle {
-                align-self: flex-end;
-            }
-            
-            .stats-container {
-                grid-template-columns: 1fr;
+            .admin-info {
+                flex-direction: column;
             }
             
             .actions {
-                flex-direction: column;
+                justify-content: center;
             }
             
             .btn {
@@ -450,118 +445,114 @@
     </style>
 </head>
 <body>
-    <div class="container animated-fade">
-        <header>
-            <div class="user-profile">
-                <img src="/api/placeholder/100/100" alt="Admin Profile" class="profile-img" id="admin-profile-img">
-                <div class="user-info">
-                    <h2 id="admin-name">{{ admin_name }}</h2>
-                    <p>ID: <span id="admin-id">{{ admin_id }}</span></p>
+    <div class="container">
+        <div class="header">
+            <div class="admin-info">
+                <div class="admin-avatar" id="admin-avatar">
+                    <span class="avatar-text">A</span>
+                </div>
+                <div>
+                    <div class="admin-name" id="admin-name">Admin 7212354235</div>
+                    <div class="admin-id" id="admin-id">ID: 7212354235</div>
                 </div>
             </div>
-            <button id="theme-toggle" class="theme-toggle">
-                <i class="fas fa-sun"></i>
-                <span>Cambiar Tema</span>
+            <button class="theme-toggle" id="theme-toggle">
+                <i class="fas fa-moon"></i>
+                <span>Modo Día</span>
             </button>
-        </header>
-        
-        <div class="section-title">
-            <i class="fas fa-chart-line"></i>
-            <h2>Estadísticas</h2>
-        </div>
-        <div class="stats-container">
-            <div class="stat-card animated-fade" style="animation-delay: 0.1s">
-                <div class="stat-icon"><i class="fas fa-users"></i></div>
-                <div class="stat-value">{{ stats.usuarios }}</div>
-                <div class="stat-label">Usuarios Totales</div>
-            </div>
-            <div class="stat-card animated-fade" style="animation-delay: 0.2s">
-                <div class="stat-icon"><i class="fas fa-id-card"></i></div>
-                <div class="stat-value">{{ stats.suscripciones }}</div>
-                <div class="stat-label">Suscripciones Totales</div>
-            </div>
-            <div class="stat-card animated-fade" style="animation-delay: 0.3s">
-                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-                <div class="stat-value">{{ stats.suscripciones_activas }}</div>
-                <div class="stat-label">Suscripciones Activas</div>
-            </div>
-            <div class="stat-card animated-fade" style="animation-delay: 0.4s">
-                <div class="stat-icon"><i class="fas fa-link"></i></div>
-                <div class="stat-value">{{ stats.enlaces_invitacion }}</div>
-                <div class="stat-label">Enlaces de Invitación</div>
-            </div>
         </div>
         
-        <div class="section-title">
-            <i class="fas fa-clipboard-list"></i>
-            <h2>Suscripciones Recientes</h2>
-        </div>
-        <div class="table-container animated-fade" style="animation-delay: 0.5s">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Usuario</th>
-                        <th>Plan</th>
-                        <th>Precio</th>
-                        <th>Inicio</th>
-                        <th>Fin</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for sub in recent_subscriptions %}
-                    <tr class="table-row">
-                        <td>{{ sub.sub_id }}</td>
-                        <td>
-                            {{ sub.username or 'Sin username' }} 
-                            <small style="opacity: 0.7;">(ID: {{ sub.user_id }})</small>
-                        </td>
-                        <td>{{ sub.plan }}</td>
-                        <td>${{ sub.price_usd }}</td>
-                        <td>{{ sub.start_date }}</td>
-                        <td>{{ sub.end_date }}</td>
-                        <td>
-                            {% if sub.status == 'ACTIVE' %}
-                                <span class="badge badge-active">Activo</span>
-                            {% elif sub.status == 'CANCELLED' %}
-                                <span class="badge badge-cancelled">Cancelado</span>
-                            {% elif sub.status == 'SUSPENDED' %}
-                                <span class="badge badge-suspended">Suspendido</span>
-                            {% else %}
-                                {{ sub.status }}
-                            {% endif %}
-                        </td>
-                        <td>
-                            <button class="btn btn-secondary btn-sm view-details" data-id="{{ sub.sub_id }}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="panel-card">
+            <h1><i class="fas fa-tachometer-alt"></i> Panel de Administración VIP Bot</h1>
+            
+            <h2><i class="fas fa-chart-line"></i> Estadísticas</h2>
+            <div class="stats-container">
+                <div class="stat-card">
+                    <i class="fas fa-users stat-icon"></i>
+                    <div class="stat-value">{{ stats.usuarios }}</div>
+                    <div class="stat-label">Usuarios Totales</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-credit-card stat-icon"></i>
+                    <div class="stat-value">{{ stats.suscripciones }}</div>
+                    <div class="stat-label">Suscripciones Totales</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-check-circle stat-icon"></i>
+                    <div class="stat-value">{{ stats.suscripciones_activas }}</div>
+                    <div class="stat-label">Suscripciones Activas</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-link stat-icon"></i>
+                    <div class="stat-value">{{ stats.enlaces_invitacion }}</div>
+                    <div class="stat-label">Enlaces de Invitación</div>
+                </div>
+            </div>
         </div>
         
-        <div class="sql-container animated-fade" style="animation-delay: 0.7s">
-            <div class="section-title">
-                <i class="fas fa-database"></i>
-                <h2>Consulta SQL</h2>
+        <div class="panel-card">
+            <h2><i class="fas fa-history"></i> Suscripciones Recientes</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Plan</th>
+                            <th>Precio</th>
+                            <th>Inicio</th>
+                            <th>Fin</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sub in recent_subscriptions %}
+                        <tr>
+                            <td>{{ sub.sub_id }}</td>
+                            <td>
+                                {{ sub.username or 'Sin username' }} 
+                                <small>(ID: {{ sub.user_id }})</small>
+                            </td>
+                            <td>{{ sub.plan }}</td>
+                            <td>${{ sub.price_usd }}</td>
+                            <td>{{ sub.start_date }}</td>
+                            <td>{{ sub.end_date }}</td>
+                            <td>
+                                {% if sub.status == 'ACTIVE' %}
+                                    <span class="badge badge-active"><i class="fas fa-check-circle"></i> Activo</span>
+                                {% elif sub.status == 'CANCELLED' %}
+                                    <span class="badge badge-cancelled"><i class="fas fa-times-circle"></i> Cancelado</span>
+                                {% elif sub.status == 'SUSPENDED' %}
+                                    <span class="badge badge-suspended"><i class="fas fa-pause-circle"></i> Suspendido</span>
+                                {% else %}
+                                    {{ sub.status }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
+        </div>
+        
+        <div class="panel-card">
+            <h2><i class="fas fa-database"></i> Consulta SQL</h2>
             <p>Ejecuta consultas personalizadas en la base de datos:</p>
             
             <form class="sql-form" method="post" id="sql-form">
-                <textarea name="query" class="sql-input" placeholder="SELECT * FROM users LIMIT 10;" id="sql-query">{% if query %}{{ query }}{% endif %}</textarea>
-                <button type="submit" class="btn" id="execute-query">
-                    <i class="fas fa-play"></i>
-                    Ejecutar Consulta
+                <textarea name="query" class="sql-input" placeholder="SELECT * FROM users LIMIT 10;">{% if query %}{{ query }}{% endif %}</textarea>
+                <button type="submit" class="btn" id="execute-btn">
+                    <i class="fas fa-play"></i> Ejecutar Consulta
                 </button>
             </form>
             
+            <div class="loading" id="loading">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            
             {% if results %}
-            <h3 class="animated-fade">Resultados ({{ count }} filas)</h3>
-            <div class="table-container animated-fade">
+            <h3><i class="fas fa-table"></i> Resultados ({{ count }} filas)</h3>
+            <div class="table-container">
                 <table>
                     <thead>
                         <tr>
@@ -584,165 +575,247 @@
             {% endif %}
             
             {% if error %}
-            <div class="flash-message flash-error animated-fade">
-                <i class="fas fa-exclamation-circle"></i>
-                <strong>Error:</strong> {{ error }}
+            <div class="info-message error-message">
+                <i class="fas fa-exclamation-triangle"></i> <strong>Error:</strong> {{ error }}
             </div>
             {% endif %}
             
             {% if message %}
-            <div class="flash-message flash-success animated-fade">
-                <i class="fas fa-check-circle"></i>
-                <strong>Éxito:</strong> {{ message }} ({{ rows_affected }} filas afectadas)
+            <div class="info-message success-message">
+                <i class="fas fa-check-circle"></i> <strong>Éxito:</strong> {{ message }} ({{ rows_affected }} filas afectadas)
             </div>
             {% endif %}
         </div>
         
-        <div class="actions animated-fade" style="animation-delay: 0.8s">
-            <a href="/admin/download-database?admin_id={{ admin_id }}" class="btn">
-                <i class="fas fa-download"></i>
-                Descargar Base de Datos
-            </a>
-            <a href="/admin/export-users?admin_id={{ admin_id }}" class="btn btn-secondary">
-                <i class="fas fa-file-export"></i>
-                Exportar Usuarios
-            </a>
-            <a href="/" class="btn btn-secondary">
-                <i class="fas fa-home"></i>
-                Volver al Inicio
-            </a>
+        <div class="panel-card">
+            <div class="actions">
+                <a href="/admin/download-database?admin_id={{ admin_id }}" class="btn" id="download-btn">
+                    <i class="fas fa-download"></i> Descargar Base de Datos
+                </a>
+                <a href="/" class="btn btn-secondary">
+                    <i class="fas fa-home"></i> Volver al Inicio
+                </a>
+            </div>
         </div>
     </div>
 
     <script>
-        // Carga la imagen de perfil del administrador
-        document.addEventListener('DOMContentLoaded', function() {
-            const adminId = document.getElementById('admin-id').textContent.trim();
-            
-            // En un caso real, aquí se cargaría la imagen de perfil y el nombre del administrador
-            // desde Telegram usando el admin_id
-            // Por ahora, simularemos con una imagen de placeholder
-            
-            // Simulación de carga de datos de usuario (en producción esto vendría del backend)
-            setTimeout(() => {
-                document.getElementById('admin-name').textContent = 'Admin ' + adminId;
-                // La imagen ya está establecida como placeholder
-            }, 500);
-        });
-
-        // Modo oscuro
-        const themeToggle = document.getElementById('theme-toggle');
-        const themeIcon = themeToggle.querySelector('i');
-        const themeText = themeToggle.querySelector('span');
-        
-        // Verificar preferencia guardada
-        if (localStorage.getItem('darkMode') === 'true') {
-            document.body.classList.add('dark-mode');
-            themeIcon.classList.replace('fa-sun', 'fa-moon');
-            themeText.textContent = 'Modo Día';
+        // Función mejorada para cargar avatar y nombre de usuario desde Telegram
+        async function loadTelegramUserInfo(userId) {
+            try {
+                // Mostrar un estado de carga inicial
+                document.getElementById('admin-name').textContent = 'Cargando...';
+                document.getElementById('admin-id').textContent = 'ID: ' + userId;
+                const avatarElement = document.getElementById('admin-avatar');
+                avatarElement.innerHTML = '<span class="avatar-text"><i class="fas fa-spinner fa-spin"></i></span>';
+                
+                // Construir la URL para la API de Telegram Bot (usando un proxy o API intermedia)
+                // Esta URL debe ser implementada en el servidor
+                const apiUrl = `/admin/get-telegram-user?admin_id=${userId}`;
+                
+                fetch(apiUrl)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Error HTTP: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data && data.success) {
+                            // Actualizar nombre de usuario
+                            let displayName = data.first_name || '';
+                            if (data.last_name) displayName += ' ' + data.last_name;
+                            if (!displayName && data.username) displayName = data.username;
+                            if (!displayName) displayName = 'Admin';
+                            
+                            document.getElementById('admin-name').textContent = displayName;
+                            document.getElementById('admin-id').textContent = 'ID: ' + userId;
+                            
+                            // Actualizar avatar
+                            if (data.photo_url) {
+                                avatarElement.innerHTML = '';
+                                
+                                const img = document.createElement('img');
+                                img.src = data.photo_url;
+                                img.alt = 'Avatar de Telegram';
+                                img.style.width = '100%';
+                                img.style.height = '100%';
+                                img.style.objectFit = 'cover';
+                                
+                                // Manejar error de carga de imagen
+                                img.onerror = function() {
+                                    setDefaultAvatar(userId, data.first_name);
+                                };
+                                
+                                avatarElement.appendChild(img);
+                                
+                                // Animación de entrada
+                                avatarElement.style.transform = 'scale(0.8)';
+                                avatarElement.style.opacity = '0.5';
+                                setTimeout(() => {
+                                    avatarElement.style.transform = 'scale(1)';
+                                    avatarElement.style.opacity = '1';
+                                }, 100);
+                            } else {
+                                setDefaultAvatar(userId, data.first_name);
+                            }
+                        } else {
+                            setDefaultAvatar(userId);
+                            if (data && data.error) {
+                                console.warn('Error al cargar datos de Telegram:', data.error);
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error al obtener datos del usuario de Telegram:', error);
+                        setDefaultAvatar(userId);
+                    });
+            } catch (error) {
+                console.error('Error al cargar avatar:', error);
+                setDefaultAvatar(userId);
+            }
         }
         
-        themeToggle.addEventListener('click', () => {
-            // Animar el botón
-            themeToggle.classList.add('animate__animated', 'animate__pulse');
-            setTimeout(() => {
-                themeToggle.classList.remove('animate__animated', 'animate__pulse');
-            }, 500);
+        // Función para establecer avatar predeterminado con iniciales
+        function setDefaultAvatar(userId, firstName = null) {
+            const avatarElement = document.getElementById('admin-avatar');
             
-            // Cambiar modo
-            document.body.classList.toggle('dark-mode');
-            const isDarkMode = document.body.classList.contains('dark-mode');
+            // Limpiar contenido existente
+            avatarElement.innerHTML = '<span class="avatar-text"></span>';
             
-            // Guardar preferencia
-            localStorage.setItem('darkMode', isDarkMode);
-            
-            // Actualizar ícono y texto
-            if (isDarkMode) {
-                themeIcon.classList.replace('fa-sun', 'fa-moon');
-                themeText.textContent = 'Modo Día';
+            // Obtener la inicial para mostrar
+            const initialElement = avatarElement.querySelector('.avatar-text');
+            if (firstName && firstName.length > 0) {
+                initialElement.textContent = firstName.charAt(0).toUpperCase();
             } else {
-                themeIcon.classList.replace('fa-moon', 'fa-sun');
-                themeText.textContent = 'Modo Noche';
+                initialElement.textContent = 'A';
             }
-        });
+            
+            // Generar color basado en userId
+            const colorNum = parseInt(userId.substring(0, 6), 10) % 360;
+            avatarElement.style.backgroundColor = `hsl(${colorNum}, 80%, 45%)`;
+            
+            // Animación de entrada
+            avatarElement.style.transform = 'scale(0.8)';
+            avatarElement.style.opacity = '0.5';
+            setTimeout(() => {
+                avatarElement.style.transform = 'scale(1)';
+                avatarElement.style.opacity = '1';
+            }, 100);
+        }
 
-        // Animaciones para elementos interactivos
-        const buttons = document.querySelectorAll('.btn');
-        buttons.forEach(button => {
-            button.addEventListener('mouseenter', function() {
-                this.classList.add('animate__animated', 'animate__pulse');
+        // Función para alternar el tema claro/oscuro
+        function toggleTheme() {
+            const body = document.body;
+            const themeToggle = document.getElementById('theme-toggle');
+            const icon = themeToggle.querySelector('i');
+            const text = themeToggle.querySelector('span');
+            
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                icon.className = 'fas fa-moon';
+                text.textContent = 'Modo Noche';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+                text.textContent = 'Modo Día';
+                localStorage.setItem('theme', 'dark');
+            }
+            
+            // Añadir animación al cambiar el tema
+            const container = document.querySelector('.container');
+            container.style.transition = 'opacity 0.3s ease';
+            container.style.opacity = '0.8';
+            
+            setTimeout(() => {
+                container.style.opacity = '1';
+            }, 300);
+        }
+
+        // Animaciones para botones
+        document.querySelectorAll('.btn').forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                btn.style.transform = 'translateY(-2px)';
             });
             
-            button.addEventListener('mouseleave', function() {
-                this.classList.remove('animate__animated', 'animate__pulse');
-            });
-            
-            button.addEventListener('click', function() {
-                this.classList.add('animate__animated', 'animate__fadeIn');
-                setTimeout(() => {
-                    this.classList.remove('animate__animated', 'animate__fadeIn');
-                }, 500);
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = '';
             });
         });
 
-        // Animación de tarjetas estadísticas
-        const statCards = document.querySelectorAll('.stat-card');
-        statCards.forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateY(-10px)';
-            });
-            
-            card.addEventListener('mouseleave', function() {
-                this.style.transform = 'translateY(0)';
-            });
-        });
-
-        // Animación para filas de tabla
-        const tableRows = document.querySelectorAll('.table-row');
-        tableRows.forEach(row => {
-            row.addEventListener('mouseenter', function() {
-                this.style.backgroundColor = 'var(--hover-bg)';
-                this.style.transition = 'background-color 0.3s ease';
-            });
-            
-            row.addEventListener('mouseleave', function() {
-                this.style.backgroundColor = '';
-            });
-        });
-
-        // Animación para ejecutar consulta SQL
+        // Animación para formulario SQL
         const sqlForm = document.getElementById('sql-form');
-        const sqlQuery = document.getElementById('sql-query');
+        const loading = document.getElementById('loading');
+        const executeBtn = document.getElementById('execute-btn');
         
-        sqlQuery.addEventListener('focus', function() {
-            this.style.boxShadow = '0 0 0 3px rgba(67, 97, 238, 0.3)';
-        });
-        
-        sqlQuery.addEventListener('blur', function() {
-            this.style.boxShadow = '';
-        });
-        
-        sqlForm.addEventListener('submit', function(e) {
-            const executeBtn = document.getElementById('execute-query');
-            executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ejecutando...';
-            executeBtn.disabled = true;
-            
-            // En un entorno real, esto se manejaría con el envío del formulario
-            // Esta simulación es solo para mostrar la animación
-            if (!e.submitter || e.submitter.id !== 'execute-query') {
+        if (sqlForm) {
+            sqlForm.addEventListener('submit', (e) => {
+                loading.style.display = 'flex';
+                executeBtn.disabled = true;
+                // La solicitud continuará normalmente
+            });
+        }
+
+        // Animación para botón de descarga
+        const downloadBtn = document.getElementById('download-btn');
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', (e) => {
+                e.target.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Descargando...';
                 setTimeout(() => {
-                    executeBtn.innerHTML = '<i class="fas fa-play"></i> Ejecutar Consulta';
-                    executeBtn.disabled = false;
+                    e.target.innerHTML = '<i class="fas fa-check"></i> Descarga completada';
+                    setTimeout(() => {
+                        e.target.innerHTML = '<i class="fas fa-download"></i> Descargar Base de Datos';
+                    }, 2000);
                 }, 1500);
-            }
+            });
+        }
+
+        // Cargar tema guardado y configurar tema oscuro por defecto
+        document.addEventListener('DOMContentLoaded', () => {
+            // Configurar tema oscuro por defecto
+            document.body.setAttribute('data-theme', 'dark');
+            
+            // Inicializar el avatar con el ID de administrador
+            // Obtener el ID de la URL o usar el valor por defecto
+            const urlParams = new URLSearchParams(window.location.search);
+            const adminId = urlParams.get('admin_id') || '7212354235';
+            
+            // Cargar información del usuario de Telegram
+            loadTelegramUserInfo(adminId);
+            
+            // Configuración para manejo de errores de imágenes
+            document.querySelectorAll('img').forEach(img => {
+                img.onerror = function() {
+                    this.style.display = 'none';
+                };
+            });
         });
 
-        // Botones Ver Detalles
-        const viewDetailsButtons = document.querySelectorAll('.view-details');
-        viewDetailsButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const subId = this.getAttribute('data-id');
-                alert(`Detalles de la suscripción ${subId} (Función a implementar)`);
+        // Añadir listener para cambio de tema
+        document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+        // Animaciones para tarjetas de estadísticas
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-8px)';
+                card.style.boxShadow = '0 12px 20px rgba(0, 0, 0, 0.15)';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = '';
+                card.style.boxShadow = '';
+            });
+        });
+
+        // Animación para panel-card
+        document.querySelectorAll('.panel-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.12)';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.boxShadow = '';
             });
         });
     </script>
