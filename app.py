@@ -36,79 +36,6 @@ def webhook():
             # Procesar la actualización
             update = telebot.types.Update.de_json(json_string)
             
-            # Manejar chat_member actualizaciones
-            if hasattr(update, 'chat_member'):
-                try:
-                    chat_id = update.chat_member.chat.id
-                    from_user_id = update.chat_member.from_user.id 
-                    user_id = update.chat_member.new_chat_member.user.id
-                    status = update.chat_member.new_chat_member.status
-                    
-                    # Si un usuario se unió al grupo
-                    if status == 'member' and update.chat_member.old_chat_member.status == 'left':
-                        from config import GROUP_CHAT_ID
-                        
-                        # Verificar si es el grupo VIP
-                        if str(chat_id) == str(GROUP_CHAT_ID):
-                            # Verificar si el usuario tiene suscripción activa
-                            subscription = db.get_active_subscription(user_id)
-                            
-                            # Omitir administradores
-                            if user_id in ADMIN_IDS:
-                                logger.info(f"Administrador {user_id} se unió al grupo")
-                                return 'OK', 200
-                            
-                            if not subscription:
-                                # No tiene suscripción activa, expulsar
-                                logger.warning(f"⚠️ USUARIO SIN SUSCRIPCIÓN DETECTADO: {user_id}")
-                                
-                                try:
-                                    username = update.chat_member.new_chat_member.user.username
-                                    first_name = update.chat_member.new_chat_member.user.first_name
-                                    
-                                    # Enviar mensaje al grupo
-                                    bot.send_message(
-                                        chat_id=chat_id,
-                                        text=f"🛑 SEGURIDAD: Usuario {first_name} (@{username or 'Sin username'}) no tiene suscripción activa y será expulsado automáticamente."
-                                    )
-                                    
-                                    # Expulsar al usuario
-                                    logger.info(f"Expulsando a usuario sin suscripción: {user_id}")
-                                    bot.ban_chat_member(
-                                        chat_id=chat_id,
-                                        user_id=user_id
-                                    )
-                                    
-                                    # Desbanear inmediatamente para permitir que vuelva a unirse si obtiene suscripción
-                                    bot.unban_chat_member(
-                                        chat_id=chat_id,
-                                        user_id=user_id,
-                                        only_if_banned=True
-                                    )
-                                    
-                                    # Registrar la expulsión
-                                    db.record_expulsion(user_id, "Verificación de nuevo miembro - Sin suscripción activa")
-                                    
-                                    # Enviar mensaje privado al usuario
-                                    try:
-                                        bot.send_message(
-                                            chat_id=user_id,
-                                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
-                                        )
-                                    except Exception as e:
-                                        logger.error(f"No se pudo enviar mensaje privado a {user_id}: {e}")
-                                        
-                                except Exception as e:
-                                    logger.error(f"Error al expulsar nuevo miembro no autorizado {user_id}: {e}")
-                            else:
-                                logger.info(f"Usuario {user_id} se unió al grupo con suscripción válida")
-                    
-                    return 'OK', 200
-                    
-                except Exception as e:
-                    logger.error(f"Error al procesar chat_member: {str(e)}")
-                    return 'Error en chat_member', 200
-            
             # Registrar el tipo de actualización
             if update.message:
                 if update.message.text:
@@ -127,7 +54,6 @@ def webhook():
                 
                 # Continuar con el manejo del mensaje /start
                 if update.message.text == '/start':
-                    # [código existente para /start]
                     logger.info("¡Comando /start detectado! Enviando respuesta directa...")
                     
                     try:
@@ -187,6 +113,16 @@ def webhook():
                     call = update.callback_query
                     chat_id = call.message.chat.id
                     message_id = call.message.message_id
+                    
+                    # Manejar directamente callback de whitelist
+                    if call.data == "whitelist_cancel":
+                        try:
+                            bot_handlers.handle_whitelist_callback(call, bot)
+                            logger.info(f"Callback de whitelist procesado para {call.from_user.id}")
+                            bot.answer_callback_query(call.id)
+                            return 'OK', 200
+                        except Exception as e:
+                            logger.error(f"Error al procesar callback whitelist: {str(e)}")
                     
                     if call.data == "view_plans":
                         # Mostrar planes
@@ -404,6 +340,79 @@ def webhook():
                     
                 except Exception as e:
                     logger.error(f"Error al procesar callback directamente: {str(e)}")
+            
+            # Código seguro para manejar chat_member
+            elif hasattr(update, 'chat_member') and update.chat_member is not None:
+                try:
+                    chat_id = update.chat_member.chat.id
+                    user_id = update.chat_member.new_chat_member.user.id
+                    status = update.chat_member.new_chat_member.status
+                    old_status = update.chat_member.old_chat_member.status
+                    
+                    # Si un usuario se unió al grupo
+                    if status == 'member' and old_status == 'left':
+                        from config import GROUP_CHAT_ID
+                        
+                        # Verificar si es el grupo VIP
+                        if str(chat_id) == str(GROUP_CHAT_ID):
+                            # Verificar si el usuario tiene suscripción activa
+                            subscription = db.get_active_subscription(user_id)
+                            
+                            # Omitir administradores
+                            if user_id in ADMIN_IDS:
+                                logger.info(f"Administrador {user_id} se unió al grupo")
+                                return 'OK', 200
+                            
+                            if not subscription:
+                                # No tiene suscripción activa, expulsar
+                                logger.warning(f"⚠️ USUARIO SIN SUSCRIPCIÓN DETECTADO: {user_id}")
+                                
+                                try:
+                                    username = update.chat_member.new_chat_member.user.username
+                                    first_name = update.chat_member.new_chat_member.user.first_name
+                                    
+                                    # Enviar mensaje al grupo
+                                    bot.send_message(
+                                        chat_id=chat_id,
+                                        text=f"🛑 SEGURIDAD: Usuario {first_name} (@{username or 'Sin username'}) no tiene suscripción activa y será expulsado automáticamente."
+                                    )
+                                    
+                                    # Expulsar al usuario
+                                    logger.info(f"Expulsando a usuario sin suscripción: {user_id}")
+                                    bot.ban_chat_member(
+                                        chat_id=chat_id,
+                                        user_id=user_id
+                                    )
+                                    
+                                    # Desbanear inmediatamente para permitir que vuelva a unirse si obtiene suscripción
+                                    bot.unban_chat_member(
+                                        chat_id=chat_id,
+                                        user_id=user_id,
+                                        only_if_banned=True
+                                    )
+                                    
+                                    # Registrar la expulsión
+                                    db.record_expulsion(user_id, "Verificación de nuevo miembro - Sin suscripción activa")
+                                    
+                                    # Enviar mensaje privado al usuario
+                                    try:
+                                        bot.send_message(
+                                            chat_id=user_id,
+                                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
+                                        )
+                                    except Exception as e:
+                                        logger.error(f"No se pudo enviar mensaje privado a {user_id}: {e}")
+                                        
+                                except Exception as e:
+                                    logger.error(f"Error al expulsar nuevo miembro no autorizado {user_id}: {e}")
+                            else:
+                                logger.info(f"Usuario {user_id} se unió al grupo con suscripción válida")
+                    
+                    return 'OK', 200
+                    
+                except Exception as e:
+                    logger.error(f"Error al procesar chat_member: {str(e)}")
+                    return 'OK', 200
             
             # Procesar a través de los handlers normales como respaldo
             bot.process_new_updates([update])
