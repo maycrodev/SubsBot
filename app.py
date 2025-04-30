@@ -66,20 +66,36 @@ def webhook():
                         logger.error(f"Error al enviar respuesta directa: {str(e)}")
                 
                 # Manejar comandos de administrador
-                if update.message.text in ['/stats', '/estadisticas', '/check_permissions', '/test_invite'] and update.message.from_user.id in ADMIN_IDS:
+                if update.message.from_user.id in ADMIN_IDS:
                     try:
                         # Procesar comandos de administrador
                         if update.message.text == '/stats' or update.message.text == '/estadisticas':
                             bot_handlers.handle_stats_command(update.message, bot)
+                            logger.info(f"Comando de administrador {update.message.text} procesado para {update.message.from_user.id}")
+                            return 'OK', 200
                         elif update.message.text == '/check_permissions':
                             bot_handlers.verify_bot_permissions(bot) and bot.reply_to(update.message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.")
+                            logger.info(f"Verificación de permisos procesada para {update.message.from_user.id}")
+                            return 'OK', 200
                         elif update.message.text == '/test_invite':
                             bot_handlers.handle_test_invite(update.message, bot)
-                        
-                        logger.info(f"Comando de administrador {update.message.text} procesado para {update.message.from_user.id}")
-                        return 'OK', 200
+                            logger.info(f"Comando de test_invite procesado para {update.message.from_user.id}")
+                            return 'OK', 200
+                        elif update.message.text.startswith('/whitelist'):
+                            bot_handlers.handle_whitelist(update.message, bot)
+                            logger.info(f"Comando whitelist procesado para {update.message.from_user.id}")
+                            return 'OK', 200
+                        elif update.message.text.startswith('/subinfo'):
+                            bot_handlers.handle_subinfo(update.message, bot)
+                            logger.info(f"Comando subinfo procesado para {update.message.from_user.id}")
+                            return 'OK', 200
                     except Exception as e:
                         logger.error(f"Error al procesar comando de administrador: {str(e)}")
+                        # Intentar responder al usuario con el error
+                        try:
+                            bot.reply_to(update.message, f"❌ Error al procesar comando: {str(e)}")
+                        except:
+                            pass
                 
                 # Manejar comando recover
                 if update.message.text == '/recover' or update.message.text.startswith('/recover'):
@@ -325,6 +341,25 @@ def webhook():
     except Exception as e:
         logger.error(f"Error al procesar webhook: {str(e)}")
         return 'Error interno', 500
+
+@app.route('/admin/reset-webhook')
+def reset_webhook_endpoint():
+    """Endpoint para reiniciar el webhook (solo uso administrativo)"""
+    try:
+        # Importar y ejecutar las funciones del script reset_webhook.py
+        from reset_webhook import verify_bot, delete_webhook, set_new_webhook, get_webhook_info
+        
+        results = {
+            "bot_verified": verify_bot(),
+            "webhook_deleted": delete_webhook(),
+            "webhook_set": set_new_webhook(),
+            "webhook_info": get_webhook_info()
+        }
+        
+        return jsonify(results), 200
+    except Exception as e:
+        logger.error(f"Error al reiniciar webhook: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/admin/get-telegram-user', methods=['GET'])
 def get_telegram_user():

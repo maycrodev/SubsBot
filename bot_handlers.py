@@ -1,7 +1,7 @@
 import logging
 from telebot import types
 import database as db
-from config import ADMIN_IDS, PLANS, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT, GROUP_INVITE_LINK
+from config import ADMIN_IDS, PLANS, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT, GROUP_INVITE_LINK, WEBHOOK_URL
 import payments as pay
 import datetime
 import threading
@@ -43,9 +43,21 @@ def register_admin_commands(bot):
         func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_bot_permissions'
     )
     
+    # Handler para whitelist
+    bot.register_message_handler(
+        lambda message: handle_whitelist(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text.startswith('/whitelist')
+    )
+    
+    # Handler para subinfo
+    bot.register_message_handler(
+        lambda message: handle_subinfo(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text.startswith('/subinfo')
+    )
+    
     # Comando de verificación de permisos para admins
     bot.register_message_handler(
-        lambda message: verify_bot_permissions() and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
+        lambda message: verify_bot_permissions(bot) and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
         func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
     )
     
@@ -888,7 +900,7 @@ def handle_verify_all_members(message, bot):
 # 3. FUNCIÓN DE VERIFICACIÓN DE PERMISOS DEL BOT
 # Añade esta función al archivo app.py, justo antes de set_webhook()
 
-def verify_bot_permissions():
+def verify_bot_permissions(bot):
     """Verifica que el bot tenga los permisos correctos en el grupo VIP"""
     try:
         from config import GROUP_CHAT_ID, ADMIN_IDS, BOT_TOKEN
@@ -1053,11 +1065,16 @@ def handle_new_chat_members(message, bot):
 
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
+    
+    # Registrar comandos de administrador primero
+    register_admin_commands(bot)
 
+    # Handler para verificar permisos del bot
     bot.register_message_handler(
-    lambda message: check_and_fix_bot_permissions(message, bot),
-    commands=['check_bot_permissions']
-    )   
+        lambda message: check_and_fix_bot_permissions(message, bot),
+        commands=['check_bot_permissions']
+    )
+    
     # Handler para el comando /start
     bot.register_message_handler(lambda message: handle_start(message, bot), commands=['start'])
     
@@ -1072,22 +1089,8 @@ def register_handlers(bot):
     # Handler para el comando de recuperación de acceso
     bot.register_message_handler(lambda message: handle_recover_access(message, bot), 
                               func=lambda message: message.text == '🎟️ Recuperar Acceso VIP' or 
-                                                  message.text == '/recover')
-    
-    # Handlers para comandos de administrador
-    bot.register_message_handler(lambda message: handle_whitelist(message, bot), 
-                              func=lambda message: message.from_user.id in ADMIN_IDS and 
-                                                  message.text.startswith('/whitelist'))
-    
-    bot.register_message_handler(lambda message: handle_subinfo(message, bot), 
-                              func=lambda message: message.from_user.id in ADMIN_IDS and 
-                                                  message.text.startswith('/subinfo'))
-    
-    # Comando de verificación de permisos para admins
-    bot.register_message_handler(
-        lambda message: verify_bot_permissions() and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
-    )
+                                                  message.text == '/recover' or
+                                                  message.text.startswith('/recover'))
     
     # Callback handlers para los botones
     bot.register_callback_query_handler(lambda call: handle_main_menu_callback(call, bot), 
@@ -1629,9 +1632,10 @@ def handle_whitelist(message, bot):
         command_parts = message.text.split()
         
         if len(command_parts) < 2:
+            # Mostrar instrucciones de uso
             bot.send_message(
                 chat_id=chat_id,
-                text="❌ Uso incorrecto. Por favor, usa /whitelist USER_ID"
+                text="❌ Uso incorrecto. Por favor, usa /whitelist USER_ID\n\nEjemplo: /whitelist 1234567890"
             )
             return
         
@@ -1839,9 +1843,10 @@ def handle_subinfo(message, bot):
         command_parts = message.text.split()
         
         if len(command_parts) < 2:
+            # Mostrar instrucciones de uso
             bot.send_message(
                 chat_id=chat_id,
-                text="❌ Uso incorrecto. Por favor, usa /subinfo USER_ID"
+                text="❌ Uso incorrecto. Por favor, usa /subinfo USER_ID\n\nEjemplo: /subinfo 1234567890"
             )
             return
         
@@ -2026,6 +2031,7 @@ def handle_stats_command(message, bot):
             stats_text += "\n"
         
         # Añadir información del panel de administrador
+        from config import WEBHOOK_URL
         stats_text += (
             "🔐 *Panel de Administración*\n"
             f"• URL: {WEBHOOK_URL}/admin/panel?admin_id={user_id}\n\n"
