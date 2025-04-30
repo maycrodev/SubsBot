@@ -72,7 +72,7 @@ def webhook():
                         if update.message.text == '/stats' or update.message.text == '/estadisticas':
                             bot_handlers.handle_stats_command(update.message, bot)
                         elif update.message.text == '/check_permissions':
-                            verify_bot_permissions() and bot.reply_to(update.message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.")
+                            bot_handlers.verify_bot_permissions(bot) and bot.reply_to(update.message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.")
                         elif update.message.text == '/test_invite':
                             bot_handlers.handle_test_invite(update.message, bot)
                         

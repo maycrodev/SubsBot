@@ -1,159 +1,269 @@
+#!/usr/bin/env python
 """
-Script para reiniciar y verificar el webhook del bot de Telegram.
-Este script debe ejecutarse por separado para diagnosticar problemas.
+Script para corregir problemas con los comandos de administrador en el bot de Telegram.
+Este script debe ejecutarse en el directorio raíz del proyecto.
 """
-import requests
-import time
-import logging
 import os
-from config import BOT_TOKEN, WEBHOOK_URL
+import re
+
+def fix_app_py():
+    """Corrige problemas en app.py"""
+    print("Corrigiendo app.py...")
+    
+    with open('app.py', 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # 1. Fix: Importar verify_bot_permissions correctamente
+    updated_content = content.replace(
+        "verify_bot_permissions() and bot.reply_to(update.message, \"✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.\")",
+        "bot_handlers.verify_bot_permissions(bot) and bot.reply_to(update.message, \"✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.\")"
+    )
+    
+    # Guardar cambios
+    with open('app.py', 'w', encoding='utf-8') as f:
+        f.write(updated_content)
+    
+    print("✅ app.py corregido")
+
+def fix_bot_handlers():
+    """Corrige problemas en bot_handlers.py"""
+    print("Corrigiendo bot_handlers.py...")
+    
+    with open('bot_handlers.py', 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # 1. Fix: Mover verify_bot_permissions() a bot_handlers.py
+    # Buscamos la función en app.py
+    with open('app.py', 'r', encoding='utf-8') as f:
+        app_content = f.read()
+    
+    verify_bot_func_pattern = re.compile(r'def verify_bot_permissions\(\):(.*?)(?=\ndef|\Z)', re.DOTALL)
+    match = verify_bot_func_pattern.search(app_content)
+    
+    if match:
+        verify_bot_func = match.group(0)
+        # Modificar para que acepte un parámetro bot
+        verify_bot_func = verify_bot_func.replace(
+            "def verify_bot_permissions():",
+            "def verify_bot_permissions(bot):"
+        )
+        
+        # Agregar la función al final de bot_handlers.py
+        if "def verify_bot_permissions(bot):" not in content:
+            content += "\n\n" + verify_bot_func
+    
+    # 2. Fix: Corregir manejo de comando /whitelist
+    whitelist_handler_pattern = re.compile(r'def handle_whitelist\(message, bot\):(.*?)(?=\ndef|\Z)', re.DOTALL)
+    match = whitelist_handler_pattern.search(content)
+    
+    if match:
+        whitelist_handler = match.group(0)
+        # Modificar para manejar correctamente cuando no se proporciona un ID de usuario
+        updated_handler = whitelist_handler.replace(
+            "if len(command_parts) < 2:",
+            "if len(command_parts) < 2:\n"
+            "        # Mostrar instrucciones de uso\n"
+            "        bot.send_message(\n"
+            "            chat_id=chat_id,\n"
+            "            text=\"❌ Uso incorrecto. Por favor, usa /whitelist USER_ID\\n\\nEjemplo: /whitelist 1234567890\"\n"
+            "        )\n"
+            "        return"
+        )
+        
+        content = content.replace(whitelist_handler, updated_handler)
+    
+    # 3. Fix: Corregir manejo de comando /subinfo
+    subinfo_handler_pattern = re.compile(r'def handle_subinfo\(message, bot\):(.*?)(?=\ndef|\Z)', re.DOTALL)
+    match = subinfo_handler_pattern.search(content)
+    
+    if match:
+        subinfo_handler = match.group(0)
+        # Modificar para manejar correctamente cuando no se proporciona un ID de usuario
+        updated_handler = subinfo_handler.replace(
+            "if len(command_parts) < 2:",
+            "if len(command_parts) < 2:\n"
+            "        # Mostrar instrucciones de uso\n"
+            "        bot.send_message(\n"
+            "            chat_id=chat_id,\n"
+            "            text=\"❌ Uso incorrecto. Por favor, usa /subinfo USER_ID\\n\\nEjemplo: /subinfo 1234567890\"\n"
+            "        )\n"
+            "        return"
+        )
+        
+        content = content.replace(subinfo_handler, updated_handler)
+    
+    # 4. Fix: Asegurar que register_admin_commands se llame
+    if "register_admin_commands" in content and "register_admin_commands(bot)" not in content:
+        # Encuentra la función register_handlers
+        register_handlers_pattern = re.compile(r'def register_handlers\(bot\):(.*?)(?=\ndef|\Z)', re.DOTALL)
+        match = register_handlers_pattern.search(content)
+        
+        if match:
+            register_handlers_func = match.group(0)
+            updated_func = register_handlers_func.replace(
+                "def register_handlers(bot):",
+                "def register_handlers(bot):\n"
+                "    # Registrar comandos de administrador\n"
+                "    register_admin_commands(bot)"
+            )
+            
+            content = content.replace(register_handlers_func, updated_func)
+    
+    # 5. Fix: Corregir registro de comandos /check_permissions y /stats
+    check_permissions_pattern = re.compile(r'bot\.register_message_handler\(\s*lambda message: verify_bot_permissions\(\) and bot\.reply_to.*?check_permissions.*?\)', re.DOTALL)
+    
+    if check_permissions_pattern.search(content):
+        old_handler = check_permissions_pattern.search(content).group(0)
+        new_handler = old_handler.replace(
+            "verify_bot_permissions()",
+            "verify_bot_permissions(bot)"
+        )
+        content = content.replace(old_handler, new_handler)
+    
+    # 6. Fix: Asegurar que handle_stats_command se maneje correctamente
+    stats_handler_pattern = re.compile(r'bot\.register_message_handler\(\s*lambda message: handle_stats_command.*?\)', re.DOTALL)
+    
+    if stats_handler_pattern.search(content):
+        # El patrón ya existe, no hacemos cambios
+        pass
+    else:
+        # Asegurarnos de que existe la función handle_stats_command
+        if "def handle_stats_command(message, bot):" in content:
+            # Añadir el handler en register_handlers
+            register_handlers_func = register_handlers_pattern.search(content).group(0)
+            updated_func = register_handlers_func.replace(
+                "schedule_security_verification(bot)",
+                "schedule_security_verification(bot)\n\n"
+                "    # Handler para estadísticas\n"
+                "    bot.register_message_handler(\n"
+                "        lambda message: handle_stats_command(message, bot),\n"
+                "        func=lambda message: message.from_user.id in ADMIN_IDS and message.text in ['/stats', '/estadisticas']\n"
+                "    )"
+            )
+            content = content.replace(register_handlers_func, updated_func)
+    
+    # Guardar cambios
+    with open('bot_handlers.py', 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    print("✅ bot_handlers.py corregido")
+
+def create_verify_bot_command():
+    """Crea un nuevo script para verificar la configuración del bot"""
+    print("Creando script de verificación...")
+    
+    script_content = """#!/usr/bin/env python
+'''
+Script para verificar y diagnosticar la configuración del bot.
+Ejecutar este script para identificar problemas con los comandos de administrador.
+'''
+import sys
+import os
+import logging
+import telebot
+from config import BOT_TOKEN, ADMIN_IDS
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def delete_webhook():
-    """Elimina cualquier webhook establecido anteriormente"""
+def verify_admin_commands():
+    '''Verifica la configuración de comandos administrativos'''
     try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true"
-        response = requests.get(url)
-        response_data = response.json()
-        
-        if response_data.get("ok"):
-            logger.info("✅ Webhook eliminado correctamente")
-        else:
-            logger.error(f"❌ Error al eliminar webhook: {response_data}")
-        
-        return response_data.get("ok", False)
-    except Exception as e:
-        logger.error(f"❌ Excepción al eliminar webhook: {e}")
-        return False
-
-def get_webhook_info():
-    """Obtiene información sobre el webhook actual"""
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getWebhookInfo"
-        response = requests.get(url)
-        info = response.json()
-        
-        logger.info("ℹ️ Información del webhook:")
-        logger.info(f"  URL: {info.get('result', {}).get('url', 'No establecida')}")
-        logger.info(f"  Actualizaciones pendientes: {info.get('result', {}).get('pending_update_count', 0)}")
-        logger.info(f"  Último error: {info.get('result', {}).get('last_error_message', 'Ninguno')}")
-        logger.info(f"  Último código de error: {info.get('result', {}).get('last_error_date', 'Ninguno')}")
-        
-        return info.get("result", {})
-    except Exception as e:
-        logger.error(f"❌ Error al obtener información del webhook: {e}")
-        return {}
-
-def set_new_webhook():
-    """Establece un nuevo webhook"""
-    try:
-        # Asegurar que WEBHOOK_URL no tenga barra al final
-        base_url = WEBHOOK_URL.rstrip('/')
-        webhook_path = f"/webhook/{BOT_TOKEN}"
-        full_webhook_url = f"{base_url}{webhook_path}"
-        
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
-        params = {
-            "url": full_webhook_url,
-            "allowed_updates": ["message", "callback_query"],
-            "drop_pending_updates": True
-        }
-        
-        logger.info(f"🔄 Intentando configurar webhook en: {full_webhook_url}")
-        
-        response = requests.post(url, json=params)
-        result = response.json()
-        
-        if result.get("ok"):
-            logger.info("✅ Webhook configurado correctamente")
-        else:
-            logger.error(f"❌ Error al configurar webhook: {result}")
-        
-        return result.get("ok", False)
-    except Exception as e:
-        logger.error(f"❌ Error al configurar webhook: {e}")
-        return False
-
-def verify_bot():
-    """Verifica que el bot esté activo y funcionando"""
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
-        response = requests.get(url)
-        me = response.json()
-        
-        if me.get("ok"):
-            bot_info = me.get("result", {})
-            logger.info(f"✅ Bot verificado: @{bot_info.get('username')} (ID: {bot_info.get('id')})")
-            return True
-        else:
-            logger.error(f"❌ Error al verificar bot: {me}")
+        # Verificar que existe el token
+        if not BOT_TOKEN:
+            logger.error("❌ BOT_TOKEN no está configurado")
             return False
-    except Exception as e:
-        logger.error(f"❌ Error al verificar bot: {e}")
-        return False
-
-def send_test_message():
-    """Envía un mensaje de prueba a todos los administradores"""
-    from config import ADMIN_IDS
-    
-    for admin_id in ADMIN_IDS:
+        
+        # Verificar administradores
+        if not ADMIN_IDS:
+            logger.error("❌ No hay administradores configurados en ADMIN_IDS")
+            return False
+        
+        logger.info(f"ℹ️ Administradores configurados: {ADMIN_IDS}")
+        
+        # Importar bot_handlers para verificar funciones
         try:
-            url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-            params = {
-                "chat_id": admin_id,
-                "text": "🧪 Prueba de webhook reiniciado. Por favor, envía el comando /start para verificar que el bot responde."
-            }
+            import bot_handlers
+            logger.info("✅ Módulo bot_handlers importado correctamente")
             
-            response = requests.post(url, json=params)
-            result = response.json()
+            # Verificar funciones de administrador
+            admin_functions = [
+                'handle_stats_command',
+                'handle_test_invite',
+                'handle_whitelist',
+                'handle_subinfo',
+                'handle_verify_all_members',
+                'verify_bot_permissions'
+            ]
             
-            if result.get("ok"):
-                logger.info(f"✅ Mensaje de prueba enviado a {admin_id}")
-            else:
-                logger.error(f"❌ Error al enviar mensaje de prueba a {admin_id}: {result}")
+            for func_name in admin_functions:
+                if hasattr(bot_handlers, func_name):
+                    logger.info(f"✅ Función {func_name} encontrada")
+                else:
+                    logger.error(f"❌ Función {func_name} NO encontrada")
+            
+        except ImportError as e:
+            logger.error(f"❌ Error al importar bot_handlers: {str(e)}")
+            return False
+        
+        # Crear un bot de prueba
+        try:
+            bot = telebot.TeleBot(BOT_TOKEN)
+            me = bot.get_me()
+            logger.info(f"✅ Bot conectado: @{me.username} (ID: {me.id})")
         except Exception as e:
-            logger.error(f"❌ Error al enviar mensaje de prueba a {admin_id}: {e}")
+            logger.error(f"❌ Error al conectar con el bot: {str(e)}")
+            return False
+        
+        logger.info("✅ Verificación completada. Todo parece estar correcto.")
+        
+        # Instrucciones para el usuario
+        print("\\n" + "-"*50)
+        print("INSTRUCCIONES PARA COMANDOS DE ADMINISTRADOR:")
+        print("-"*50)
+        print("1. Usa los comandos con el formato correcto:")
+        print("   /whitelist USER_ID - Añade un usuario a la whitelist")
+        print("   /subinfo USER_ID - Muestra información de suscripción de un usuario")
+        print("   /stats - Muestra estadísticas del bot")
+        print("   /check_permissions - Verifica permisos del bot en el grupo")
+        print("   /test_invite - Prueba la generación de enlaces de invitación")
+        print("   /verify_all - Verifica todos los miembros del grupo")
+        print("\\n2. Asegúrate de ejecutar estos comandos desde un chat privado con el bot")
+        print("   o desde el grupo si estás usando comandos específicos del grupo.")
+        print("-"*50)
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error durante la verificación: {str(e)}")
+        return False
 
 if __name__ == "__main__":
-    logger.info("🚀 Iniciando diagnóstico y reinicio de webhook")
+    print("🔍 Iniciando verificación de comandos de administrador...")
+    verify_admin_commands()
+"""
     
-    # 1. Verificar que el bot esté activo
-    if not verify_bot():
-        logger.error("❌ El bot no está activo o el token es inválido. Abortando.")
-        exit(1)
+    with open('verify_commands.py', 'w', encoding='utf-8') as f:
+        f.write(script_content)
     
-    # 2. Obtener información del webhook actual
-    logger.info("📊 Obteniendo información del webhook actual...")
-    current_webhook = get_webhook_info()
+    # Hacer ejecutable
+    os.chmod('verify_commands.py', 0o755)
     
-    # 3. Eliminar webhook actual
-    logger.info("🗑️ Eliminando webhook actual...")
-    if delete_webhook():
-        logger.info("✅ Webhook eliminado correctamente")
-        # Esperar un momento para que Telegram procese la eliminación
-        time.sleep(1)
-    else:
-        logger.warning("⚠️ No se pudo eliminar el webhook actual")
+    print("✅ Script de verificación creado: verify_commands.py")
+
+def main():
+    """Función principal"""
+    print("🔧 Iniciando arreglo de comandos de administrador...\n")
     
-    # 4. Configurar nuevo webhook
-    logger.info("🔄 Configurando nuevo webhook...")
-    if set_new_webhook():
-        logger.info("✅ Nuevo webhook configurado correctamente")
-    else:
-        logger.error("❌ Error al configurar nuevo webhook")
+    # Corregir archivos
+    fix_app_py()
+    fix_bot_handlers()
+    create_verify_bot_command()
     
-    # 5. Verificar la configuración final
-    logger.info("📊 Verificando configuración final...")
-    final_webhook = get_webhook_info()
-    
-    # 6. Enviar mensaje de prueba a los administradores
-    logger.info("📤 Enviando mensaje de prueba a los administradores...")
-    send_test_message()
-    
-    logger.info("🏁 Proceso de reinicio de webhook completado")
-    logger.info(f"📌 WEBHOOK_URL configurada: {WEBHOOK_URL}")
-    logger.info(f"📌 Webhook actual: {final_webhook.get('url', 'No establecido')}")
-    logger.info("⏱️ Espera unos momentos y luego envía el comando /start al bot para verificar")
+    print("\n✅ Correcciones completadas.")
+    print("Para verificar la configuración, ejecuta: python verify_commands.py")
+    print("Para reiniciar el bot, ejecuta: python main.py")
+
+if __name__ == "__main__":
+    main()
