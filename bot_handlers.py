@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # Diccionario para almacenar estados de administradores
-admin_states = {}
+admin_states = None
 
 # Diccionario para almacenar las animaciones de pago en curso
 payment_animations = {}

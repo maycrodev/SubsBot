@@ -11,7 +11,14 @@ from telebot import types
 import database as db
 import payments as pay
 from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS, PLANS, DB_PATH
-from bot_handlers import admin_states
+
+admin_states = {}
+
+# Luego importa bot_handlers
+import bot_handlers
+
+# Y asigna admin_states en bot_handlers
+bot_handlers.admin_states = admin_states
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
