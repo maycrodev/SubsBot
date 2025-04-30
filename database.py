@@ -2,6 +2,10 @@ import sqlite3
 import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from config import DB_PATH
+import logging  # Añade esta línea
+
+# Configurar logging si no está configurado
+logger = logging.getLogger(__name__)
 
 def get_db_connection():
     """Establece una conexión a la base de datos SQLite"""
@@ -346,6 +350,51 @@ def get_active_subscriptions_count(conn=None):
         conn.close()
     
     return count
+
+def remove_expired_subscriptions():
+    """
+    Elimina suscripciones expiradas, incluyendo whitelist temporales
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Marcar suscripciones expiradas
+    cursor.execute("""
+    UPDATE subscriptions 
+    SET status = 'EXPIRED' 
+    WHERE (end_date <= datetime('now') OR status = 'EXPIRED') 
+    AND status != 'EXPIRED'
+    """)
+    
+    # Obtener los IDs de usuarios con suscripciones expiradas
+    cursor.execute("""
+    SELECT DISTINCT user_id 
+    FROM subscriptions 
+    WHERE status = 'EXPIRED'
+    """)
+    
+    expired_users = [row[0] for row in cursor.fetchall()]
+    
+    conn.commit()
+    conn.close()
+    
+    return expired_users
+
+def close_expired_subscriptions():
+    """
+    Procesa las suscripciones expiradas
+    """
+    from bot_handlers import perform_group_security_check
+    from config import GROUP_CHAT_ID
+    
+    # Obtener usuarios con suscripciones expiradas
+    expired_users = remove_expired_subscriptions()
+    
+    if expired_users:
+        logger.info(f"Usuarios con suscripciones expiradas: {len(expired_users)}")
+        
+        # Opcional: Llamar a la verificación de seguridad general
+        perform_group_security_check()
 
 # Inicializar la base de datos al importar el módulo
 init_db()

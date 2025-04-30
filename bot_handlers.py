@@ -501,7 +501,7 @@ def create_plans_markup():
 
 def schedule_security_verification(bot):
     """
-    Configura una verificación de seguridad periódica para ejecutarse cada 6 horas
+    Configura una verificación de seguridad periódica
     """
     import threading
     import time
@@ -510,42 +510,46 @@ def schedule_security_verification(bot):
     def security_check_thread():
         """Hilo que ejecuta la verificación periódica de seguridad"""
         try:
-            # Ejecutar una verificación inmediata al iniciar
-            logger.info("Ejecutando verificación inicial de seguridad")
+            logger.info("🔒 Iniciando sistema de verificación de seguridad")
+            
+            # Verificación inicial
             if GROUP_CHAT_ID:
+                logger.info("🕒 Realizando verificación inicial de seguridad")
                 perform_group_security_check(bot, GROUP_CHAT_ID)
             else:
-                logger.error("GROUP_CHAT_ID no configurado para verificación inicial")
+                logger.error("❌ GROUP_CHAT_ID no configurado para verificación inicial")
         except Exception as e:
-            logger.error(f"Error en verificación inicial: {e}")
+            logger.error(f"❌ Error en verificación inicial: {e}")
             
-        # Ciclo de verificación periódica
+        # Ciclo de verificación
         while True:
             try:
-                # Esperar 6 horas entre verificaciones (en segundos)
-                time.sleep(21600)  # 6 horas * 60 minutos * 60 segundos
+                # Tiempo de espera (cambia a 21600 para 6 horas en producción)
+                time.sleep(20)  # Tiempo para pruebas
                 
-                logger.info("Iniciando verificación periódica de seguridad programada")
+                logger.info("🕒 Iniciando verificación periódica de seguridad")
                 
-                # No ejecutar si no hay un grupo configurado
                 if not GROUP_CHAT_ID:
-                    logger.error("No hay ID de grupo configurado para la verificación de seguridad")
+                    logger.error("❌ No hay ID de grupo configurado")
                     continue
                 
-                # Ejecutar la verificación
+                # Realizar verificación de seguridad
                 perform_group_security_check(bot, GROUP_CHAT_ID)
                 
+                # Opcional: Cerrar suscripciones expiradas
+                from database import close_expired_subscriptions
+                close_expired_subscriptions(bot)
+                
             except Exception as e:
-                logger.error(f"Error en el hilo de verificación periódica: {e}")
-                # Si hay un error, esperamos 1 hora antes de intentar de nuevo
-                time.sleep(3600)
+                logger.error(f"❌ Error en verificación periódica: {e}")
+                time.sleep(20)  # Espera en caso de error
     
-    # Iniciar el hilo de verificación
+    # Iniciar hilo
     security_thread = threading.Thread(target=security_check_thread)
     security_thread.daemon = True
     security_thread.start()
     
-    logger.info("Sistema de verificación periódica de seguridad iniciado")
+    logger.info("✅ Sistema de verificación periódica de seguridad iniciado")
 
 
 def perform_group_security_check(bot, group_id):
