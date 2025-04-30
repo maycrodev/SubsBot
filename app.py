@@ -443,6 +443,78 @@ def paypal_webhook():
     except Exception as e:
         logger.error(f"Error al procesar webhook de PayPal: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
+    
+@app.route('/admin/panel')
+def admin_panel():
+    """Renderiza el panel de administración"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Obtener estadísticas para el panel
+        conn = db.get_db_connection()
+        
+        stats = {
+            "usuarios": db.get_total_users_count(conn),
+            "suscripciones": db.get_table_count(conn, "subscriptions"),
+            "suscripciones_activas": db.get_active_subscriptions_count(conn),
+            "enlaces_invitacion": db.get_table_count(conn, "invite_links")
+        }
+        
+        # Obtener últimas 5 suscripciones
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, s.status
+        FROM subscriptions s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        ORDER BY s.start_date DESC
+        LIMIT 5
+        """)
+        recent_subscriptions = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
+        
+        # Obtener usuarios recientes
+        cursor.execute("""
+        SELECT user_id, username, first_name, last_name, created_at
+        FROM users
+        ORDER BY created_at DESC
+        LIMIT 5
+        """)
+        recent_users = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        # Renderizar el template con los datos
+        return render_template('admin_panel.html', 
+                               admin_id=admin_id,
+                               stats=stats,
+                               recent_subscriptions=recent_subscriptions,
+                               recent_users=recent_users)
+        
+    except Exception as e:
+        logger.error(f"Error en admin_panel: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# Añadir endpoint para descargar base de datos
+@app.route('/admin/download-database')
+def download_database():
+    """Permite descargar una copia de la base de datos"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Devolver el archivo de la base de datos
+        return send_file(DB_PATH, 
+                        mimetype='application/octet-stream',
+                        as_attachment=True,
+                        download_name='vip_bot_backup.db')
+        
+    except Exception as e:
+        logger.error(f"Error al descargar base de datos: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/paypal/return', methods=['GET'])
 def paypal_return():
