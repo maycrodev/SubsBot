@@ -20,6 +20,37 @@ admin_states = {}
 # Diccionario para almacenar las animaciones de pago en curso
 payment_animations = {}
 
+def register_admin_commands(bot):
+    """Registra comandos exclusivos para administradores"""
+    from config import ADMIN_IDS
+    
+    # Handler para estadísticas del bot (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_stats_command(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and 
+                           (message.text == '/stats' or message.text == '/estadisticas')
+    )
+    
+    # Handler para probar la generación de enlaces de invitación (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_test_invite(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/test_invite'
+    )
+    
+    # Handler para verificar permisos del bot
+    bot.register_message_handler(
+        lambda message: check_and_fix_bot_permissions(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_bot_permissions'
+    )
+    
+    # Comando de verificación de permisos para admins
+    bot.register_message_handler(
+        lambda message: verify_bot_permissions() and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
+    )
+    
+    logger.info("Comandos de administrador registrados correctamente")
+
 # Funciones de utilidad
 def parse_duration(duration_text: str) -> Optional[int]:
     """

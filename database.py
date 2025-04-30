@@ -304,5 +304,48 @@ def get_user_expulsions(user_id: int) -> List[Dict]:
     
     return [dict(expulsion) for expulsion in expulsions]
 
+# Modifica o añade estas funciones en database.py
+
+def get_table_count(conn, table_name):
+    """Obtiene el número de registros en una tabla"""
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+    return cursor.fetchone()[0]
+
+def get_total_users_count(conn=None):
+    """
+    Obtiene el número total de usuarios registrados en el bot.
+    Esta función se usa para el panel de administración.
+    """
+    close_conn = False
+    if conn is None:
+        conn = get_db_connection()
+        close_conn = True
+    
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    count = cursor.fetchone()[0]
+    
+    if close_conn:
+        conn.close()
+    
+    return count
+
+def get_active_subscriptions_count(conn=None):
+    """Obtiene el número de suscripciones activas"""
+    close_conn = False
+    if conn is None:
+        conn = get_db_connection()
+        close_conn = True
+    
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM subscriptions WHERE status = 'ACTIVE' AND end_date > datetime('now')")
+    count = cursor.fetchone()[0]
+    
+    if close_conn:
+        conn.close()
+    
+    return count
+
 # Inicializar la base de datos al importar el módulo
 init_db()

@@ -534,6 +534,34 @@
                 </table>
             </div>
         </div>
+
+        <div class="panel-card">
+            <h2><i class="fas fa-user-plus"></i> Usuarios Recientes</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Registro</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in recent_users %}
+                        <tr>
+                            <td>{{ user.user_id }}</td>
+                            <td>
+                                {{ user.username or 'Sin username' }}
+                            </td>
+                            <td>{{ user.first_name }} {{ user.last_name }}</td>
+                            <td>{{ user.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
         
         <div class="panel-card">
             <h2><i class="fas fa-database"></i> Consulta SQL</h2>
@@ -588,9 +616,21 @@
         </div>
         
         <div class="panel-card">
+            <h2><i class="fas fa-tools"></i> Herramientas de Administración</h2>
+            <p>Acciones disponibles para administrar el bot</p>
+            
             <div class="actions">
                 <a href="/admin/download-database?admin_id={{ admin_id }}" class="btn" id="download-btn">
                     <i class="fas fa-download"></i> Descargar Base de Datos
+                </a>
+                <a href="javascript:void(0)" class="btn btn-secondary" onclick="sendBotCommand('/stats')">
+                    <i class="fas fa-chart-bar"></i> Ver Estadísticas en Bot
+                </a>
+                <a href="javascript:void(0)" class="btn btn-secondary" onclick="sendBotCommand('/test_invite')">
+                    <i class="fas fa-link"></i> Probar Generación de Enlace
+                </a>
+                <a href="javascript:void(0)" class="btn btn-secondary" onclick="sendBotCommand('/check_permissions')">
+                    <i class="fas fa-shield-alt"></i> Verificar Permisos del Bot
                 </a>
                 <a href="/" class="btn btn-secondary">
                     <i class="fas fa-home"></i> Volver al Inicio
@@ -675,6 +715,61 @@
                 setDefaultAvatar(userId);
             }
         }
+
+        // Función para enviar comandos al bot directamente desde el panel
+function sendBotCommand(command) {
+    // Obtener ID de admin
+    const urlParams = new URLSearchParams(window.location.search);
+    const adminId = urlParams.get('admin_id');
+    
+    if (!adminId) {
+        alert("Error: No se pudo determinar el ID de administrador");
+        return;
+    }
+    
+    // Mostrar mensaje de envío
+    const notificationElement = document.createElement("div");
+    notificationElement.className = "info-message success-message";
+    notificationElement.style.position = "fixed";
+    notificationElement.style.top = "20px";
+    notificationElement.style.left = "50%";
+    notificationElement.style.transform = "translateX(-50%)";
+    notificationElement.style.zIndex = "1000";
+    notificationElement.style.animationDuration = "0.3s";
+    
+    notificationElement.innerHTML = `
+        <i class="fas fa-paper-plane"></i> Enviando comando <strong>${command}</strong> al bot...
+        <p style="margin-top: 10px; font-size: 0.9em;">
+            Por favor, verifica tu chat con el bot para ver la respuesta.
+        </p>
+    `;
+    
+    document.body.appendChild(notificationElement);
+    
+    // Redireccionar a Telegram en lugar de hacer una solicitud directa
+    // Esto es más confiable ya que abrirá el chat del bot con el comando ya escrito
+    setTimeout(() => {
+        window.open(`https://t.me/bot_username?start=${encodeURIComponent(command.substring(1))}`, '_blank');
+        
+        // Actualizar el mensaje después de unos segundos
+        setTimeout(() => {
+            notificationElement.innerHTML = `
+                <i class="fas fa-check-circle"></i> Comando enviado correctamente.
+                <p style="margin-top: 10px; font-size: 0.9em;">
+                    Revisa tu chat con el bot para ver la respuesta.
+                </p>
+            `;
+            
+            // Eliminar la notificación después de unos segundos
+            setTimeout(() => {
+                notificationElement.style.opacity = "0";
+                setTimeout(() => {
+                    document.body.removeChild(notificationElement);
+                }, 300);
+            }, 3000);
+        }, 1500);
+    }, 1000);
+}
         
         // Función para establecer avatar predeterminado con iniciales
         function setDefaultAvatar(userId, firstName = null) {

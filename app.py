@@ -58,23 +58,37 @@ def webhook():
                     logger.info("¡Comando /start detectado! Enviando respuesta directa...")
                     
                     try:
-                        # Enviar un mensaje simple sin usar los handlers complejos
-                        markup = types.InlineKeyboardMarkup(row_width=1)
-                        markup.add(
-                            types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
-                            types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
-                            types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
-                        )
-                        
-                        bot.send_message(
-                            chat_id=update.message.chat.id,
-                            text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
-                            reply_markup=markup
-                        )
+                        # Usar la función handle_start mejorada
+                        bot_handlers.handle_start(update.message, bot)
                         logger.info(f"Respuesta enviada al usuario {update.message.from_user.id}")
                         return 'OK', 200
                     except Exception as e:
                         logger.error(f"Error al enviar respuesta directa: {str(e)}")
+                
+                # Manejar comandos de administrador
+                if update.message.text in ['/stats', '/estadisticas', '/check_permissions', '/test_invite'] and update.message.from_user.id in ADMIN_IDS:
+                    try:
+                        # Procesar comandos de administrador
+                        if update.message.text == '/stats' or update.message.text == '/estadisticas':
+                            bot_handlers.handle_stats_command(update.message, bot)
+                        elif update.message.text == '/check_permissions':
+                            verify_bot_permissions() and bot.reply_to(update.message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.")
+                        elif update.message.text == '/test_invite':
+                            bot_handlers.handle_test_invite(update.message, bot)
+                        
+                        logger.info(f"Comando de administrador {update.message.text} procesado para {update.message.from_user.id}")
+                        return 'OK', 200
+                    except Exception as e:
+                        logger.error(f"Error al procesar comando de administrador: {str(e)}")
+                
+                # Manejar comando recover
+                if update.message.text == '/recover' or update.message.text.startswith('/recover'):
+                    try:
+                        bot_handlers.handle_recover_access(update.message, bot)
+                        logger.info(f"Comando /recover procesado para {update.message.from_user.id}")
+                        return 'OK', 200
+                    except Exception as e:
+                        logger.error(f"Error al procesar comando /recover: {str(e)}")
             
             elif update.callback_query:
                 logger.info(f"Callback recibido de {update.callback_query.from_user.id}: {update.callback_query.data}")
@@ -312,8 +326,6 @@ def webhook():
         logger.error(f"Error al procesar webhook: {str(e)}")
         return 'Error interno', 500
 
-# Añadir esta ruta a tu archivo app.py
-
 @app.route('/admin/get-telegram-user', methods=['GET'])
 def get_telegram_user():
     """Endpoint para obtener información de un usuario de Telegram"""
@@ -325,7 +337,6 @@ def get_telegram_user():
             return jsonify({"success": False, "error": "Acceso no autorizado"}), 401
         
         # Este endpoint puede usarse para obtener información de cualquier usuario de Telegram
-        # pero es importante protegerlo adecuadamente
         target_user_id = request.args.get('user_id', admin_id)  # Si no se especifica user_id, usa admin_id
         
         # Verificar si el BOT_TOKEN está configurado
@@ -624,10 +635,10 @@ def admin_database():
         
         # Consultas predefinidas
         stats = {
-            "usuarios": get_table_count(conn, "users"),
-            "suscripciones": get_table_count(conn, "subscriptions"),
-            "suscripciones_activas": get_active_subscriptions_count(conn),
-            "enlaces_invitacion": get_table_count(conn, "invite_links")
+            "usuarios": db.get_total_users_count(conn),
+            "suscripciones": db.get_table_count(conn, "subscriptions"),
+            "suscripciones_activas": db.get_active_subscriptions_count(conn),
+            "enlaces_invitacion": db.get_table_count(conn, "invite_links")
         }
         
         # Obtener últimas 5 suscripciones
@@ -651,545 +662,3 @@ def admin_database():
     except Exception as e:
         logger.error(f"Error en admin_database: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-@app.route('/admin/download-database', methods=['GET'])
-def download_database():
-    """Endpoint para descargar la base de datos"""
-    try:
-        # Verificación básica de autenticación
-        admin_id = request.args.get('admin_id')
-        if not admin_id or int(admin_id) not in ADMIN_IDS:
-            return jsonify({"error": "Acceso no autorizado"}), 401
-        
-        # Ruta al archivo de base de datos
-        db_path = DB_PATH
-        
-        # Verificar que el archivo existe
-        if not os.path.exists(db_path):
-            return jsonify({"error": "Archivo de base de datos no encontrado"}), 404
-        
-        # Crear una copia temporal para evitar problemas de concurrencia
-        temp_file = os.path.join(os.path.dirname(db_path), 'temp_download.db')
-        
-        # Copiar archivo con el módulo shutil
-        import shutil
-        shutil.copy2(db_path, temp_file)
-        
-        # Enviar el archivo temporal
-        response = send_file(
-            temp_file,
-            as_attachment=True,
-            download_name=f"vip_bot_db_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db",
-            mimetype='application/octet-stream'
-        )
-        
-        # Configurar un callback para eliminar el archivo temporal después de enviarlo
-        @response.call_on_close
-        def cleanup():
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error al descargar base de datos: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/admin/panel', methods=['GET', 'POST'])
-def admin_panel():
-    """Panel de administración con interfaz web"""
-    try:
-        # Verificación básica de autenticación
-        admin_id = request.args.get('admin_id')
-        if not admin_id or int(admin_id) not in ADMIN_IDS:
-            return jsonify({"error": "Acceso no autorizado"}), 401
-        
-        # Obtener conexión a la base de datos
-        conn = db.get_db_connection()
-        cursor = conn.cursor()
-        
-        # Variables para plantilla
-        template_vars = {
-            "admin_id": admin_id,
-            "error": None,
-            "message": None,
-            "results": None,
-            "columns": None,
-            "count": 0,
-            "query": None,
-            "rows_affected": 0
-        }
-        
-        # Procesar consulta SQL si se envió
-        if request.method == 'POST':
-            query = request.form.get('query', '')
-            if query:
-                try:
-                    cursor.execute(query)
-                    # Si es una consulta SELECT
-                    if query.strip().upper().startswith('SELECT'):
-                        columns = [description[0] for description in cursor.description]
-                        results = cursor.fetchall()
-                        results_list = [dict(zip(columns, row)) for row in results]
-                        
-                        template_vars["query"] = query
-                        template_vars["columns"] = columns
-                        template_vars["results"] = results_list
-                        template_vars["count"] = len(results_list)
-                    else:
-                        conn.commit()
-                        template_vars["query"] = query
-                        template_vars["message"] = "Consulta ejecutada correctamente"
-                        template_vars["rows_affected"] = cursor.rowcount
-                except Exception as e:
-                    template_vars["query"] = query
-                    template_vars["error"] = str(e)
-        
-        # Obtener estadísticas
-        stats = {
-            "usuarios": get_table_count(conn, "users"),
-            "suscripciones": get_table_count(conn, "subscriptions"),
-            "suscripciones_activas": get_active_subscriptions_count(conn),
-            "enlaces_invitacion": get_table_count(conn, "invite_links")
-        }
-        template_vars["stats"] = stats
-        
-        # Obtener últimas 5 suscripciones
-        cursor.execute("""
-        SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, s.status
-        FROM subscriptions s
-        LEFT JOIN users u ON s.user_id = u.user_id
-        ORDER BY s.start_date DESC
-        LIMIT 5
-        """)
-        recent_subscriptions = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
-        template_vars["recent_subscriptions"] = recent_subscriptions
-        
-        conn.close()
-        
-        # Renderizar plantilla
-        return render_template('admin_panel.html', **template_vars)
-        
-    except Exception as e:
-        logger.error(f"Error en admin_panel: {str(e)}")
-        return f"Error: {str(e)}", 500
-
-def get_table_count(conn, table_name):
-    """Obtiene el número de registros en una tabla"""
-    cursor = conn.cursor()
-    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
-    return cursor.fetchone()[0]
-
-def get_active_subscriptions_count(conn):
-    """Obtiene el número de suscripciones activas"""
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM subscriptions WHERE status = 'ACTIVE' AND end_date > datetime('now')")
-    return cursor.fetchone()[0]
-
-@app.route('/diagnostico')
-def diagnostico():
-    """Ruta para diagnóstico del bot"""
-    try:
-        # Obtener información del bot
-        bot_info = bot.get_me()
-        
-        # Verificar webhook
-        webhook_info = bot.get_webhook_info()
-        
-        # Crear información de diagnóstico
-        info = {
-            "bot_name": bot_info.first_name,
-            "bot_username": bot_info.username,
-            "webhook_url": webhook_info.url,
-            "pending_updates": webhook_info.pending_update_count,
-            "last_error": webhook_info.last_error_message if hasattr(webhook_info, 'last_error_message') else None,
-            "server_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "environment": os.environ.get('ENVIRONMENT', 'production')
-        }
-        
-        return jsonify(info), 200
-    except Exception as e:
-        logger.error(f"Error en diagnóstico: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/')
-def index():
-    """Página simple para confirmar que el servidor está funcionando"""
-    return "Bot Server Running!", 200
-
-# Justo antes de set_webhook()
-def verify_bot_permissions():
-    """Verifica que el bot tenga los permisos correctos en el grupo VIP"""
-    try:
-        from config import GROUP_CHAT_ID, ADMIN_IDS, BOT_TOKEN
-        import requests
-        
-        if not GROUP_CHAT_ID:
-            logger.warning("GROUP_CHAT_ID no está configurado, omitiendo verificación de permisos")
-            return
-        
-        # Usar la API directamente para evitar circularidad de importaciones
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getChatMember"
-        params = {
-            "chat_id": GROUP_CHAT_ID,
-            "user_id": bot.get_me().id
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if not data.get("ok"):
-            logger.error(f"Error al verificar permisos del bot: {data.get('description')}")
-            for admin_id in ADMIN_IDS:
-                requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    params={
-                        "chat_id": admin_id,
-                        "text": f"⚠️ ALERTA: El bot no puede acceder al grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPor favor, añada el bot al grupo y asígnele permisos de administrador."
-                    }
-                )
-            return
-        
-        chat_member = data.get("result", {})
-        status = chat_member.get("status")
-        
-        if status not in ["administrator", "creator"]:
-            logger.error(f"El bot no es administrador en el grupo VIP. Status: {status}")
-            for admin_id in ADMIN_IDS:
-                requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    params={
-                        "chat_id": admin_id,
-                        "text": f"⚠️ ALERTA: El bot no es administrador en el grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPor favor, haga al bot administrador para que pueda expulsar usuarios no autorizados."
-                    }
-                )
-            return
-        
-        # Verificar permiso específico para expulsar
-        can_restrict = chat_member.get("can_restrict_members", False)
-        
-        if not can_restrict:
-            logger.error("El bot es administrador pero no tiene permiso para expulsar miembros")
-            for admin_id in ADMIN_IDS:
-                requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    params={
-                        "chat_id": admin_id,
-                        "text": f"⚠️ ALERTA: El bot es administrador pero NO tiene permiso para EXPULSAR USUARIOS en el grupo VIP.\n\nPor favor, edite los permisos del bot y active 'Expulsar usuarios'."
-                    }
-                )
-            return
-        
-        logger.info(f"✅ Permisos del bot verificados correctamente: {status}, can_restrict_members: {can_restrict}")
-        
-    except Exception as e:
-        logger.error(f"Error al verificar permisos del bot: {e}")
-
-def set_webhook():
-    """Configura el webhook de Telegram"""
-    try:
-        bot.remove_webhook()
-        time.sleep(0.5)
-        webhook_url = f"{WEBHOOK_URL}/webhook/{BOT_TOKEN}"
-        bot.set_webhook(url=webhook_url)
-        logger.info(f"Webhook configurado en {webhook_url}")
-        return True
-    except Exception as e:
-        logger.error(f"Error al configurar webhook: {str(e)}")
-        return False
-
-def run_bot_polling():
-    """Ejecuta el bot en modo polling (para desarrollo local)"""
-    try:
-        bot.remove_webhook()
-        time.sleep(0.5)
-        logger.info("Iniciando bot en modo polling...")
-        bot.infinity_polling()
-    except Exception as e:
-        logger.error(f"Error en polling: {str(e)}")
-
-if __name__ == "__main__":
-    # Agregar logs para diagnóstico
-    logger.info(f"BOT_TOKEN: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
-    logger.info(f"WEBHOOK_URL: {WEBHOOK_URL}")
-    
-    # Registrar los handlers directamente aquí para mayor control
-    logger.info("Registrando handlers del bot...")
-    
-    # Registrar handler básico para /start
-    @bot.message_handler(commands=['start'])
-    def direct_start_handler(message):
-        logger.info(f"Handler directo de /start llamado por usuario {message.from_user.id}")
-        try:
-            # Crear markup con botones
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
-                types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
-                types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
-            )
-            
-            # Enviar mensaje de bienvenida
-            bot.send_message(
-                chat_id=message.chat.id,
-                text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
-                reply_markup=markup
-            )
-            
-            logger.info(f"Mensaje de bienvenida enviado a {message.from_user.id}")
-            
-            # Guardar usuario en la base de datos
-            db.save_user(
-                message.from_user.id,
-                message.from_user.username,
-                message.from_user.first_name,
-                message.from_user.last_name
-            )
-        except Exception as e:
-            logger.error(f"Error en handler directo de /start: {str(e)}")
-            bot.send_message(
-                chat_id=message.chat.id,
-                text="❌ Ocurrió un error. Por favor, intenta nuevamente más tarde."
-            )
-    
-    # Registrar handler para nuevos miembros que se unen al grupo
-    @bot.message_handler(content_types=['new_chat_members'])
-    def handle_new_members_direct(message):
-        logger.info(f"Nuevo miembro detectado en chat {message.chat.id}: {[member.id for member in message.new_chat_members]}")
-        bot_handlers.handle_new_chat_members(message, bot)
-    
-    # Manejar callbacks de los botones del menú principal
-    @bot.callback_query_handler(func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms', 'tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'] or call.data.startswith('payment_paypal_'))
-    def direct_main_menu_callback(call):
-        logger.info(f"Callback handler directo llamado: {call.data}")
-        try:
-            chat_id = call.message.chat.id
-            message_id = call.message.message_id
-            
-            if call.data == "view_plans":
-                # Mostrar planes
-                plans_text = (
-                    "💸 Escoge tu plan de suscripción:\n\n"
-                    "🔹 Plan Semanal: $3.50 / 1 semana\n"
-                    "🔸 Plan Mensual: $5.00 / 1 mes\n\n"
-                    "🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
-                )
-                
-                markup = types.InlineKeyboardMarkup(row_width=2)
-                markup.add(types.InlineKeyboardButton("🎥 Tutorial de Pagos", callback_data="tutorial"))
-                markup.add(
-                    types.InlineKeyboardButton("🗓️ Plan Semanal", callback_data="weekly_plan"),
-                    types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan")
-                )
-                markup.add(types.InlineKeyboardButton("🔙 Atrás", callback_data="back_to_main"))
-                
-                bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text=plans_text,
-                    reply_markup=markup
-                )
-            
-            elif call.data == "tutorial":
-                # Mostrar tutorial de pagos
-                tutorial_text = (
-                    "🎥 Tutorial de Pagos\n\n"
-                    "Para suscribirte a nuestro grupo VIP, sigue estos pasos:\n\n"
-                    "1️⃣ Selecciona el plan que deseas (Semanal o Mensual)\n\n"
-                    "2️⃣ Haz clic en 'Pagar con PayPal'\n\n"
-                    "3️⃣ Serás redirigido a la página de PayPal donde puedes pagar con:\n"
-                    "   - Cuenta de PayPal\n"
-                    "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
-                    "4️⃣ Completa el pago y regresa a Telegram\n\n"
-                    "5️⃣ Recibirás un enlace de invitación al grupo VIP\n\n"
-                    "⚠️ Importante: Tu suscripción se renovará automáticamente. Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
-                )
-                
-                markup = types.InlineKeyboardMarkup()
-                markup.add(types.InlineKeyboardButton("🔙 Volver a los Planes", callback_data="view_plans"))
-                
-                bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text=tutorial_text,
-                    reply_markup=markup
-                )
-            
-            elif call.data in ["weekly_plan", "monthly_plan"]:
-                # Mostrar detalles del plan seleccionado
-                plan_id = call.data.split("_")[0]  # "weekly" o "monthly"
-                
-                plan = PLANS.get(plan_id)
-                
-                if plan:
-                    plan_text = (
-                        f"📦 {plan['display_name']}\n\n"
-                        f"{plan['description']}\n"
-                        f"Beneficios:\n"
-                        f"✅ Grupo VIP (Acceso)\n"
-                        f"✅ 21,000 archivos exclusivos 📁\n\n"
-                        f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
-                        f"📆 Facturación: {'semanal' if plan_id == 'weekly' else 'mensual'} (recurrente)\n\n"
-                        f"Selecciona un método de pago 👇"
-                    )
-                    
-                    markup = types.InlineKeyboardMarkup(row_width=1)
-                    markup.add(
-                        types.InlineKeyboardButton("🅿️ Pagar con PayPal", callback_data=f"payment_paypal_{plan_id}"),
-                        types.InlineKeyboardButton("🔙 Atrás", callback_data="view_plans")
-                    )
-                    
-                    bot.edit_message_text(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        text=plan_text,
-                        reply_markup=markup
-                    )
-                else:
-                    # Plan no encontrado (no debería ocurrir)
-                    bot.answer_callback_query(call.id, "Plan no disponible")
-                    
-            elif call.data == "bot_credits":
-                # Mostrar créditos - SIN formato Markdown para evitar errores
-                credits_text = (
-                    "🧠 Créditos del Bot\n\n"
-                    "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
-                    "© 2025 Todos los derechos reservados.\n\n"
-                    "Para contacto o soporte: @admin_support"
-                )
-                
-                markup = types.InlineKeyboardMarkup()
-                markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="back_to_main"))
-                
-                bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text=credits_text,
-                    reply_markup=markup
-                )
-                
-            elif call.data == "terms":
-                # Mostrar términos - SIN formato Markdown para evitar errores
-                try:
-                    with open(os.path.join('static', 'terms.txt'), 'r', encoding='utf-8') as f:
-                        # Eliminar los asteriscos que causan problemas de formato Markdown
-                        terms_text = f.read().replace('*', '')
-                except:
-                    terms_text = (
-                        "📜 Términos de Uso\n\n"
-                        "1. El contenido del grupo VIP es exclusivo para suscriptores.\n"
-                        "2. No se permiten reembolsos una vez activada la suscripción.\n"
-                        "3. Está prohibido compartir el enlace de invitación.\n"
-                        "4. No se permite redistribuir el contenido fuera del grupo.\n"
-                        "5. El incumplimiento de estas normas resultará en expulsión sin reembolso.\n\n"
-                        "Al suscribirte, aceptas estos términos."
-                    )
-                
-                markup = types.InlineKeyboardMarkup()
-                markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="back_to_main"))
-                
-                bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text=terms_text,
-                    reply_markup=markup
-                )
-            
-            elif call.data == "back_to_main":
-                # Volver al menú principal
-                markup = types.InlineKeyboardMarkup(row_width=1)
-                markup.add(
-                    types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
-                    types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
-                    types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
-                )
-                
-                bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
-                    reply_markup=markup
-                )
-                logger.info(f"Vuelto al menú principal para usuario {chat_id}")
-            
-            elif call.data.startswith("payment_paypal_"):
-                # Manejar pago con PayPal
-                plan_id = call.data.split("_")[-1]  # Extraer el ID del plan
-                
-                # Mostrar animación de "procesando"
-                processing_text = "🔄 Preparando pago...\nAguarde por favor..."
-                bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    text=processing_text
-                )
-                
-                # Crear enlace de suscripción de PayPal
-                import payments as pay
-                subscription_url = pay.create_subscription_link(plan_id, chat_id)
-                
-                if subscription_url:
-                    # Crear markup con botón para pagar
-                    markup = types.InlineKeyboardMarkup()
-                    markup.add(
-                        types.InlineKeyboardButton("💳 Ir a pagar", url=subscription_url),
-                        types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
-                    )
-                    
-                    payment_text = (
-                        "🔗 Tu enlace de pago está listo\n\n"
-                        f"Plan: {PLANS[plan_id]['display_name']}\n"
-                        f"Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / "
-                        f"{'semana' if plan_id == 'weekly' else 'mes'}\n\n"
-                        "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
-                        "Una vez completado, serás redirigido de vuelta aquí."
-                    )
-                    
-                    bot.edit_message_text(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        text=payment_text,
-                        reply_markup=markup
-                    )
-                else:
-                    # Error al crear enlace de pago
-                    markup = types.InlineKeyboardMarkup()
-                    markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
-                    
-                    bot.edit_message_text(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        text=(
-                            "❌ Error al crear enlace de pago\n\n"
-                            "Lo sentimos, no pudimos procesar tu solicitud en este momento.\n"
-                            "Por favor, intenta nuevamente más tarde o contacta a soporte."
-                        ),
-                        reply_markup=markup
-                    )
-                    
-            # Responder al callback para quitar el "reloj de espera" en el cliente
-            bot.answer_callback_query(call.id)
-            logger.info(f"Respuesta de callback enviada para: {call.data}")
-            
-        except Exception as e:
-            logger.error(f"Error en handler directo de callback: {str(e)}")
-            try:
-                bot.answer_callback_query(call.id, "❌ Ocurrió un error. Intenta nuevamente.")
-            except:
-                pass
-    
-    # Registramos también el handler para otros comandos
-    bot_handlers.register_handlers(bot)
-    
-    # Verificar permisos del bot antes de iniciar
-    bot_handlers.verify_bot_permissions()
-    
-    # Verificar si estamos en desarrollo local o en producción
-    if os.environ.get('ENVIRONMENT') == 'development':
-        # Modo desarrollo: usar polling
-        threading.Thread(target=run_bot_polling).start()
-        app.run(host='0.0.0.0', port=PORT, debug=True, use_reloader=False)
-    else:
-        # Modo producción: usar webhook
-        set_webhook()
-        app.run(host='0.0.0.0', port=PORT)
