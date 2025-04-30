@@ -749,7 +749,7 @@ function sendBotCommand(command) {
     // Redireccionar a Telegram en lugar de hacer una solicitud directa
     // Esto es más confiable ya que abrirá el chat del bot con el comando ya escrito
     setTimeout(() => {
-        window.open(`https://t.me/bot_username?start=${encodeURIComponent(command.substring(1))}`, '_blank');
+        window.open(`https://t.me/@VelvetSub_Bot?start=${encodeURIComponent(command.substring(1))}`, '_blank');
         
         // Actualizar el mensaje después de unos segundos
         setTimeout(() => {

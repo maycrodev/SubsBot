@@ -26,7 +26,7 @@ if not GROUP_INVITE_LINK:
     logger.warning("ADVERTENCIA: GROUP_INVITE_LINK no está definido")
 
 # ID del grupo VIP (debe ser un valor negativo para grupos)
-GROUP_CHAT_ID = int(os.getenv('GROUP_CHAT_ID', '-1002692311282'))
+GROUP_CHAT_ID = int(os.getenv('GROUP_CHAT_ID'))
 if GROUP_CHAT_ID >= 0:
     logger.warning("ADVERTENCIA: GROUP_CHAT_ID no es un valor negativo. Grupos de Telegram siempre tienen ID negativo.")
 else:
