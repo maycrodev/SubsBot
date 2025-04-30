@@ -412,35 +412,53 @@ def close_expired_subscriptions(bot=None):
     
     return expired_users
 
-def check_and_update_subscriptions():
+def check_and_update_subscriptions() -> List[Tuple[int, int, str]]:
     """
     Verifica y actualiza el estado de las suscripciones expiradas
+    Retorna lista de (user_id, sub_id, plan)
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Marcar suscripciones expiradas
+    # Marcar suscripciones expiradas con tiempo de expiración pasado
     cursor.execute("""
     UPDATE subscriptions 
-    SET status = 'EXPIRED' 
-    WHERE status = 'ACTIVE' AND end_date <= datetime('now')
+    SET 
+        status = 'EXPIRED', 
+        end_date = datetime('now')
+    WHERE 
+        status = 'ACTIVE' AND 
+        (
+            end_date <= datetime('now') OR 
+            (paypal_sub_id IS NULL AND julianday('now') - julianday(end_date) > 0)
+        )
     """)
     
     # Obtener IDs de usuarios con suscripciones expiradas
     cursor.execute("""
-    SELECT user_id, sub_id, plan 
+    SELECT user_id, sub_id, plan, end_date, start_date
     FROM subscriptions 
     WHERE status = 'EXPIRED'
     """)
     
     expired_subscriptions = cursor.fetchall()
     
+    # Registro detallado de suscripciones expiradas
+    for sub in expired_subscriptions:
+        logger.info(f"""
+        Suscripción expirada:
+        - User ID: {sub[0]}
+        - Sub ID: {sub[1]}
+        - Plan: {sub[2]}
+        - Fecha de inicio: {sub[4]}
+        - Fecha de fin: {sub[3]}
+        - Tiempo transcurrido: {datetime.datetime.now() - datetime.datetime.fromisoformat(sub[3])}
+        """)
+    
     conn.commit()
     conn.close()
     
-    logger.info(f"Suscripciones expiradas actualizadas: {len(expired_subscriptions)}")
-    
-    return expired_subscriptions
+    return [(sub[0], sub[1], sub[2]) for sub in expired_subscriptions]
 
 # Inicializar la base de datos al importar el módulo
 init_db()

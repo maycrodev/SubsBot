@@ -530,19 +530,19 @@ def create_plans_markup():
 
 # 1. VERIFICACIÓN PERIÓDICA AUTOMÁTICA
 # Añade esta función al archivo bot_handlers.py
-
 def schedule_security_verification(bot):
     def security_check_thread():
         while True:
             try:
-                logger.info("🕒 Iniciando verificación periódica")
+                logger.info("🕒 Iniciando verificación periódica de seguridad")
                 
-                # Verificar suscripciones expiradas
+                # Verificar y obtener suscripciones expiradas
                 expired_subscriptions = db.check_and_update_subscriptions()
                 
-                # Realizar verificación de seguridad
-                if GROUP_CHAT_ID:
-                    # Pasar las suscripciones expiradas para procesamiento
+                logger.info(f"Suscripciones expiradas encontradas: {len(expired_subscriptions)}")
+                
+                # Procesar suscripciones expiradas si hay un grupo configurado
+                if expired_subscriptions and GROUP_CHAT_ID:
                     perform_group_security_check(
                         bot, 
                         GROUP_CHAT_ID, 
@@ -550,16 +550,18 @@ def schedule_security_verification(bot):
                     )
                 
                 # Esperar antes de la próxima verificación
-                time.sleep(60)  # Cada minuto
+                time.sleep(30)  # Cada 30 segundos para mayor precisión
                 
             except Exception as e:
                 logger.error(f"Error en verificación periódica: {e}")
-                time.sleep(60)
+                time.sleep(60)  # En caso de error, esperar un minuto
     
     # Iniciar hilo
     security_thread = threading.Thread(target=security_check_thread)
     security_thread.daemon = True
     security_thread.start()
+    
+    logger.info("✅ Sistema de verificación periódica iniciado")
 
 
 def perform_group_security_check(
@@ -1462,7 +1464,6 @@ def handle_recover_access(message, bot):
             chat_id=message.chat.id,
             text="❌ Ocurrió un error al procesar tu solicitud. Por favor, intenta nuevamente más tarde."
         )
-
 def handle_whitelist_duration(message, bot):
     """Procesa la duración para la whitelist"""
     try:
@@ -1511,21 +1512,19 @@ def handle_whitelist_duration(message, bot):
             del admin_states[admin_id]
             return
         
-        # Manejo directo de casos comunes
-        days = None
+        # Calcular fechas
+        start_date = datetime.datetime.now()
         
-        # Caso específico para minutos
-        if duration_text == "10 minutes":
-            days = 10 / (24 * 60)  # 10 minutos en días
-            logger.info(f"10 minutes detectado, convertido a {days} días")
-        # Caso específico para "10 minutos"
-        elif duration_text == "10 minutos":
-            days = 10 / (24 * 60)  # 10 minutos en días
-            logger.info(f"10 minutos detectado, convertido a {days} días")
-        else:
-            # Intentar con la función de parseo
-            days = parse_duration(duration_text)
-            logger.info(f"parse_duration retornó: {days}")
+        # Ajustar parseo de duración para ser más preciso
+        days = parse_duration(duration_text)
+        
+        # Añadir registro de depuración
+        logger.info(f"""
+        Whitelist añadida:
+        - Duración solicitada: {duration_text}
+        - Días calculados: {days}
+        - Hora de inicio: {start_date}
+        """)
         
         if not days or days <= 0:
             bot.send_message(
@@ -1542,16 +1541,20 @@ def handle_whitelist_duration(message, bot):
                 ),
                 parse_mode='Markdown'
             )
-            # Volver a solicitar la duración - aquí modificamos para no registrar un nuevo handler
-            # en su lugar, confiamos en el estado guardado del admin
             return
+        
+        # Calcular fecha de fin con mayor precisión
+        end_date = start_date + datetime.timedelta(days=days)
+        
+        # Información adicional de depuración
+        logger.info(f"""
+        Detalles de whitelist:
+        - Hora de fin: {end_date}
+        - Diferencia de tiempo: {end_date - start_date}
+        """)
         
         # Obtener información del estado
         target_user_id = admin_states[admin_id]['target_user_id']
-        
-        # Calcular fechas
-        start_date = datetime.datetime.now()
-        end_date = start_date + datetime.timedelta(days=days)
         
         # Determinar el plan más cercano
         plan_id = 'weekly' if days <= 7 else 'monthly'
@@ -2071,25 +2074,15 @@ def handle_whitelist_list(message, bot):
         conn = db.get_db_connection()
         cursor = conn.cursor()
         
-        # Consultar todas las suscripciones manuales sin filtro de fecha para depuración
-        cursor.execute('''
-        SELECT s.sub_id, s.user_id, u.username, u.first_name, u.last_name, s.start_date, s.end_date, s.status
-        FROM subscriptions s
-        JOIN users u ON s.user_id = u.user_id
-        WHERE s.paypal_sub_id IS NULL
-        ORDER BY s.end_date DESC
-        LIMIT 20
-        ''')
-        
-        debug_subs = cursor.fetchall()
-        logger.info(f"Suscripciones manuales (hasta 20): {len(debug_subs)}")
-        
         # Consulta para obtener usuarios en whitelist (donde paypal_sub_id es NULL)
         cursor.execute('''
-        SELECT s.user_id, u.username, u.first_name, u.last_name, s.end_date, s.status
+        SELECT s.user_id, u.username, u.first_name, u.last_name, 
+               s.start_date, s.end_date, s.status
         FROM subscriptions s
         JOIN users u ON s.user_id = u.user_id
-        WHERE s.paypal_sub_id IS NULL AND s.status = 'ACTIVE'
+        WHERE s.paypal_sub_id IS NULL AND 
+              s.status = 'ACTIVE' AND 
+              s.end_date > datetime('now')
         ORDER BY s.end_date ASC
         ''')
         
@@ -2109,7 +2102,7 @@ def handle_whitelist_list(message, bot):
         whitelist_entries = []
         
         for user in whitelist_users:
-            user_id, username, first_name, last_name, end_date_str, status = user
+            user_id, username, first_name, last_name, start_date_str, end_date_str, status = user
             
             # Nombre para mostrar
             display_name = f"{first_name or ''} {last_name or ''}".strip() or "Sin nombre"
@@ -2118,21 +2111,33 @@ def handle_whitelist_list(message, bot):
             # Calcular tiempo restante
             try:
                 end_date = datetime.datetime.fromisoformat(end_date_str)
+                start_date = datetime.datetime.fromisoformat(start_date_str)
                 remaining = end_date - current_time
-            
-                # Formatear tiempo restante
-                if remaining.days > 30:
-                    months = remaining.days // 30
-                    days_left = f"{months} {'mes' if months == 1 else 'meses'}"
-                elif remaining.days > 0:
-                    days_left = f"{remaining.days} {'día' if remaining.days == 1 else 'días'}"
-                elif remaining.seconds > 3600:
-                    hours = remaining.seconds // 3600
-                    days_left = f"{hours} {'hora' if hours == 1 else 'horas'}"
-                else:
-                    days_left = "menos de 1 hora"
+                total_duration = end_date - start_date
                 
-                status_text = f"{days_left} restantes"
+                # Calcular porcentaje de tiempo transcurrido
+                total_seconds = total_duration.total_seconds()
+                remaining_seconds = remaining.total_seconds()
+                
+                # Formatear tiempo restante con más precisión
+                if remaining.total_seconds() > 0:
+                    if total_seconds > 3600:  # Más de una hora
+                        if remaining.days > 0:
+                            days_left = remaining.days
+                            days_total = total_duration.days
+                            status_text = f"{days_left} de {days_total} días restantes"
+                        else:
+                            hours_left = int(remaining.total_seconds() / 3600)
+                            hours_total = int(total_seconds / 3600)
+                            status_text = f"{hours_left} de {hours_total} horas restantes"
+                    else:
+                        # Para duraciones cortas, mostrar minutos
+                        minutes_left = int(remaining.total_seconds() / 60)
+                        minutes_total = int(total_seconds / 60)
+                        status_text = f"{minutes_left} de {minutes_total} minutos restantes"
+                else:
+                    status_text = "Expirado"
+                
             except Exception as e:
                 logger.error(f"Error al procesar fecha {end_date_str}: {e}")
                 status_text = f"Fecha: {end_date_str}"
