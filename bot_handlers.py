@@ -1628,67 +1628,100 @@ def handle_whitelist(message, bot):
             )
             return
         
-        # Extraer el ID de usuario del comando
+        # Extraer el comando
         command_parts = message.text.split()
         
-        if len(command_parts) < 2:
-            # Mostrar instrucciones de uso
+        # Si es solo "/whitelist", mostrar instrucciones
+        if len(command_parts) == 1:
+            help_text = (
+                "ℹ️ *Comandos de Whitelist*\n\n"
+                "Para añadir un usuario:\n"
+                "`/whitelist USER_ID` - Añade un usuario a la whitelist\n\n"
+                "Para ver usuarios en whitelist:\n"
+                "`/whitelist list` - Muestra los usuarios en whitelist\n\n"
+                "Ejemplo: `/whitelist 1234567890`"
+            )
             bot.send_message(
                 chat_id=chat_id,
-                text="❌ Uso incorrecto. Por favor, usa /whitelist USER_ID\n\nEjemplo: /whitelist 1234567890"
+                text=help_text,
+                parse_mode='Markdown'
             )
             return
-        
-        try:
-            target_user_id = int(command_parts[1])
-        except ValueError:
+            
+        # Si es "/whitelist list", mostrar la lista de usuarios en whitelist
+        if len(command_parts) == 2 and command_parts[1].lower() == 'list':
+            return handle_whitelist_list(message, bot)
+            
+        # Comando para añadir a un usuario
+        if len(command_parts) >= 2:
+            try:
+                target_user_id = int(command_parts[1])
+            except ValueError:
+                bot.send_message(
+                    chat_id=chat_id,
+                    text="❌ ID de usuario inválido. Debe ser un número."
+                )
+                return
+            
+            # Obtener información del usuario
+            user = db.get_user(target_user_id)
+            
+            # Si el usuario no existe en la BD, guardar con información mínima
+            if not user:
+                db.save_user(target_user_id)
+                user = {'user_id': target_user_id, 'username': None, 'first_name': None, 'last_name': None}
+            
+            # Preparar mensaje de confirmación
+            username_display = user.get('username', 'Sin username')
+            first_name = user.get('first_name', '')
+            last_name = user.get('last_name', '')
+            full_name = f"{first_name} {last_name}".strip() or "Sin nombre"
+            
+            confirmation_text = (
+                "🛡️ *Administración - Añadir a Whitelist*\n\n"
+                f"👤 Usuario: {full_name}\n"
+                f"🔤 Username: @{username_display}\n"
+                f"🆔 ID: `{target_user_id}`\n\n"
+                "⏱️ Selecciona duración o escribe manualmente:\n"
+                "(Ejemplos: `7 days`, `1 week`, `1 month`)"
+            )
+            
+            # Crear markup con opciones rápidas y botón de cancelar
+            markup = types.InlineKeyboardMarkup(row_width=3)
+            markup.add(
+                types.InlineKeyboardButton("1 día", callback_data=f"wl_duration_{target_user_id}_1d"),
+                types.InlineKeyboardButton("7 días", callback_data=f"wl_duration_{target_user_id}_7d"),
+                types.InlineKeyboardButton("30 días", callback_data=f"wl_duration_{target_user_id}_30d")
+            )
+            markup.add(types.InlineKeyboardButton("❌ Cancelar", callback_data="wl_cancel"))
+            
+            # Guardar estado para esperar la respuesta con la duración
+            admin_states[admin_id] = {
+                'action': 'whitelist',
+                'target_user_id': target_user_id,
+                'message_id': None
+            }
+            
+            # Enviar mensaje de confirmación
+            sent_message = bot.send_message(
+                chat_id=chat_id,
+                text=confirmation_text,
+                parse_mode='Markdown',
+                reply_markup=markup
+            )
+            
+            # Guardar ID del mensaje enviado
+            admin_states[admin_id]['message_id'] = sent_message.message_id
+            
+            # Registrar el próximo paso: esperar duración
+            bot.register_next_step_handler(message, lambda msg: handle_whitelist_duration(msg, bot))
+            
+        else:
             bot.send_message(
                 chat_id=chat_id,
-                text="❌ ID de usuario inválido. Debe ser un número."
+                text="❌ Uso incorrecto. Por favor, usa `/whitelist USER_ID`",
+                parse_mode='Markdown'
             )
-            return
-        
-        # Obtener información del usuario
-        user = db.get_user(target_user_id)
-        
-        # Si el usuario no existe en la BD, guardar con información mínima
-        if not user:
-            db.save_user(target_user_id)
-            user = {'user_id': target_user_id, 'username': None, 'first_name': None, 'last_name': None}
-        
-        # Preparar mensaje de confirmación
-        username_display = user.get('username', 'Sin username')
-        first_name = user.get('first_name', '')
-        last_name = user.get('last_name', '')
-        full_name = f"{first_name} {last_name}".strip() or "Sin nombre"
-        
-        confirmation_text = (
-            "🛡️ Administración:\n\n"
-            "¿Agregar a:\n"
-            f"👤 {full_name} (@{username_display})\n"
-            f"🆔 {target_user_id} ?\n\n"
-            "⏱️ Define duración: (`7 days`, `1 month`, …)"
-        )
-        
-        # Guardar estado para esperar la respuesta con la duración
-        admin_states[admin_id] = {
-            'action': 'whitelist',
-            'target_user_id': target_user_id,
-            'message_id': None
-        }
-        
-        # Enviar mensaje de confirmación
-        sent_message = bot.send_message(
-            chat_id=chat_id,
-            text=confirmation_text,
-            parse_mode='Markdown'
-        )
-        
-        # Guardar ID del mensaje enviado
-        admin_states[admin_id]['message_id'] = sent_message.message_id
-        
-        # Registrar el próximo paso: esperar duración
-        bot.register_next_step_handler(message, lambda msg: handle_whitelist_duration(msg, bot))
         
     except Exception as e:
         logger.error(f"Error en handle_whitelist: {str(e)}")
@@ -1714,6 +1747,16 @@ def handle_whitelist_duration(message, bot):
         # Extraer la duración del mensaje
         duration_text = message.text.strip().lower()
         
+        # Verificar si es un comando para cancelar
+        if duration_text in ['cancelar', 'cancel', '/cancel', 'stop']:
+            bot.send_message(
+                chat_id=chat_id,
+                text="❌ Operación de whitelist cancelada."
+            )
+            # Limpiar estado
+            del admin_states[admin_id]
+            return
+        
         # Parsear la duración
         days = parse_duration(duration_text)
         
@@ -1722,7 +1765,8 @@ def handle_whitelist_duration(message, bot):
                 chat_id=chat_id,
                 text=(
                     "❌ Formato de duración no reconocido.\n"
-                    "Ejemplos válidos: '7 days', '1 week', '1 month', '3 months'"
+                    "Ejemplos válidos: '7 days', '1 week', '1 month', '3 months'\n"
+                    "Escribe 'cancelar' para detener la operación."
                 )
             )
             # Volver a solicitar la duración
@@ -1783,8 +1827,15 @@ def handle_whitelist_duration(message, bot):
         
         # Notificar al usuario
         try:
+            # Obtener información del usuario para mensaje personalizado
+            user = db.get_user(target_user_id)
+            first_name = user.get('first_name', '') if user else ''
+            
+            # Saludo personalizado
+            greeting = f"Hola {first_name}" if first_name else "Hola"
+            
             user_notification = (
-                "🎟️ *¡Has sido agregado al grupo VIP!*\n\n"
+                f"🎟️ *¡{greeting}! Has sido agregado al grupo VIP*\n\n"
                 f"Un administrador te ha concedido acceso por {days} días.\n\n"
             )
             
@@ -1804,6 +1855,13 @@ def handle_whitelist_duration(message, bot):
                 parse_mode='Markdown',
                 disable_web_page_preview=True
             )
+            
+            # Mensaje adicional de éxito para el admin
+            bot.send_message(
+                chat_id=chat_id,
+                text=f"✅ Se ha notificado al usuario sobre su acceso VIP."
+            )
+            
         except Exception as e:
             logger.error(f"Error al notificar al usuario {target_user_id}: {str(e)}")
             
@@ -1925,6 +1983,230 @@ def handle_subinfo(message, bot):
             chat_id=message.chat.id,
             text="❌ Ocurrió un error al consultar la información. Por favor, intenta nuevamente."
         )
+
+def handle_whitelist_list(message, bot):
+    """Muestra la lista de usuarios en whitelist"""
+    try:
+        admin_id = message.from_user.id
+        chat_id = message.chat.id
+        
+        # Verificar que sea un administrador
+        if admin_id not in ADMIN_IDS:
+            return
+        
+        # Obtener suscripciones activas (whitelist son todas las suscripciones manuales)
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        
+        # Consulta para obtener usuarios en whitelist (donde paypal_sub_id es NULL)
+        cursor.execute('''
+        SELECT s.user_id, u.username, u.first_name, u.last_name, s.end_date, s.status
+        FROM subscriptions s
+        JOIN users u ON s.user_id = u.user_id
+        WHERE s.paypal_sub_id IS NULL AND s.status = 'ACTIVE' AND s.end_date > datetime('now')
+        ORDER BY s.end_date ASC
+        ''')
+        
+        whitelist_users = cursor.fetchall()
+        conn.close()
+        
+        if not whitelist_users:
+            bot.send_message(
+                chat_id=chat_id,
+                text="📋 *Lista de Whitelist*\n\nNo hay usuarios en la whitelist actualmente.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Formatear la lista de usuarios
+        current_time = datetime.datetime.now()
+        whitelist_entries = []
+        
+        for user in whitelist_users:
+            user_id, username, first_name, last_name, end_date_str, status = user
+            
+            # Nombre para mostrar
+            display_name = f"{first_name or ''} {last_name or ''}".strip() or "Sin nombre"
+            display_username = f"@{username}" if username else ""
+            
+            # Calcular tiempo restante
+            end_date = datetime.datetime.fromisoformat(end_date_str)
+            remaining = end_date - current_time
+            
+            # Formatear tiempo restante
+            if remaining.days > 30:
+                months = remaining.days // 30
+                days_left = f"{months} {'mes' if months == 1 else 'meses'}"
+            elif remaining.days > 0:
+                days_left = f"{remaining.days} {'día' if remaining.days == 1 else 'días'}"
+            elif remaining.seconds > 3600:
+                hours = remaining.seconds // 3600
+                days_left = f"{hours} {'hora' if hours == 1 else 'horas'}"
+            else:
+                days_left = "menos de 1 hora"
+            
+            # Crear entrada para la lista
+            entry = f"• {display_name} {display_username} (ID: `{user_id}`) - {days_left} restantes"
+            whitelist_entries.append(entry)
+        
+        # Enviar mensaje con la lista
+        whitelist_text = "📋 *Lista de Whitelist*\n\n" + "\n\n".join(whitelist_entries)
+        
+        bot.send_message(
+            chat_id=chat_id,
+            text=whitelist_text,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error en handle_whitelist_list: {str(e)}")
+        bot.send_message(
+            chat_id=chat_id,
+            text=f"❌ Error al obtener la lista de whitelist: {str(e)}"
+        )
+
+# Añade este nuevo handler para los botones de duración de whitelist
+def handle_whitelist_callback(call, bot):
+    """Maneja los callbacks relacionados con whitelist"""
+    try:
+        chat_id = call.message.chat.id
+        user_id = call.from_user.id
+        message_id = call.message.message_id
+        
+        # Verificar que sea un administrador
+        if user_id not in ADMIN_IDS:
+            bot.answer_callback_query(call.id, "⛔ No tienes permisos para esta acción")
+            return
+        
+        # Procesar botón de cancelar
+        if call.data == "wl_cancel":
+            # Mostrar mensaje de cancelación
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text="❌ Operación de whitelist cancelada.",
+                reply_markup=None
+            )
+            
+            # Limpiar estado si existe
+            if user_id in admin_states:
+                del admin_states[user_id]
+                
+            bot.answer_callback_query(call.id, "Operación cancelada")
+            return
+        
+        # Procesar botones de duración rápida
+        if call.data.startswith("wl_duration_"):
+            # Extraer datos del callback
+            parts = call.data.split("_")
+            target_user_id = int(parts[2])
+            duration_code = parts[3]
+            
+            # Convertir código de duración a días
+            days = 0
+            if duration_code == "1d":
+                days = 1
+            elif duration_code == "7d":
+                days = 7
+            elif duration_code == "30d":
+                days = 30
+            else:
+                bot.answer_callback_query(call.id, "❌ Duración no válida")
+                return
+            
+            # Mostrar mensaje de procesamiento
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text="🔄 Procesando la solicitud y generando enlace de invitación único...",
+                reply_markup=None
+            )
+            
+            # Calcular fechas
+            start_date = datetime.datetime.now()
+            end_date = start_date + datetime.timedelta(days=days)
+            
+            # Determinar el plan más cercano
+            plan_id = 'weekly' if days <= 7 else 'monthly'
+            
+            # Crear suscripción en la base de datos
+            sub_id = db.create_subscription(
+                user_id=target_user_id,
+                plan=plan_id,
+                price_usd=0.00,  # Gratis por ser whitelist
+                start_date=start_date,
+                end_date=end_date,
+                status='ACTIVE',
+                paypal_sub_id=None
+            )
+            
+            # Generar enlace de invitación único
+            invite_link = generate_invite_link(bot, target_user_id, sub_id)
+            
+            # Preparar mensaje de confirmación
+            confirmation_text = (
+                "✅ *Usuario agregado a la whitelist exitosamente*\n\n"
+                f"👤 ID: {target_user_id}\n"
+                f"📆 Duración: {days} días\n"
+                f"🗓️ Expira: {end_date.strftime('%d %b %Y')}\n"
+            )
+            
+            if invite_link:
+                confirmation_text += f"\n🔗 [Enlace de invitación único]({invite_link})\n⚠️ Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso."
+            else:
+                confirmation_text += "\n⚠️ No se pudo generar enlace de invitación. El usuario puede usar /recover para solicitar uno."
+            
+            # Actualizar mensaje con la confirmación
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=confirmation_text,
+                parse_mode='Markdown',
+                disable_web_page_preview=True
+            )
+            
+            # Notificar al usuario
+            try:
+                user_notification = (
+                    "🎟️ *¡Has sido agregado al grupo VIP!*\n\n"
+                    f"Un administrador te ha concedido acceso por {days} días.\n\n"
+                )
+                
+                if invite_link:
+                    user_notification += (
+                        f"Aquí tienes tu enlace de invitación único:\n"
+                        f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                        f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n"
+                        "Si sales del grupo por accidente, usa el comando /recover para solicitar un nuevo enlace."
+                    )
+                else:
+                    user_notification += "Usa el comando /recover para solicitar tu enlace de invitación."
+                
+                bot.send_message(
+                    chat_id=target_user_id,
+                    text=user_notification,
+                    parse_mode='Markdown',
+                    disable_web_page_preview=True
+                )
+            except Exception as e:
+                logger.error(f"Error al notificar al usuario {target_user_id}: {str(e)}")
+                
+                # Informar al admin que no se pudo notificar
+                bot.send_message(
+                    chat_id=chat_id,
+                    text=f"⚠️ No se pudo notificar al usuario. Es posible que no haya iniciado el bot."
+                )
+            
+            # Confirmar al admin
+            bot.answer_callback_query(call.id, f"✅ Usuario agregado exitosamente por {days} días")
+            return
+        
+    except Exception as e:
+        logger.error(f"Error en handle_whitelist_callback: {str(e)}")
+        try:
+            bot.answer_callback_query(call.id, "❌ Error al procesar la solicitud")
+        except:
+            pass
 
 def handle_unknown_message(message, bot):
     """Maneja mensajes que no coinciden con ningún comando conocido"""
@@ -2170,6 +2452,11 @@ def handle_test_invite(message, bot):
 
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
+
+    bot.register_callback_query_handler(
+        lambda call: handle_whitelist_callback(call, bot),
+        func=lambda call: call.data.startswith("wl_") 
+    )
 
     # Handler para verificar permisos del bot
     bot.register_message_handler(
