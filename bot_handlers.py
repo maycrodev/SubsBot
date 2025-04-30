@@ -2517,14 +2517,30 @@ def handle_test_invite(message, bot):
 
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
-    
-    # Registrar comandos de administrador primero
+
     register_admin_commands(bot)
+
+    bot.register_callback_query_handler(
+        lambda call: handle_whitelist_callback(call, bot),
+        func=lambda call: call.data.startswith("wl_") 
+    )
 
     # Handler para verificar permisos del bot
     bot.register_message_handler(
         lambda message: check_and_fix_bot_permissions(message, bot),
         commands=['check_bot_permissions']
+    )
+    
+    # Handler para probar la generación de enlaces de invitación (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_test_invite(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/test_invite'
+    )
+    
+    # Handler para estadísticas del bot (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_stats_command(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text in ['/stats', '/estadisticas']
     )
     
     # Handler para el comando /start
@@ -2555,7 +2571,7 @@ def register_handlers(bot):
     
     # Comando de verificación de permisos para admins
     bot.register_message_handler(
-        lambda message: verify_bot_permissions(bot) and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
+        lambda message: verify_bot_permissions() and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
         func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
     )
     
@@ -2568,10 +2584,6 @@ def register_handlers(bot):
     
     bot.register_callback_query_handler(lambda call: handle_payment_method(call, bot), 
                                       func=lambda call: call.data.startswith('payment_'))
-    
-    # IMPORTANTE: Añadir callback handler para whitelist
-    bot.register_callback_query_handler(lambda call: handle_whitelist_callback(call, bot),
-                                     func=lambda call: call.data == 'whitelist_cancel')
     
     # Handler por defecto para mensajes no reconocidos
     bot.register_message_handler(lambda message: handle_unknown_message(message, bot), func=lambda message: True)
