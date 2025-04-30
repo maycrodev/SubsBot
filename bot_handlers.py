@@ -67,29 +67,51 @@ def register_admin_commands(bot):
 def parse_duration(duration_text: str) -> Optional[int]:
     """
     Parsea una duración en texto y la convierte a días.
-    Ejemplos: '7 days', '1 week', '1 month', '3 months'
+    Ejemplos: '7 days', '1 week', '1 month', '3 months', '10 minutes', '2 hours'
     Retorna None si no se puede parsear.
     """
     try:
+        if not duration_text:
+            return None
+            
+        duration_text = duration_text.lower().strip()
+        
         # Patrones para diferentes formatos
+        minutes_pattern = re.compile(r'(\d+)\s*(?:minute|minutes|minuto|minutos|min)', re.IGNORECASE)
+        hour_pattern = re.compile(r'(\d+)\s*(?:hour|hours|hora|horas|h)', re.IGNORECASE)
         day_pattern = re.compile(r'(\d+)\s*(?:day|days|día|dias|d)', re.IGNORECASE)
         week_pattern = re.compile(r'(\d+)\s*(?:week|weeks|semana|semanas|w)', re.IGNORECASE)
         month_pattern = re.compile(r'(\d+)\s*(?:month|months|mes|meses|m)', re.IGNORECASE)
         year_pattern = re.compile(r'(\d+)\s*(?:year|years|año|años|y)', re.IGNORECASE)
         
-        # Verificar cada patrón
+        # Verificar minutos
+        minutes_match = minutes_pattern.search(duration_text)
+        if minutes_match:
+            minutes = int(minutes_match.group(1))
+            return minutes / (24 * 60)  # Convertir minutos a días
+        
+        # Verificar horas
+        hour_match = hour_pattern.search(duration_text)
+        if hour_match:
+            hours = int(hour_match.group(1))
+            return hours / 24  # Convertir horas a días
+        
+        # Verificar días
         day_match = day_pattern.search(duration_text)
         if day_match:
             return int(day_match.group(1))
         
+        # Verificar semanas
         week_match = week_pattern.search(duration_text)
         if week_match:
             return int(week_match.group(1)) * 7
         
+        # Verificar meses
         month_match = month_pattern.search(duration_text)
         if month_match:
             return int(month_match.group(1)) * 30
         
+        # Verificar años
         year_match = year_pattern.search(duration_text)
         if year_match:
             return int(year_match.group(1)) * 365
@@ -1830,64 +1852,10 @@ def handle_whitelist_duration(message, bot):
             del admin_states[admin_id]
             return
         
-        # Parsear la duración - función simplificada para el debug
-        days = 0
-        minutes = 0
+        # Parsear la duración con la función mejorada
+        days = parse_duration(duration_text)
         
-        # Manejar minutos
-        if "minute" in duration_text or "min" in duration_text:
-            parts = duration_text.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i < len(parts) - 1:
-                    if "minute" in parts[i+1] or "min" in parts[i+1]:
-                        minutes = int(part)
-                        days = minutes / (24 * 60)  # Convertir minutos a días
-                        break
-        
-        # Manejar horas
-        elif "hour" in duration_text or "hr" in duration_text:
-            parts = duration_text.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i < len(parts) - 1:
-                    if "hour" in parts[i+1] or "hr" in parts[i+1]:
-                        hours = int(part)
-                        days = hours / 24  # Convertir horas a días
-                        break
-        
-        # Manejar días
-        elif "day" in duration_text:
-            parts = duration_text.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i < len(parts) - 1:
-                    if "day" in parts[i+1]:
-                        days = int(part)
-                        break
-        
-        # Manejar semanas
-        elif "week" in duration_text:
-            parts = duration_text.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i < len(parts) - 1:
-                    if "week" in parts[i+1]:
-                        weeks = int(part)
-                        days = weeks * 7
-                        break
-        
-        # Manejar meses
-        elif "month" in duration_text:
-            parts = duration_text.split()
-            for i, part in enumerate(parts):
-                if part.isdigit() and i < len(parts) - 1:
-                    if "month" in parts[i+1]:
-                        months = int(part)
-                        days = months * 30
-                        break
-        
-        # Si no se reconoció ningún formato estándar, intentar solo con el número
-        elif duration_text.isdigit():
-            days = int(duration_text)
-        
-        if days <= 0:
+        if not days or days <= 0:
             bot.send_message(
                 chat_id=chat_id,
                 text=(
@@ -1902,8 +1870,8 @@ def handle_whitelist_duration(message, bot):
                 ),
                 parse_mode='Markdown'
             )
-            # Volver a solicitar la duración
-            bot.register_next_step_handler(message, lambda msg: handle_whitelist_duration(msg, bot))
+            # Volver a solicitar la duración - aquí modificamos para no registrar un nuevo handler
+            # en su lugar, confiamos en el estado guardado del admin
             return
         
         # Obtener información del estado
@@ -1918,24 +1886,31 @@ def handle_whitelist_duration(message, bot):
         
         # Formatear el texto de duración para mostrar
         if days < 1:  # Menos de un día
-            duration_display = f"{int(days * 24 * 60)} minutos"
+            hours = int(days * 24)
+            minutes = int((days * 24 * 60) % 60)
+            if hours > 0:
+                duration_display = f"{hours} hora{'s' if hours != 1 else ''}"
+                if minutes > 0:
+                    duration_display += f" y {minutes} minuto{'s' if minutes != 1 else ''}"
+            else:
+                duration_display = f"{minutes} minuto{'s' if minutes != 1 else ''}"
         elif days < 7:  # Menos de una semana
-            duration_display = f"{days} día{'s' if days != 1 else ''}"
+            duration_display = f"{int(days)} día{'s' if int(days) != 1 else ''}"
         elif days < 30:  # Menos de un mes
-            weeks = days // 7
-            remaining_days = days % 7
+            weeks = int(days) // 7
+            remaining_days = int(days) % 7
             duration_display = f"{weeks} semana{'s' if weeks != 1 else ''}"
             if remaining_days > 0:
                 duration_display += f" y {remaining_days} día{'s' if remaining_days != 1 else ''}"
         elif days < 365:  # Menos de un año
-            months = days // 30
-            remaining_days = days % 30
+            months = int(days) // 30
+            remaining_days = int(days) % 30
             duration_display = f"{months} mes{'es' if months != 1 else ''}"
             if remaining_days > 0:
                 duration_display += f" y {remaining_days} día{'s' if remaining_days != 1 else ''}"
         else:  # Años
-            years = days // 365
-            remaining_days = days % 365
+            years = int(days) // 365
+            remaining_days = int(days) % 365
             duration_display = f"{years} año{'s' if years != 1 else ''}"
             if remaining_days > 30:
                 months = remaining_days // 30
@@ -2052,6 +2027,44 @@ def handle_whitelist_duration(message, bot):
             text="❌ *Error en el proceso*\nOcurrió un error al procesar la duración. Por favor, intenta nuevamente con /whitelist.",
             parse_mode='Markdown'
         )
+
+def log_admin_state(admin_id):
+    """Función de diagnóstico para registrar el estado actual de un administrador"""
+    try:
+        if admin_id in admin_states:
+            state = admin_states[admin_id]
+            logger.info(f"Estado actual del admin {admin_id}: {state}")
+        else:
+            logger.info(f"El admin {admin_id} no tiene un estado guardado actualmente")
+    except Exception as e:
+        logger.error(f"Error al registrar estado de admin: {str(e)}")
+
+def debug_whitelist_flow(message, action="check"):
+    """Función de diagnóstico para la funcionalidad de whitelist"""
+    try:
+        admin_id = message.from_user.id
+        chat_id = message.chat.id
+        
+        if action == "check":
+            log_admin_state(admin_id)
+            logger.info(f"Mensaje actual: '{message.text}'")
+            
+        elif action == "setup":
+            log_admin_state(admin_id)
+            logger.info(f"Configurando estado para admin {admin_id}")
+            
+        elif action == "process":
+            log_admin_state(admin_id)
+            logger.info(f"Procesando duración: '{message.text}'")
+            
+            # Intentar parsear la duración para diagnóstico
+            days = parse_duration(message.text)
+            logger.info(f"Resultado de parse_duration: {days} días")
+            
+        elif action == "complete":
+            logger.info(f"Completando proceso de whitelist para admin {admin_id}")
+    except Exception as e:
+        logger.error(f"Error en debug_whitelist_flow: {str(e)}")
 
 def handle_subinfo(message, bot):
     """Maneja el comando /subinfo para mostrar información de suscripción de un usuario"""

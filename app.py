@@ -16,6 +16,54 @@ from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS, PLANS, DB_PATH
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def log_webhook_data(update):
+    """Registra información detallada sobre una actualización de Telegram para diagnóstico"""
+    try:
+        log_parts = ["Diagnóstico de actualización:"]
+        
+        # Verificar tipo básico
+        if hasattr(update, 'message') and update.message:
+            log_parts.append("Tipo: message")
+            
+            # Verificar si tiene texto
+            if hasattr(update.message, 'text') and update.message.text:
+                log_parts.append(f"Texto: {update.message.text}")
+            else:
+                log_parts.append("Sin texto")
+            
+            # Verificar remitente
+            if hasattr(update.message, 'from_user') and update.message.from_user:
+                log_parts.append(f"De: {update.message.from_user.id}")
+            
+            # Verificar tipo de contenido
+            content_types = []
+            for attr in ['audio', 'document', 'photo', 'sticker', 'video', 'voice', 'contact', 'location', 'venue', 'new_chat_members', 'left_chat_member']:
+                if hasattr(update.message, attr) and getattr(update.message, attr):
+                    content_types.append(attr)
+            
+            if content_types:
+                log_parts.append(f"Tipos de contenido: {', '.join(content_types)}")
+        
+        elif hasattr(update, 'callback_query') and update.callback_query:
+            log_parts.append("Tipo: callback_query")
+            
+            if hasattr(update.callback_query, 'data') and update.callback_query.data:
+                log_parts.append(f"Datos: {update.callback_query.data}")
+        
+        elif hasattr(update, 'chat_member') and update.chat_member:
+            log_parts.append("Tipo: chat_member")
+            
+            if hasattr(update.chat_member, 'new_chat_member') and update.chat_member.new_chat_member:
+                log_parts.append(f"Estado nuevo: {update.chat_member.new_chat_member.status}")
+            
+            if hasattr(update.chat_member, 'old_chat_member') and update.chat_member.old_chat_member:
+                log_parts.append(f"Estado anterior: {update.chat_member.old_chat_member.status}")
+        
+        # Registrar la información recopilada
+        logger.info(" | ".join(log_parts))
+    except Exception as e:
+        logger.error(f"Error en log_webhook_data: {str(e)}")
+
 # Inicializar el bot y la aplicación Flask
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -40,6 +88,46 @@ def webhook():
             if update.message:
                 if update.message.text:
                     logger.info(f"Mensaje recibido de {update.message.from_user.id}: {update.message.text}")
+                    
+                    # Verificar si es una respuesta a un estado de whitelist
+                    if update.message.from_user.id in admin_states and admin_states[update.message.from_user.id]['action'] == 'whitelist':
+                        bot_handlers.handle_whitelist_duration(update.message, bot)
+                        logger.info(f"Procesando duración de whitelist para admin {update.message.from_user.id}")
+                        return 'OK', 200
+                        
+                    # Manejar comandos de administrador
+                    if update.message.from_user.id in ADMIN_IDS:
+                        try:
+                            # Procesar comandos de administrador
+                            if update.message.text == '/stats' or update.message.text == '/estadisticas':
+                                bot_handlers.handle_stats_command(update.message, bot)
+                                logger.info(f"Comando de administrador {update.message.text} procesado para {update.message.from_user.id}")
+                                return 'OK', 200
+                            elif update.message.text == '/check_permissions':
+                                bot_handlers.verify_bot_permissions(bot) and bot.reply_to(update.message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.")
+                                logger.info(f"Verificación de permisos procesada para {update.message.from_user.id}")
+                                return 'OK', 200
+                            elif update.message.text == '/test_invite':
+                                bot_handlers.handle_test_invite(update.message, bot)
+                                logger.info(f"Comando de test_invite procesado para {update.message.from_user.id}")
+                                return 'OK', 200
+                            elif update.message.text.startswith('/whitelist'):
+                                bot_handlers.handle_whitelist(update.message, bot)
+                                logger.info(f"Comando whitelist procesado para {update.message.from_user.id}")
+                                return 'OK', 200
+                            elif update.message.text.startswith('/subinfo'):
+                                bot_handlers.handle_subinfo(update.message, bot)
+                                logger.info(f"Comando subinfo procesado para {update.message.from_user.id}")
+                                return 'OK', 200
+                        except Exception as e:
+                            logger.error(f"Error al procesar comando de administrador: {str(e)}")
+                            # Intentar responder al usuario con el error
+                            try:
+                                bot.reply_to(update.message, f"❌ Error al procesar comando: {str(e)}")
+                            except:
+                                pass
+                
+                # Verificar si el mensaje no tiene texto pero es un evento
                 else:
                     logger.info(f"Evento recibido de {update.message.from_user.id}")
                     
@@ -52,6 +140,11 @@ def webhook():
                     except Exception as e:
                         logger.error(f"Error procesando nuevos miembros: {str(e)}")
                 
+                # Manejar left_chat_member - Añadida esta verificación
+                if hasattr(update.message, 'left_chat_member') and update.message.left_chat_member is not None:
+                    logger.info(f"Usuario abandonó el chat: {update.message.left_chat_member.id}")
+                    return 'OK', 200
+                
                 # Continuar con el manejo del mensaje /start
                 if update.message.text == '/start':
                     logger.info("¡Comando /start detectado! Enviando respuesta directa...")
@@ -63,38 +156,6 @@ def webhook():
                         return 'OK', 200
                     except Exception as e:
                         logger.error(f"Error al enviar respuesta directa: {str(e)}")
-                
-                # Manejar comandos de administrador
-                if update.message.from_user.id in ADMIN_IDS:
-                    try:
-                        # Procesar comandos de administrador
-                        if update.message.text == '/stats' or update.message.text == '/estadisticas':
-                            bot_handlers.handle_stats_command(update.message, bot)
-                            logger.info(f"Comando de administrador {update.message.text} procesado para {update.message.from_user.id}")
-                            return 'OK', 200
-                        elif update.message.text == '/check_permissions':
-                            bot_handlers.verify_bot_permissions(bot) and bot.reply_to(update.message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles.")
-                            logger.info(f"Verificación de permisos procesada para {update.message.from_user.id}")
-                            return 'OK', 200
-                        elif update.message.text == '/test_invite':
-                            bot_handlers.handle_test_invite(update.message, bot)
-                            logger.info(f"Comando de test_invite procesado para {update.message.from_user.id}")
-                            return 'OK', 200
-                        elif update.message.text.startswith('/whitelist'):
-                            bot_handlers.handle_whitelist(update.message, bot)
-                            logger.info(f"Comando whitelist procesado para {update.message.from_user.id}")
-                            return 'OK', 200
-                        elif update.message.text.startswith('/subinfo'):
-                            bot_handlers.handle_subinfo(update.message, bot)
-                            logger.info(f"Comando subinfo procesado para {update.message.from_user.id}")
-                            return 'OK', 200
-                    except Exception as e:
-                        logger.error(f"Error al procesar comando de administrador: {str(e)}")
-                        # Intentar responder al usuario con el error
-                        try:
-                            bot.reply_to(update.message, f"❌ Error al procesar comando: {str(e)}")
-                        except:
-                            pass
                 
                 # Manejar comando recover
                 if update.message.text == '/recover' or update.message.text.startswith('/recover'):
