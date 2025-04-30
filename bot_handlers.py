@@ -64,34 +64,38 @@ def parse_duration(duration_text: str) -> Optional[int]:
 
 def create_invite_link(bot, user_id, sub_id):
     """
-    Crea un enlace de invitación para el grupo VIP.
+    Crea un enlace de invitación único para el grupo VIP.
     Utiliza la API de Telegram para crear un enlace temporal y único.
     """
     try:
-        # Para un bot real, esto debería usar createChatInviteLink
-        # En este ejemplo, usaremos un enlace estático o simulado
-        if not GROUP_INVITE_LINK:
-            logger.error("GROUP_INVITE_LINK no está configurado")
+        from config import GROUP_CHAT_ID, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT
+        
+        if not GROUP_CHAT_ID:
+            logger.error("GROUP_CHAT_ID no está configurado")
             return None
             
-        # En un bot real, aquí llamaríamos a:
-        # invite = bot.create_chat_invite_link(
-        #     chat_id=-GROUP_CHAT_ID,  # ID del grupo VIP
-        #     expire_date=int((datetime.datetime.now() + datetime.timedelta(hours=INVITE_LINK_EXPIRY_HOURS)).timestamp()),
-        #     member_limit=INVITE_LINK_MEMBER_LIMIT,
-        #     name=f"Invite for user {user_id}",
-        #     creates_join_request=False
-        # )
-        # invite_link = invite.invite_link
-        
-        # Para este ejemplo, simulamos el enlace
-        invite_link = f"{GROUP_INVITE_LINK}?ref={user_id}_{sub_id}"
-        
         # Calcular la fecha de expiración
-        created_at = datetime.datetime.now()
-        expires_at = created_at + datetime.timedelta(hours=INVITE_LINK_EXPIRY_HOURS)
+        current_time = datetime.datetime.now()
+        expire_date = int((current_time + datetime.timedelta(hours=INVITE_LINK_EXPIRY_HOURS)).timestamp())
+        
+        # Crear un enlace de invitación único usando la API de Telegram
+        logger.info(f"Generando enlace de invitación único para usuario {user_id}")
+        
+        invite = bot.create_chat_invite_link(
+            chat_id=GROUP_CHAT_ID,
+            expire_date=expire_date,
+            member_limit=INVITE_LINK_MEMBER_LIMIT,
+            name=f"Invitación para usuario {user_id}",
+            creates_join_request=False
+        )
+        
+        # Obtener el enlace de la respuesta
+        invite_link = invite.invite_link
         
         # Guardar el enlace en la base de datos
+        created_at = current_time
+        expires_at = current_time + datetime.timedelta(hours=INVITE_LINK_EXPIRY_HOURS)
+        
         db.save_invite_link(
             sub_id=sub_id,
             invite_link=invite_link,
@@ -99,7 +103,7 @@ def create_invite_link(bot, user_id, sub_id):
             expires_at=expires_at
         )
         
-        logger.info(f"Enlace de invitación creado para usuario {user_id}, expira en {INVITE_LINK_EXPIRY_HOURS} horas")
+        logger.info(f"Enlace de invitación único creado para usuario {user_id}, expira en {INVITE_LINK_EXPIRY_HOURS} horas")
         
         return invite_link
         
@@ -191,31 +195,64 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
             paypal_sub_id=paypal_sub_id
         )
         
-        # Generar enlace de invitación
+        # Enviar mensaje provisional mientras se genera el enlace
+        provisional_message = bot.send_message(
+            chat_id=user_id,
+            text="🔄 *Preparando tu acceso VIP...*\n\nEstamos generando tu enlace de invitación exclusivo. Por favor, espera un momento.",
+            parse_mode='Markdown'
+        )
+        
+        # Generar enlace de invitación único
         invite_link = generate_invite_link(bot, user_id, sub_id)
         
         if not invite_link:
             logger.error(f"No se pudo generar enlace de invitación para usuario {user_id}")
-            # Aún continuamos con el proceso, solo que sin enlace
-        
-        # Enviar mensaje de confirmación al usuario
-        confirmation_text = (
-            "🎟️ ¡Acceso VIP Confirmado!\n\n"
-            "Aquí tienes tu acceso exclusivo 👇\n"
-        )
-        
-        if invite_link:
-            confirmation_text += f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
-            confirmation_text += f"⚠️ Nota: El enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso."
+            bot.edit_message_text(
+                chat_id=user_id,
+                message_id=provisional_message.message_id,
+                text=(
+                    "⚠️ *Suscripción activada, pero hay un problema con el enlace*\n\n"
+                    "Tu suscripción se ha registrado correctamente, pero no pudimos generar el enlace de invitación.\n"
+                    "Por favor, usa el comando /recover para solicitar un nuevo enlace o contacta con soporte."
+                ),
+                parse_mode='Markdown'
+            )
+            
+            # Notificar a los administradores del problema
+            admin_error_notification = (
+                "🚨 *ERROR CON ENLACE DE INVITACIÓN*\n\n"
+                f"Usuario: {user.get('username', 'Sin username')} (id{user_id})\n"
+                f"Suscripción: {sub_id}\n"
+                "Error: No se pudo generar enlace de invitación\n\n"
+                "El usuario ha sido notificado para que use /recover"
+            )
+            
+            for admin_id in ADMIN_IDS:
+                try:
+                    bot.send_message(
+                        chat_id=admin_id,
+                        text=admin_error_notification,
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    logger.error(f"Error al notificar al admin {admin_id}: {str(e)}")
         else:
-            confirmation_text += "❌ No se pudo generar el enlace de invitación. Por favor, contacta a soporte."
-        
-        bot.send_message(
-            chat_id=user_id,
-            text=confirmation_text,
-            parse_mode='Markdown',
-            disable_web_page_preview=True
-        )
+            # Enviar mensaje de confirmación con el enlace
+            confirmation_text = (
+                "🎟️ *¡Acceso VIP Confirmado!*\n\n"
+                "Aquí tienes tu acceso exclusivo 👇\n\n"
+                f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                f"⚠️ Nota: Este enlace es único, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
+                "Si sales del grupo por accidente y necesitas un nuevo enlace, puedes usar el comando /recover"
+            )
+            
+            bot.edit_message_text(
+                chat_id=user_id,
+                message_id=provisional_message.message_id,
+                text=confirmation_text,
+                parse_mode='Markdown',
+                disable_web_page_preview=True
+            )
         
         # Notificar a los administradores
         username_display = user.get('username', 'Sin username')
@@ -224,7 +261,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
         full_name = f"{first_name} {last_name}".strip() or "Sin nombre"
         
         admin_notification = (
-            "🎉 ¡Nueva Suscripción! (PayPal)\n\n"
+            "🎉 *¡Nueva Suscripción! (PayPal)*\n\n"
             "Detalles:\n"
             f"• ID pago: {paypal_sub_id}\n"
             f"• Usuario: {username_display} (@{username_display}) (id{user_id})\n"
@@ -234,7 +271,8 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
             f"{'1 semana' if plan_id == 'weekly' else '1 mes'}\n"
             f"• Fecha: {start_date.strftime('%d %b %Y %I:%M %p')}\n"
             f"• Expira: {end_date.strftime('%d %b %Y')}\n"
-            f"• Estado: ✅ ACTIVO"
+            f"• Estado: ✅ ACTIVO\n"
+            f"• Enlace: Generado correctamente"
         )
         
         for admin_id in ADMIN_IDS:
@@ -828,7 +866,7 @@ def verify_bot_permissions():
         
         if not GROUP_CHAT_ID:
             logger.warning("GROUP_CHAT_ID no está configurado, omitiendo verificación de permisos")
-            return
+            return False
         
         # Usar la API directamente para evitar circularidad de importaciones
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/getChatMember"
@@ -850,7 +888,7 @@ def verify_bot_permissions():
                         "text": f"⚠️ ALERTA: El bot no puede acceder al grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPor favor, añada el bot al grupo y asígnele permisos de administrador."
                     }
                 )
-            return
+            return False
         
         chat_member = data.get("result", {})
         status = chat_member.get("status")
@@ -862,30 +900,44 @@ def verify_bot_permissions():
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     params={
                         "chat_id": admin_id,
-                        "text": f"⚠️ ALERTA: El bot no es administrador en el grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPor favor, haga al bot administrador para que pueda expulsar usuarios no autorizados."
+                        "text": f"⚠️ ALERTA: El bot no es administrador en el grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPara poder generar enlaces de invitación únicos y expulsar usuarios no autorizados, el bot debe ser administrador del grupo."
                     }
                 )
-            return
+            return False
         
-        # Verificar permiso específico para expulsar
+        # Verificar permisos específicos
         can_restrict = chat_member.get("can_restrict_members", False)
+        can_invite = chat_member.get("can_invite_users", False)
+        
+        # Lista de mensajes de error para permisos faltantes
+        permission_errors = []
         
         if not can_restrict:
-            logger.error("El bot es administrador pero no tiene permiso para expulsar miembros")
+            permission_errors.append("❌ NO tiene permiso para EXPULSAR USUARIOS")
+        
+        if not can_invite:
+            permission_errors.append("❌ NO tiene permiso para INVITAR USUARIOS")
+        
+        if permission_errors:
+            error_msg = f"⚠️ ALERTA: El bot es administrador pero le faltan permisos esenciales en el grupo VIP:\n\n" + "\n".join(permission_errors) + "\n\nPor favor, edite los permisos del bot y active estos permisos para que funcione correctamente."
+            
             for admin_id in ADMIN_IDS:
                 requests.get(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     params={
                         "chat_id": admin_id,
-                        "text": f"⚠️ ALERTA: El bot es administrador pero NO tiene permiso para EXPULSAR USUARIOS en el grupo VIP.\n\nPor favor, edite los permisos del bot y active 'Expulsar usuarios'."
+                        "text": error_msg
                     }
                 )
-            return
+            return False
         
-        logger.info(f"✅ Permisos del bot verificados correctamente: {status}, can_restrict_members: {can_restrict}")
+        # Si llegamos aquí, todos los permisos están correctos
+        logger.info(f"✅ Permisos del bot verificados correctamente: {status}, can_restrict_members: {can_restrict}, can_invite_users: {can_invite}")
+        return True
         
     except Exception as e:
         logger.error(f"Error al verificar permisos del bot: {e}")
+        return False
 
 def handle_new_chat_members(message, bot):
     """Maneja cuando nuevos miembros se unen al grupo"""
@@ -1030,6 +1082,10 @@ def handle_start(message, bot):
         first_name = message.from_user.first_name
         last_name = message.from_user.last_name
         
+        # Verificar si el usuario ya existía en la base de datos
+        existing_user = db.get_user(user_id)
+        is_new_user = existing_user is None
+        
         # Guardar usuario en la base de datos
         db.save_user(user_id, username, first_name, last_name)
         
@@ -1047,7 +1103,31 @@ def handle_start(message, bot):
             reply_markup=create_main_menu_markup()
         )
         
-        logger.info(f"Usuario {user_id} ({username}) ha iniciado el bot")
+        # Notificar a los administradores si es un usuario nuevo
+        if is_new_user:
+            user_display_name = f"{first_name or ''} {last_name or ''}".strip() or "Sin nombre"
+            user_handle = f"@{username}" if username else "Sin username"
+            
+            admin_notification = (
+                "👤 *Nuevo Usuario Registrado*\n\n"
+                f"• ID: `{user_id}`\n"
+                f"• Nombre: {user_display_name}\n"
+                f"• Username: {user_handle}\n"
+                f"• Fecha: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            )
+            
+            # Enviar notificación a todos los administradores
+            for admin_id in ADMIN_IDS:
+                try:
+                    bot.send_message(
+                        chat_id=admin_id,
+                        text=admin_notification,
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    logger.error(f"Error al notificar al admin {admin_id} sobre nuevo usuario: {str(e)}")
+        
+        logger.info(f"Usuario {user_id} ({username}) ha iniciado el bot. Nuevo usuario: {is_new_user}")
     
     except Exception as e:
         logger.error(f"Error en handle_start: {str(e)}")
@@ -1444,63 +1524,54 @@ def handle_recover_access(message, bot):
             logger.info(f"Usuario {user_id} intentó recuperar acceso sin suscripción activa")
             return
         
-        # Tiene suscripción activa, verificar si tiene un enlace de invitación válido
-        link = db.get_active_invite_link(subscription['sub_id'])
+        # Independientemente de si tiene un enlace activo o no, generar uno nuevo
+        # Esto asegura que siempre tenga un enlace válido, incluso si el anterior expiró
         
-        if link:
-            # Tiene un enlace activo, enviarlo
-            recovery_text = (
-                "🎟️ *Recuperación de Acceso VIP*\n\n"
-                "Aquí tienes tu enlace de invitación al grupo VIP:\n"
-                f"🔗 [Únete al Grupo VIP]({link['invite_link']})\n\n"
-                f"⚠️ Este enlace expira el {datetime.datetime.fromisoformat(link['expires_at']).strftime('%d %b %Y %I:%M %p')} "
-                "o después de un solo uso."
+        # Enviar mensaje informativo mientras se genera el enlace
+        status_message = bot.send_message(
+            chat_id=chat_id,
+            text="🔄 Generando nuevo enlace de invitación... Por favor, espera un momento."
+        )
+        
+        # Generar un nuevo enlace
+        invite_link = generate_invite_link(bot, user_id, subscription['sub_id'])
+        
+        if invite_link:
+            # Enlace generado correctamente
+            new_link_text = (
+                "🎟️ *Nuevo Acceso VIP Generado*\n\n"
+                "Hemos creado un nuevo enlace de invitación para ti:\n"
+                f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o después de un solo uso."
             )
             
-            bot.send_message(
+            # Actualizar el mensaje de estado con el nuevo enlace
+            bot.edit_message_text(
                 chat_id=chat_id,
-                text=recovery_text,
+                message_id=status_message.message_id,
+                text=new_link_text,
                 parse_mode='Markdown',
                 disable_web_page_preview=True
             )
             
-            logger.info(f"Usuario {user_id} recuperó su enlace de acceso existente")
+            logger.info(f"Usuario {user_id} generó un nuevo enlace de acceso")
         else:
-            # No tiene un enlace activo, generar uno nuevo
-            invite_link = generate_invite_link(bot, user_id, subscription['sub_id'])
+            # Error al generar el enlace
+            error_text = (
+                "❌ *Error al generar enlace*\n\n"
+                "No pudimos generar un nuevo enlace de invitación en este momento.\n"
+                "Por favor, contacta a soporte para recibir asistencia."
+            )
             
-            if invite_link:
-                # Enlace generado correctamente
-                new_link_text = (
-                    "🎟️ *Nuevo Acceso VIP Generado*\n\n"
-                    "Hemos creado un nuevo enlace de invitación para ti:\n"
-                    f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
-                    "⚠️ Este enlace expira en 24 horas o después de un solo uso."
-                )
-                
-                bot.send_message(
-                    chat_id=chat_id,
-                    text=new_link_text,
-                    parse_mode='Markdown',
-                    disable_web_page_preview=True
-                )
-                
-                logger.info(f"Usuario {user_id} generó un nuevo enlace de acceso")
-            else:
-                # Error al generar el enlace
-                error_text = (
-                    "❌ *Error al generar enlace*\n\n"
-                    "No pudimos generar un nuevo enlace de invitación en este momento.\n"
-                    "Por favor, contacta a soporte para recibir asistencia."
-                )
-                
-                bot.send_message(
-                    chat_id=chat_id,
-                    text=error_text,
-                    parse_mode='Markdown'
-                )
-                
-                logger.error(f"Error al generar nuevo enlace para usuario {user_id}")
+            # Actualizar el mensaje de estado con el error
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message.message_id,
+                text=error_text,
+                parse_mode='Markdown'
+            )
+            
+            logger.error(f"Error al generar nuevo enlace para usuario {user_id}")
     
     except Exception as e:
         logger.error(f"Error en handle_recover_access: {str(e)}")
@@ -1633,6 +1704,12 @@ def handle_whitelist_duration(message, bot):
         # Determinar el plan más cercano
         plan_id = 'weekly' if days <= 7 else 'monthly'
         
+        # Enviar mensaje informativo mientras se procesa
+        status_message = bot.send_message(
+            chat_id=chat_id,
+            text="🔄 Procesando la solicitud y generando enlace de invitación único..."
+        )
+        
         # Crear suscripción en la base de datos
         sub_id = db.create_subscription(
             user_id=target_user_id,
@@ -1644,10 +1721,10 @@ def handle_whitelist_duration(message, bot):
             paypal_sub_id=None
         )
         
-        # Generar enlace de invitación
+        # Generar enlace de invitación único
         invite_link = generate_invite_link(bot, target_user_id, sub_id)
         
-        # Enviar mensaje de confirmación
+        # Preparar mensaje de confirmación
         confirmation_text = (
             "✅ *Usuario agregado a la whitelist exitosamente*\n\n"
             f"👤 ID: {target_user_id}\n"
@@ -1656,10 +1733,14 @@ def handle_whitelist_duration(message, bot):
         )
         
         if invite_link:
-            confirmation_text += f"\n🔗 [Enlace de invitación]({invite_link})"
+            confirmation_text += f"\n🔗 [Enlace de invitación único]({invite_link})\n⚠️ Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso."
+        else:
+            confirmation_text += "\n⚠️ No se pudo generar enlace de invitación. El usuario puede usar /recover para solicitar uno."
         
-        bot.send_message(
+        # Actualizar el mensaje de estado
+        bot.edit_message_text(
             chat_id=chat_id,
+            message_id=status_message.message_id,
             text=confirmation_text,
             parse_mode='Markdown',
             disable_web_page_preview=True
@@ -1673,7 +1754,14 @@ def handle_whitelist_duration(message, bot):
             )
             
             if invite_link:
-                user_notification += f"Aquí tienes tu enlace de invitación:\n🔗 [Únete al Grupo VIP]({invite_link})"
+                user_notification += (
+                    f"Aquí tienes tu enlace de invitación único:\n"
+                    f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                    f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n"
+                    "Si sales del grupo por accidente, usa el comando /recover para solicitar un nuevo enlace."
+                )
+            else:
+                user_notification += "Usa el comando /recover para solicitar tu enlace de invitación."
             
             bot.send_message(
                 chat_id=target_user_id,
@@ -1812,15 +1900,274 @@ def handle_unknown_message(message, bot):
     except Exception as e:
         logger.error(f"Error en handle_unknown_message: {str(e)}")
 
+def handle_stats_command(message, bot):
+    """
+    Comando para administradores que muestra estadísticas del bot
+    Uso: /stats
+    """
+    try:
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+        
+        # Verificar que sea un administrador
+        if user_id not in ADMIN_IDS:
+            logger.info(f"Usuario no autorizado {user_id} intentó usar /stats")
+            return
+        
+        # Mensaje de estado mientras se procesan las estadísticas
+        status_message = bot.reply_to(
+            message,
+            "🔄 Recopilando estadísticas..."
+        )
+        
+        # Obtener conexión a la base de datos
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        
+        # Estadísticas principales
+        stats = {
+            "usuarios": db.get_table_count(conn, "users"),
+            "suscripciones": db.get_table_count(conn, "subscriptions"),
+            "suscripciones_activas": db.get_active_subscriptions_count(conn),
+            "enlaces_invitacion": db.get_table_count(conn, "invite_links")
+        }
+        
+        # Estadísticas adicionales
+        
+        # Usuarios nuevos en las últimas 24 horas
+        cursor.execute("""
+        SELECT COUNT(*) FROM users
+        WHERE created_at > datetime('now', '-1 day')
+        """)
+        stats["usuarios_nuevos_24h"] = cursor.fetchone()[0]
+        
+        # Suscripciones nuevas en las últimas 24 horas
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions
+        WHERE start_date > datetime('now', '-1 day')
+        """)
+        stats["suscripciones_nuevas_24h"] = cursor.fetchone()[0]
+        
+        # Cantidad de expulsiones
+        cursor.execute("SELECT COUNT(*) FROM expulsions")
+        stats["expulsiones_totales"] = cursor.fetchone()[0]
+        
+        # Planes más populares
+        cursor.execute("""
+        SELECT plan, COUNT(*) as total
+        FROM subscriptions
+        GROUP BY plan
+        ORDER BY total DESC
+        """)
+        plan_stats = cursor.fetchall()
+        
+        # Cerrar conexión
+        conn.close()
+        
+        # Construir mensaje de estadísticas
+        stats_text = (
+            "📊 *Estadísticas del Bot*\n\n"
+            
+            "👥 *Usuarios*\n"
+            f"• Totales: {stats['usuarios']}\n"
+            f"• Nuevos (24h): {stats['usuarios_nuevos_24h']}\n\n"
+            
+            "💳 *Suscripciones*\n"
+            f"• Totales: {stats['suscripciones']}\n"
+            f"• Activas: {stats['suscripciones_activas']}\n"
+            f"• Nuevas (24h): {stats['suscripciones_nuevas_24h']}\n\n"
+            
+            "🔗 *Enlaces de Invitación*\n"
+            f"• Generados: {stats['enlaces_invitacion']}\n\n"
+            
+            "🛡️ *Seguridad*\n"
+            f"• Expulsiones: {stats['expulsiones_totales']}\n\n"
+        )
+        
+        # Añadir estadísticas de planes
+        if plan_stats:
+            stats_text += "📑 *Planes*\n"
+            for plan_data in plan_stats:
+                plan_id = plan_data[0]
+                count = plan_data[1]
+                plan_name = PLANS.get(plan_id, {}).get('display_name', plan_id)
+                stats_text += f"• {plan_name}: {count}\n"
+            stats_text += "\n"
+        
+        # Añadir información del panel de administrador
+        stats_text += (
+            "🔐 *Panel de Administración*\n"
+            f"• URL: {WEBHOOK_URL}/admin/panel?admin_id={user_id}\n\n"
+            
+            "📅 Actualizado: " + datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        )
+        
+        # Enviar estadísticas
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=status_message.message_id,
+            text=stats_text,
+            parse_mode='Markdown',
+            disable_web_page_preview=True
+        )
+        
+        logger.info(f"Admin {user_id} solicitó estadísticas del bot")
+        
+    except Exception as e:
+        logger.error(f"Error en handle_stats_command: {str(e)}")
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message.message_id,
+                text=f"❌ Error al obtener estadísticas: {str(e)}"
+            )
+        except:
+            bot.reply_to(message, f"❌ Error al obtener estadísticas: {str(e)}")
+
+def handle_test_invite(message, bot):
+    """
+    Comando para administradores que permite probar la generación de enlaces de invitación
+    Uso: /test_invite
+    """
+    try:
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+        
+        # Verificar que sea un administrador
+        if user_id not in ADMIN_IDS:
+            logger.info(f"Usuario no autorizado {user_id} intentó usar /test_invite")
+            return
+        
+        # Mensaje de estado mientras se procesa
+        status_message = bot.reply_to(
+            message,
+            "🔄 Generando enlace de invitación de prueba..."
+        )
+        
+        # Verificar permisos del bot en el grupo
+        from config import GROUP_CHAT_ID
+        if not GROUP_CHAT_ID:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message.message_id,
+                text="❌ Error: GROUP_CHAT_ID no está configurado. No se puede generar enlace."
+            )
+            return
+        
+        # Verificar que el bot tenga los permisos necesarios
+        try:
+            # Obtener información del bot en el grupo
+            chat_member = bot.get_chat_member(GROUP_CHAT_ID, bot.get_me().id)
+            
+            if chat_member.status not in ['administrator', 'creator']:
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=status_message.message_id,
+                    text="❌ Error: El bot no es administrador en el grupo VIP. No puede generar enlaces."
+                )
+                return
+            
+            if not chat_member.can_invite_users:
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=status_message.message_id,
+                    text="❌ Error: El bot no tiene permiso para invitar usuarios en el grupo VIP."
+                )
+                return
+                
+        except Exception as e:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message.message_id,
+                text=f"❌ Error al verificar permisos: {str(e)}"
+            )
+            return
+        
+        # Intentar generar un enlace de prueba directamente
+        try:
+            # Calcular fecha de expiración (1 hora)
+            expire_date = int((datetime.datetime.now() + datetime.timedelta(hours=1)).timestamp())
+            
+            # Crear enlace directo para 1 solo uso
+            invite = bot.create_chat_invite_link(
+                chat_id=GROUP_CHAT_ID,
+                expire_date=expire_date,
+                member_limit=1,
+                name=f"Test invite by admin {user_id}",
+                creates_join_request=False
+            )
+            
+            # Si llegamos aquí sin errores, la generación fue exitosa
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message.message_id,
+                text=(
+                    "✅ Enlace de invitación generado exitosamente\n\n"
+                    f"🔗 {invite.invite_link}\n\n"
+                    "ℹ️ Este es un enlace de prueba que expira en 1 hora y permite un solo uso.\n"
+                    "📝 No se ha registrado en la base de datos."
+                ),
+                disable_web_page_preview=True
+            )
+            
+            logger.info(f"Admin {user_id} generó un enlace de prueba exitosamente")
+            
+        except Exception as e:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_message.message_id,
+                text=(
+                    f"❌ Error al generar enlace: {str(e)}\n\n"
+                    "Posibles causas:\n"
+                    "• El bot no tiene permisos suficientes en el grupo\n"
+                    "• El ID del grupo es incorrecto\n"
+                    "• La API de Telegram está teniendo problemas"
+                )
+            )
+            
+            logger.error(f"Error al generar enlace de prueba: {str(e)}")
+            
+    except Exception as e:
+        logger.error(f"Error en handle_test_invite: {str(e)}")
+        bot.reply_to(message, f"❌ Error inesperado: {str(e)}")
+
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
+
+    # Handler para verificar permisos del bot
+    bot.register_message_handler(
+        lambda message: check_and_fix_bot_permissions(message, bot),
+        commands=['check_bot_permissions']
+    )
+    
+    # Handler para probar la generación de enlaces de invitación (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_test_invite(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/test_invite'
+    )
+    
+    # Handler para estadísticas del bot (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_stats_command(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text in ['/stats', '/estadisticas']
+    )
+    
     # Handler para el comando /start
     bot.register_message_handler(lambda message: handle_start(message, bot), commands=['start'])
+    
+    # IMPORTANTE: El handler para verify_all debe ir ANTES que otros handlers
+    bot.register_message_handler(lambda message: handle_verify_all_members(message, bot), 
+                              commands=['verify_all', 'force_verify'])
+    
+    # Handler para nuevos miembros
+    bot.register_message_handler(lambda message: handle_new_chat_members(message, bot), 
+                              content_types=['new_chat_members'])
     
     # Handler para el comando de recuperación de acceso
     bot.register_message_handler(lambda message: handle_recover_access(message, bot), 
                               func=lambda message: message.text == '🎟️ Recuperar Acceso VIP' or 
-                                                  message.text == '/recover')
+                                                  message.text == '/recover' or
+                                                  message.text.startswith('/recover'))
     
     # Handlers para comandos de administrador
     bot.register_message_handler(lambda message: handle_whitelist(message, bot), 
@@ -1830,6 +2177,12 @@ def register_handlers(bot):
     bot.register_message_handler(lambda message: handle_subinfo(message, bot), 
                               func=lambda message: message.from_user.id in ADMIN_IDS and 
                                                   message.text.startswith('/subinfo'))
+    
+    # Comando de verificación de permisos para admins
+    bot.register_message_handler(
+        lambda message: verify_bot_permissions() and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
+    )
     
     # Callback handlers para los botones
     bot.register_callback_query_handler(lambda call: handle_main_menu_callback(call, bot), 
@@ -1843,3 +2196,9 @@ def register_handlers(bot):
     
     # Handler por defecto para mensajes no reconocidos
     bot.register_message_handler(lambda message: handle_unknown_message(message, bot), func=lambda message: True)
+    
+    # Iniciar verificación periódica automática
+    schedule_security_verification(bot)
+    
+    # Verificar permisos del bot al iniciar
+    verify_bot_permissions()
