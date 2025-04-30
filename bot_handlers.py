@@ -1,7 +1,7 @@
 import logging
 from telebot import types
 import database as db
-from config import ADMIN_IDS, PLANS, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT, GROUP_INVITE_LINK, WEBHOOK_URL
+from config import ADMIN_IDS, PLANS, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT, GROUP_INVITE_LINK, WEBHOOK_URL, GROUP_CHAT_ID
 import payments as pay
 import datetime
 import threading
@@ -532,90 +532,59 @@ def create_plans_markup():
 # Añade esta función al archivo bot_handlers.py
 
 def schedule_security_verification(bot):
-    """
-    Configura una verificación de seguridad periódica
-    """
-    import threading
-    import time
-    from config import GROUP_CHAT_ID, ADMIN_IDS
-    
     def security_check_thread():
-        """Hilo que ejecuta la verificación periódica de seguridad"""
-        try:
-            logger.info("🔒 Iniciando sistema de verificación de seguridad")
-            
-            # Verificación inicial
-            if GROUP_CHAT_ID:
-                logger.info("🕒 Realizando verificación inicial de seguridad")
-                perform_group_security_check(bot, GROUP_CHAT_ID)
-            else:
-                logger.error("❌ GROUP_CHAT_ID no configurado para verificación inicial")
-        except Exception as e:
-            logger.error(f"❌ Error en verificación inicial: {e}")
-            
-        # Ciclo de verificación
         while True:
             try:
-                # CAMBIO: Verificar cada 5 minutos (300 segundos)
-                time.sleep(30)  
+                logger.info("🕒 Iniciando verificación periódica")
                 
-                logger.info("🕒 Iniciando verificación periódica de seguridad")
-                
-                if not GROUP_CHAT_ID:
-                    logger.error("❌ No hay ID de grupo configurado")
-                    continue
+                # Verificar suscripciones expiradas
+                expired_subscriptions = db.check_and_update_subscriptions()
                 
                 # Realizar verificación de seguridad
-                perform_group_security_check(bot, GROUP_CHAT_ID)
+                if GROUP_CHAT_ID:
+                    # Pasar las suscripciones expiradas para procesamiento
+                    perform_group_security_check(
+                        bot, 
+                        GROUP_CHAT_ID, 
+                        expired_subscriptions=expired_subscriptions
+                    )
                 
-                # Cerrar suscripciones expiradas
-                db.close_expired_subscriptions()
+                # Esperar antes de la próxima verificación
+                time.sleep(60)  # Cada minuto
                 
             except Exception as e:
-                logger.error(f"❌ Error en verificación periódica: {e}")
-                time.sleep(30)  # Espera en caso de error
+                logger.error(f"Error en verificación periódica: {e}")
+                time.sleep(60)
     
     # Iniciar hilo
     security_thread = threading.Thread(target=security_check_thread)
     security_thread.daemon = True
     security_thread.start()
-    
-    logger.info("✅ Sistema de verificación periódica de seguridad iniciado")
 
 
-def perform_group_security_check(bot, group_id):
+def perform_group_security_check(
+    bot, 
+    group_id, 
+    expired_subscriptions=None
+):
     try:
-        from config import ADMIN_IDS, GROUP_CHAT_ID
+        # Si no se proporcionaron suscripciones expiradas, obtenerlas
+        if expired_subscriptions is None:
+            expired_subscriptions = db.check_and_update_subscriptions()
         
-        logger.info(f"Iniciando verificación de seguridad del grupo {group_id}")
+        logger.info(f"Procesando {len(expired_subscriptions)} suscripciones expiradas")
         
-        # Obtener todas las suscripciones expiradas
-        conn = db.get_db_connection()
-        cursor = conn.cursor()
-        
-        # MODIFICACIÓN CLAVE: Consultar TODOS los tipos de suscripciones expiradas
-        cursor.execute("""
-        SELECT user_id, sub_id, plan, end_date, paypal_sub_id 
-        FROM subscriptions 
-        WHERE status = 'ACTIVE' AND end_date <= datetime('now')
-        """)
-        expired_subscriptions = cursor.fetchall()
-        
-        logger.info(f"Encontrados {len(expired_subscriptions)} usuarios con suscripciones expiradas")
-        
-        # Expulsar usuarios expirados
         for user_data in expired_subscriptions:
-            user_id, sub_id, plan, end_date, paypal_sub_id = user_data
+            user_id, sub_id, plan = user_data
             
             # Omitir administradores
             if user_id in ADMIN_IDS:
                 continue
             
             try:
-                # MODIFICACIÓN: Verificar la existencia del usuario en el grupo
+                # Verificar existencia en el grupo
                 try:
                     chat_member = bot.get_chat_member(group_id, user_id)
-                    logger.info(f"Verificando usuario {user_id} en el grupo. Estado actual: {chat_member.status}")
                 except Exception as e:
                     logger.info(f"Usuario {user_id} no está en el grupo. Saltando...")
                     continue
@@ -626,20 +595,11 @@ def perform_group_security_check(bot, group_id):
                     user_id=user_id
                 )
                 
-                # Desbanear inmediatamente para permitir que vuelva si obtiene suscripción
+                # Desbanear para permitir futuro acceso
                 bot.unban_chat_member(
                     chat_id=group_id,
                     user_id=user_id,
                     only_if_banned=True
-                )
-                
-                # Actualizar estado de la suscripción
-                db.update_subscription_status(sub_id, 'EXPIRED')
-                
-                # Registrar la expulsión
-                db.record_expulsion(
-                    user_id, 
-                    f"Suscripción/Whitelist expirada: {plan}"
                 )
                 
                 # Notificar al usuario
@@ -655,12 +615,11 @@ def perform_group_security_check(bot, group_id):
                 except Exception as e:
                     logger.error(f"No se pudo notificar al usuario {user_id}: {e}")
                 
-                logger.info(f"Usuario {user_id} expulsado por suscripción/whitelist expirada")
+                logger.info(f"Usuario {user_id} expulsado por suscripción expirada")
                 
             except Exception as e:
-                logger.error(f"Error al procesar expiración para usuario {user_id}: {e}")
+                logger.error(f"Error al procesar usuario {user_id}: {e}")
         
-        conn.close()
         return True
         
     except Exception as e:

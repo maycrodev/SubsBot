@@ -412,5 +412,35 @@ def close_expired_subscriptions(bot=None):
     
     return expired_users
 
+def check_and_update_subscriptions():
+    """
+    Verifica y actualiza el estado de las suscripciones expiradas
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Marcar suscripciones expiradas
+    cursor.execute("""
+    UPDATE subscriptions 
+    SET status = 'EXPIRED' 
+    WHERE status = 'ACTIVE' AND end_date <= datetime('now')
+    """)
+    
+    # Obtener IDs de usuarios con suscripciones expiradas
+    cursor.execute("""
+    SELECT user_id, sub_id, plan 
+    FROM subscriptions 
+    WHERE status = 'EXPIRED'
+    """)
+    
+    expired_subscriptions = cursor.fetchall()
+    
+    conn.commit()
+    conn.close()
+    
+    logger.info(f"Suscripciones expiradas actualizadas: {len(expired_subscriptions)}")
+    
+    return expired_subscriptions
+
 # Inicializar la base de datos al importar el módulo
 init_db()
