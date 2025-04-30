@@ -143,18 +143,9 @@ def create_invite_link(bot, user_id, sub_id):
         return None
 
 def start_processing_animation(bot, chat_id, message_id):
-    """Inicia una animación de procesamiento mejorada en el mensaje"""
+    """Inicia una animación de procesamiento en el mensaje"""
     try:
-        # Secuencia de animación con estilo de ramas
-        animation_frames = [
-            "⚡ **PROCESANDO PAGO** ⚡\n\n**├ 🔄◼️◼️◼️◼️◼️**\n**└ Conectando...**",
-            "⚡ **PROCESANDO PAGO** ⚡\n\n**├ ✅🔄◼️◼️◼️◼️**\n**└ Verificando datos...**",
-            "⚡ **PROCESANDO PAGO** ⚡\n\n**├ ✅✅🔄◼️◼️◼️**\n**└ Preparando conexión...**",
-            "⚡ **PROCESANDO PAGO** ⚡\n\n**├ ✅✅✅🔄◼️◼️**\n**└ Generando enlace seguro...**",
-            "⚡ **PROCESANDO PAGO** ⚡\n\n**├ ✅✅✅✅🔄◼️**\n**└ Configurando opciones...**",
-            "⚡ **PROCESANDO PAGO** ⚡\n\n**├ ✅✅✅✅✅🔄**\n**└ Finalizando...**",
-        ]
-        
+        animation_markers = ['/', '-', '|', '\\']
         current_index = 0
         
         # Registrar la animación
@@ -168,12 +159,15 @@ def start_processing_animation(bot, chat_id, message_id):
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=message_id,
-                    text=animation_frames[current_index],
-                    parse_mode='Markdown'
+                    text=(
+                        "🔄 Confirmando Pago\n"
+                        f"      {animation_markers[current_index]}      \n"
+                        "Aguarde por favor..."
+                    )
                 )
                 
                 # Actualizar índice de animación
-                current_index = (current_index + 1) % len(animation_frames)
+                current_index = (current_index + 1) % len(animation_markers)
                 
                 # Esperar antes de la siguiente actualización
                 time.sleep(0.5)
@@ -235,7 +229,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
         # Enviar mensaje provisional mientras se genera el enlace
         provisional_message = bot.send_message(
             chat_id=user_id,
-            text="🔄 **Preparando tu acceso VIP...**\n\n**├ ⚙️ Generando enlace exclusivo**\n**└ ⏳ Por favor, espera un momento...**",
+            text="🔄 *Preparando tu acceso VIP...*\n\nEstamos generando tu enlace de invitación exclusivo. Por favor, espera un momento.",
             parse_mode='Markdown'
         )
         
@@ -244,32 +238,24 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
         
         if not invite_link:
             logger.error(f"No se pudo generar enlace de invitación para usuario {user_id}")
-            
-            # MENSAJE MEJORADO
             bot.edit_message_text(
                 chat_id=user_id,
                 message_id=provisional_message.message_id,
                 text=(
-                    "⚠️ **SUSCRIPCIÓN ACTIVADA** ⚠️\n\n"
-                    "**✅ ESTADO**\n"
-                    "**├ ✓ Pago procesado correctamente**\n"
-                    "**└ ✓ Membresía registrada**\n\n"
-                    "**⚡ ATENCIÓN**\n"
-                    "**└ ❌ Error al generar enlace de invitación**\n\n"
-                    "**🔄 SOLUCIÓN**\n"
-                    "**├ 🛠️ Usa /recover para un nuevo enlace**\n"
-                    "**└ 👨‍💻 O contacta con soporte @admin_support**"
+                    "⚠️ *Suscripción activada, pero hay un problema con el enlace*\n\n"
+                    "Tu suscripción se ha registrado correctamente, pero no pudimos generar el enlace de invitación.\n"
+                    "Por favor, usa el comando /recover para solicitar un nuevo enlace o contacta con soporte."
                 ),
                 parse_mode='Markdown'
             )
             
             # Notificar a los administradores del problema
             admin_error_notification = (
-                "🚨 **ERROR CON ENLACE DE INVITACIÓN**\n\n"
-                f"**👤 Usuario: {user.get('username', 'Sin username')} (id{user_id})**\n"
-                f"**🆔 Suscripción: {sub_id}**\n"
-                f"**❌ Error: No se pudo generar enlace de invitación**\n\n"
-                f"**ℹ️ Usuario notificado para usar /recover**"
+                "🚨 *ERROR CON ENLACE DE INVITACIÓN*\n\n"
+                f"Usuario: {user.get('username', 'Sin username')} (id{user_id})\n"
+                f"Suscripción: {sub_id}\n"
+                "Error: No se pudo generar enlace de invitación\n\n"
+                "El usuario ha sido notificado para que use /recover"
             )
             
             for admin_id in ADMIN_IDS:
@@ -282,18 +268,13 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
                 except Exception as e:
                     logger.error(f"Error al notificar al admin {admin_id}: {str(e)}")
         else:
-            # MENSAJE MEJORADO
+            # Enviar mensaje de confirmación con el enlace
             confirmation_text = (
-                "🎉 **¡ACCESO VIP ACTIVADO!** 🎉\n\n"
-                "**🔑 TU INVITACIÓN EXCLUSIVA**\n"
-                f"**└ 🔗 [UNIRSE AL GRUPO VIP]({invite_link})**\n\n"
-                "**⚠️ IMPORTANTE**\n"
-                f"**├ 👤 Enlace personal único**\n"
-                f"**├ ⏳ Expira en {INVITE_LINK_EXPIRY_HOURS} horas**\n"
-                f"**└ 1️⃣ Válido para un solo uso**\n\n"
-                "**❓ ¿PROBLEMAS DE ACCESO?**\n"
-                "**└ 🔄 Usa /recover para generar nuevo enlace**\n\n"
-                "**🌟 ¡BIENVENIDO AL CLUB EXCLUSIVO!** 🌟"
+                "🎟️ *¡Acceso VIP Confirmado!*\n\n"
+                "Aquí tienes tu acceso exclusivo 👇\n\n"
+                f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                f"⚠️ Nota: Este enlace es único, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
+                "Si sales del grupo por accidente y necesitas un nuevo enlace, puedes usar el comando /recover"
             )
             
             bot.edit_message_text(
@@ -311,18 +292,18 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
         full_name = f"{first_name} {last_name}".strip() or "Sin nombre"
         
         admin_notification = (
-            "🎉 **¡NUEVA SUSCRIPCIÓN! (PayPal)**\n\n"
-            "**📊 DETALLES**\n"
-            f"**├ 🆔 ID pago: {paypal_sub_id}**\n"
-            f"**├ 👤 Usuario: {username_display} (@{username_display}) (id{user_id})**\n"
-            f"**├ 📝 Nombre: {full_name}**\n"
-            f"**├ 📦 Plan: {plan['display_name']}**\n"
-            f"**├ 💳 Facturación: ${plan['price_usd']:.2f} / "
-            f"{'1 semana' if plan_id == 'weekly' else '1 mes'}**\n"
-            f"**├ 📅 Fecha: {start_date.strftime('%d %b %Y %I:%M %p')}**\n"
-            f"**├ ⏱️ Expira: {end_date.strftime('%d %b %Y')}**\n"
-            f"**├ ✅ Estado: ACTIVO**\n"
-            f"**└ 🔗 Enlace: {'Generado correctamente' if invite_link else 'Error al generar'}**"
+            "🎉 *¡Nueva Suscripción! (PayPal)*\n\n"
+            "Detalles:\n"
+            f"• ID pago: {paypal_sub_id}\n"
+            f"• Usuario: {username_display} (@{username_display}) (id{user_id})\n"
+            f"• Nombre: {full_name}\n"
+            f"• Plan: {plan['display_name']}\n"
+            f"• Facturación: ${plan['price_usd']:.2f} / "
+            f"{'1 semana' if plan_id == 'weekly' else '1 mes'}\n"
+            f"• Fecha: {start_date.strftime('%d %b %Y %I:%M %p')}\n"
+            f"• Expira: {end_date.strftime('%d %b %Y')}\n"
+            f"• Estado: ✅ ACTIVO\n"
+            f"• Enlace: Generado correctamente"
         )
         
         for admin_id in ADMIN_IDS:
@@ -377,17 +358,14 @@ def update_subscription_from_webhook(bot, event_data: Dict) -> bool:
             # Marcar la suscripción como cancelada
             db.update_subscription_status(sub_id, "CANCELLED")
             
-            # MENSAJE MEJORADO - Notificar al usuario
+            # Notificar al usuario
             try:
                 bot.send_message(
                     chat_id=user_id,
                     text=(
-                        "⛔ **SUSCRIPCIÓN CANCELADA** ⛔\n\n"
-                        "**📢 INFORMACIÓN**\n"
-                        "**├ 🚫 Acceso VIP cancelado**\n"
-                        "**└ 🔒 Ya no tienes acceso al grupo**\n\n"
-                        "**🔄 ¿QUIERES VOLVER?**\n"
-                        "**└ 📲 Usa /start para ver planes disponibles**"
+                        "❌ *Tu suscripción ha sido cancelada*\n\n"
+                        "Has sido expulsado del grupo VIP. Si deseas volver a suscribirte, "
+                        "utiliza el comando /start para ver nuestros planes disponibles."
                     ),
                     parse_mode='Markdown'
                 )
@@ -400,17 +378,14 @@ def update_subscription_from_webhook(bot, event_data: Dict) -> bool:
             # Marcar la suscripción como suspendida
             db.update_subscription_status(sub_id, "SUSPENDED")
             
-            # MENSAJE MEJORADO - Notificar al usuario
+            # Notificar al usuario
             try:
                 bot.send_message(
                     chat_id=user_id,
                     text=(
-                        "⚠️ **SUSCRIPCIÓN SUSPENDIDA** ⚠️\n\n"
-                        "**📢 INFORMACIÓN**\n"
-                        "**├ 🔄 Estado: SUSPENDIDA**\n"
-                        "**└ 🚫 Acceso al grupo VIP restringido**\n\n"
-                        "**🛠️ SOLUCIÓN**\n"
-                        "**└ 💳 Verifica tu método de pago en PayPal**"
+                        "⚠️ *Tu suscripción ha sido suspendida*\n\n"
+                        "Tu acceso al grupo VIP puede verse afectado. Por favor, verifica tu método de pago "
+                        "en PayPal para reactivar tu suscripción."
                     ),
                     parse_mode='Markdown'
                 )
@@ -420,19 +395,14 @@ def update_subscription_from_webhook(bot, event_data: Dict) -> bool:
             logger.info(f"Suscripción {sub_id} suspendida")
             
         elif event_type == "BILLING.SUBSCRIPTION.PAYMENT.FAILED":
-            # MENSAJE MEJORADO - Notificar al usuario sobre el pago fallido
+            # Notificar al usuario sobre el pago fallido
             try:
                 bot.send_message(
                     chat_id=user_id,
                     text=(
-                        "❌ **PAGO FALLIDO** ❌\n\n"
-                        "**⚠️ ATENCIÓN**\n"
-                        "**└ No pudimos procesar tu pago**\n\n"
-                        "**⏱️ IMPORTANTE**\n"
-                        "**├ Tu acceso VIP está en riesgo**\n"
-                        "**└ Si no se resuelve, perderás los beneficios**\n\n"
-                        "**🛠️ SOLUCIÓN**\n"
-                        "**└ 💳 Actualiza tu método de pago en PayPal**"
+                        "⚠️ *Pago fallido*\n\n"
+                        "No pudimos procesar el pago de tu suscripción. Por favor, verifica tu método de pago "
+                        "en PayPal para evitar la cancelación de tu acceso al grupo VIP."
                     ),
                     parse_mode='Markdown'
                 )
@@ -457,18 +427,14 @@ def update_subscription_from_webhook(bot, event_data: Dict) -> bool:
             # Extender la suscripción
             db.extend_subscription(sub_id, new_end_date)
             
-            # MENSAJE MEJORADO - Notificar al usuario
+            # Notificar al usuario
             try:
                 bot.send_message(
                     chat_id=user_id,
                     text=(
-                        "✅ **¡SUSCRIPCIÓN RENOVADA!** ✅\n\n"
-                        "**🎯 DETALLES**\n"
-                        f"**├ 📦 Plan: {plan['display_name']}**\n"
-                        f"**├ 💰 Monto: ${plan['price_usd']:.2f} USD**\n"
-                        f"**└ 📅 Nueva expiración: {new_end_date.strftime('%d %b %Y')}**\n\n"
-                        "**🌟 ¡GRACIAS POR CONTINUAR CON NOSOTROS!** 🌟\n"
-                        "**└ 💎 Disfruta tu contenido premium**"
+                        "✅ *Suscripción renovada exitosamente*\n\n"
+                        f"Tu suscripción al grupo VIP ha sido renovada hasta el {new_end_date.strftime('%d %b %Y')}.\n"
+                        "¡Gracias por tu continuado apoyo!"
                     ),
                     parse_mode='Markdown'
                 )
@@ -488,8 +454,8 @@ def create_main_menu_markup():
     """Crea los botones para el menú principal"""
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("💎 Ver Planes Premium", callback_data="view_plans"),
-        types.InlineKeyboardButton("ℹ️ Acerca del Bot", callback_data="bot_credits"),
+        types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
+        types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
         types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
     )
     return markup
@@ -499,7 +465,7 @@ def create_plans_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
     
     # Agregar tutorial de pagos
-    markup.add(types.InlineKeyboardButton("🎬 Tutorial de Pagos", callback_data="tutorial"))
+    markup.add(types.InlineKeyboardButton("🎥 Tutorial de Pagos", callback_data="tutorial"))
     
     # Agregar planes
     markup.add(
@@ -508,7 +474,7 @@ def create_plans_markup():
     )
     
     # Agregar botón de volver
-    markup.add(types.InlineKeyboardButton("↩️ Volver al Menú", callback_data="back_to_main"))
+    markup.add(types.InlineKeyboardButton("🔙 Atrás", callback_data="back_to_main"))
     
     return markup
 
@@ -583,19 +549,12 @@ def perform_group_security_check(bot, group_id):
             
             if bot_member.status not in ['administrator', 'creator']:
                 logger.error(f"CRÍTICO: El bot no tiene permisos de administrador en el grupo {group_id}")
-                # MENSAJE MEJORADO - Notificar a todos los administradores
+                # Notificar a todos los administradores
                 for admin_id in ADMIN_IDS:
                     try:
                         bot.send_message(
                             chat_id=admin_id,
-                            text=(
-                                "⚠️ **ALERTA DE SEGURIDAD CRÍTICA** ⚠️\n\n"
-                                "**🚨 PROBLEMA DETECTADO**\n"
-                                "**└ El bot no tiene permisos de administrador en el grupo VIP**\n\n"
-                                "**⚡ ACCIÓN REQUERIDA**\n"
-                                "**└ Conceder permisos de administrador al bot inmediatamente**"
-                            ),
-                            parse_mode='Markdown'
+                            text=f"⚠️ ALERTA DE SEGURIDAD CRÍTICA: El bot no tiene permisos de administrador en el grupo VIP.\n\nLa verificación de seguridad no puede ejecutarse. Por favor, haga al bot administrador del grupo inmediatamente."
                         )
                     except Exception as e:
                         logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
@@ -603,19 +562,12 @@ def perform_group_security_check(bot, group_id):
             
             if not getattr(bot_member, 'can_restrict_members', False):
                 logger.error(f"CRÍTICO: El bot no tiene permiso para expulsar usuarios en el grupo {group_id}")
-                # MENSAJE MEJORADO - Notificar a todos los administradores
+                # Notificar a todos los administradores
                 for admin_id in ADMIN_IDS:
                     try:
                         bot.send_message(
                             chat_id=admin_id,
-                            text=(
-                                "⚠️ **ALERTA DE SEGURIDAD CRÍTICA** ⚠️\n\n"
-                                "**🚨 PROBLEMA DETECTADO**\n"
-                                "**└ El bot no tiene permiso para expulsar miembros**\n\n"
-                                "**⚡ ACCIÓN REQUERIDA**\n"
-                                "**└ Editar permisos del bot y activar 'Expulsar usuarios'**"
-                            ),
-                            parse_mode='Markdown'
+                            text=f"⚠️ ALERTA DE SEGURIDAD CRÍTICA: El bot es administrador pero no tiene permiso específico para expulsar miembros en el grupo VIP.\n\nPor favor, edite los permisos del bot y active 'Expulsar usuarios' inmediatamente."
                         )
                     except Exception as e:
                         logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
@@ -662,18 +614,12 @@ def perform_group_security_check(bot, group_id):
             logger.info(f"Obtenidos {len(members)} miembros del grupo para verificación")
         except Exception as e:
             logger.error(f"Error al obtener miembros del grupo: {e}")
-            # MENSAJE MEJORADO - Notificar a los administradores
+            # Notificar a los administradores
             for admin_id in ADMIN_IDS:
                 try:
                     bot.send_message(
                         chat_id=admin_id,
-                        text=(
-                            "⚠️ **ERROR EN VERIFICACIÓN** ⚠️\n\n"
-                            "**🚨 PROBLEMA DETECTADO**\n"
-                            "**└ No se pudieron obtener los miembros del grupo**\n\n"
-                            f"**❌ ERROR: {str(e)}**"
-                        ),
-                        parse_mode='Markdown'
+                        text=f"⚠️ Error en verificación de seguridad: No se pudieron obtener todos los miembros del grupo.\nError: {str(e)}"
                     )
                 except:
                     pass
@@ -713,42 +659,26 @@ def perform_group_security_check(bot, group_id):
         # Log resumen antes de empezar expulsiones
         logger.info(f"Resumen de verificación: {len(unauthorized_members)} no autorizados, {authorized_count} autorizados, {admin_count} administradores, {bot_count} bots")
         
-        # MENSAJE MEJORADO - Mostrar lista de usuarios no autorizados a los administradores
+        # Mostrar lista de usuarios no autorizados a los administradores
         if unauthorized_members:
-            # Crear lista formateada de usuarios no autorizados
-            unauthorized_list = "\n".join([f"**├ 👤 @{user[1]} (ID: {user[0]})**" for user in unauthorized_members[:20]])
+            unauthorized_list = "\n".join([f"• {user[1]} (ID: {user[0]})" for user in unauthorized_members[:20]])
             if len(unauthorized_members) > 20:
-                unauthorized_list += f"\n**└ ... y {len(unauthorized_members) - 20} más**"
-            else:
-                unauthorized_list = unauthorized_list.rsplit('\n', 1)[0] + "\n**└" + unauthorized_list.rsplit('\n', 1)[1][2:]
+                unauthorized_list += f"\n... y {len(unauthorized_members) - 20} más"
                 
             for admin_id in ADMIN_IDS:
                 try:
                     bot.send_message(
                         chat_id=admin_id,
-                        text=(
-                            "⚠️ **VERIFICACIÓN DE SEGURIDAD** ⚠️\n\n"
-                            f"**🚫 Se encontraron {len(unauthorized_members)} usuarios sin suscripción:**\n\n"
-                            f"{unauthorized_list}\n\n"
-                            "**⚙️ ACCIÓN**\n"
-                            "**└ Se procederá con la expulsión automática**"
-                        ),
-                        parse_mode='Markdown'
+                        text=f"⚠️ SEGURIDAD: Se encontraron {len(unauthorized_members)} usuarios sin suscripción activa:\n\n{unauthorized_list}\n\nSe procederá con la expulsión automática."
                     )
                 except Exception as e:
                     logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
             
-            # MENSAJE MEJORADO - Enviar mensaje al grupo sobre la verificación
+            # Enviar mensaje al grupo sobre la verificación
             try:
                 bot.send_message(
                     chat_id=group_id,
-                    text=(
-                        "🛡️ **VERIFICACIÓN DE SEGURIDAD** 🛡️\n\n"
-                        f"**⚙️ Sistema detectó {len(unauthorized_members)} usuarios sin suscripción activa**\n\n"
-                        "**🚫 Usuarios no autorizados serán expulsados automáticamente**\n"
-                        "**🔐 Mantener la exclusividad del grupo es nuestra prioridad**"
-                    ),
-                    parse_mode='Markdown'
+                    text=f"🛡️ VERIFICACIÓN DE SEGURIDAD: Se detectaron {len(unauthorized_members)} usuarios sin suscripción activa que serán expulsados."
                 )
             except Exception as e:
                 logger.error(f"No se pudo enviar mensaje al grupo: {e}")
@@ -782,19 +712,11 @@ def perform_group_security_check(bot, group_id):
                 # Registrar la expulsión en la base de datos
                 db.record_expulsion(member_id, "Verificación de seguridad - Sin suscripción activa")
                 
-                # MENSAJE MEJORADO - Enviar mensaje privado al usuario
+                # Enviar mensaje privado al usuario
                 try:
                     bot.send_message(
                         chat_id=member_id,
-                        text=(
-                            "⛔ **ACCESO VIP REVOCADO** ⛔\n\n"
-                            "**🚫 Has sido expulsado del grupo VIP**\n"
-                            "**└ Motivo: No tienes una suscripción activa**\n\n"
-                            "**💎 RECUPERAR ACCESO**\n"
-                            "**└ 🔑 Adquiere una suscripción en @VIPSubscriptionBot**\n\n"
-                            "**🚀 Usa /start para ver nuestros planes**"
-                        ),
-                        parse_mode='Markdown'
+                        text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara volver a unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
                     )
                 except Exception as e:
                     logger.error(f"No se pudo enviar mensaje privado a {member_id}: {e}")
@@ -808,34 +730,22 @@ def perform_group_security_check(bot, group_id):
         # Resumen final
         logger.info(f"Verificación de seguridad completada: {expulsion_count} miembros expulsados, {expulsion_errors} errores")
         
-        # MENSAJE MEJORADO - Notificar resultados a administradores
+        # Notificar resultados a administradores
         for admin_id in ADMIN_IDS:
             try:
                 bot.send_message(
                     chat_id=admin_id,
-                    text=(
-                        "✅ **VERIFICACIÓN COMPLETADA** ✅\n\n"
-                        "**📊 RESULTADOS**\n"
-                        f"**├ 🚫 {expulsion_count} usuarios expulsados**\n"
-                        f"**├ ❌ {expulsion_errors} errores de expulsión**\n"
-                        f"**└ ✅ {authorized_count} usuarios con suscripción válida**"
-                    ),
-                    parse_mode='Markdown'
+                    text=f"✅ Verificación de seguridad completada:\n• {expulsion_count} usuarios expulsados\n• {expulsion_errors} errores de expulsión\n• {authorized_count} usuarios con suscripción válida"
                 )
             except:
                 pass
         
-        # MENSAJE MEJORADO - Notificar al grupo sobre la finalización
+        # Notificar al grupo sobre la finalización
         if expulsion_count > 0:
             try:
                 bot.send_message(
                     chat_id=group_id,
-                    text=(
-                        "✅ **VERIFICACIÓN COMPLETADA** ✅\n\n"
-                        f"**🛡️ {expulsion_count} usuarios sin suscripción han sido expulsados**\n"
-                        "**🔐 Gracias por mantener la exclusividad del grupo**"
-                    ),
-                    parse_mode='Markdown'
+                    text=f"✅ Verificación de seguridad completada: {expulsion_count} usuarios sin suscripción activa han sido expulsados."
                 )
             except Exception as e:
                 logger.error(f"No se pudo enviar mensaje final al grupo: {e}")
@@ -844,17 +754,12 @@ def perform_group_security_check(bot, group_id):
         
     except Exception as e:
         logger.error(f"Error en verificación de seguridad: {e}")
-        # MENSAJE MEJORADO - Notificar a los administradores
+        # Notificar a los administradores
         for admin_id in ADMIN_IDS:
             try:
                 bot.send_message(
                     chat_id=admin_id,
-                    text=(
-                        "❌ **ERROR DE SEGURIDAD** ❌\n\n"
-                        "**⚠️ La verificación de seguridad falló**\n"
-                        f"**└ Error: {str(e)}**"
-                    ),
-                    parse_mode='Markdown'
+                    text=f"❌ Error en verificación de seguridad: {str(e)}"
                 )
             except:
                 pass
@@ -937,16 +842,8 @@ def handle_verify_all_members(message, bot):
         # Si es en privado, usar el GROUP_CHAT_ID configurado
         target_group_id = GROUP_CHAT_ID if message.chat.type == 'private' else chat_id
         
-        # MENSAJE MEJORADO - Mensaje inicial
-        status_message = bot.reply_to(
-            message,
-            "🔄 **VERIFICACIÓN INICIADA** 🔄\n\n"
-            "**⚙️ PROCESO AUTOMÁTICO**\n"
-            "**├ 🔍 Escaneando miembros**\n"
-            "**├ 🔐 Verificando suscripciones**\n"
-            "**└ ⏳ Por favor espera...**",
-            parse_mode='Markdown'
-        )
+        # Mensaje inicial
+        status_message = bot.reply_to(message, "🔄 Iniciando verificación completa de todos los miembros del grupo...")
         
         # Iniciar verificación en un hilo separado para no bloquear
         def verification_thread():
@@ -954,29 +851,18 @@ def handle_verify_all_members(message, bot):
                 # Realizar la verificación
                 result = perform_group_security_check(bot, target_group_id)
                 
-                # MENSAJE MEJORADO - Actualizar mensaje de estado con el resultado
+                # Actualizar mensaje de estado con el resultado
                 if result:
                     bot.edit_message_text(
                         chat_id=chat_id,
                         message_id=status_message.message_id,
-                        text=(
-                            "✅ **VERIFICACIÓN EXITOSA** ✅\n\n"
-                            "**🛡️ SEGURIDAD ACTUALIZADA**\n"
-                            "**└ Miembros no autorizados expulsados**\n\n"
-                            "**📊 Ver detalles en mensajes privados**"
-                        ),
-                        parse_mode='Markdown'
+                        text="✅ Verificación completada exitosamente. Todos los miembros no autorizados han sido expulsados."
                     )
                 else:
                     bot.edit_message_text(
                         chat_id=chat_id,
                         message_id=status_message.message_id,
-                        text=(
-                            "⚠️ **VERIFICACIÓN INCOMPLETA** ⚠️\n\n"
-                            "**❌ PROBLEMAS DETECTADOS**\n"
-                            "**└ Consulta los logs para más detalles**"
-                        ),
-                        parse_mode='Markdown'
+                        text="⚠️ Hubo problemas durante la verificación. Revisa los logs para más detalles."
                     )
             except Exception as e:
                 logger.error(f"Error en hilo de verificación: {e}")
@@ -984,11 +870,7 @@ def handle_verify_all_members(message, bot):
                     bot.edit_message_text(
                         chat_id=chat_id,
                         message_id=status_message.message_id,
-                        text=(
-                            "❌ **ERROR EN VERIFICACIÓN** ❌\n\n"
-                            f"**⚠️ {str(e)}**"
-                        ),
-                        parse_mode='Markdown'
+                        text=f"❌ Error durante la verificación: {str(e)}"
                     )
                 except:
                     pass
@@ -1000,11 +882,7 @@ def handle_verify_all_members(message, bot):
         
     except Exception as e:
         logger.error(f"Error general en handle_verify_all_members: {e}")
-        bot.reply_to(
-            message, 
-            f"❌ **ERROR AL INICIAR VERIFICACIÓN**\n\n**└ {str(e)}**", 
-            parse_mode='Markdown'
-        )
+        bot.reply_to(message, f"❌ Error al iniciar verificación: {str(e)}")
 
 
 # 3. FUNCIÓN DE VERIFICACIÓN DE PERMISOS DEL BOT
@@ -1034,19 +912,11 @@ def verify_bot_permissions():
         if not data.get("ok"):
             logger.error(f"Error al verificar permisos del bot: {data.get('description')}")
             for admin_id in ADMIN_IDS:
-                # MENSAJE MEJORADO
                 requests.get(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     params={
                         "chat_id": admin_id,
-                        "text": (
-                            "⚠️ **ALERTA DE SEGURIDAD** ⚠️\n\n"
-                            f"**❌ El bot no puede acceder al grupo VIP (ID: {GROUP_CHAT_ID})**\n\n"
-                            "**⚡ ACCIÓN REQUERIDA**\n"
-                            "**├ Añadir el bot al grupo**\n"
-                            "**└ Asignarle permisos de administrador**"
-                        ),
-                        "parse_mode": "Markdown"
+                        "text": f"⚠️ ALERTA: El bot no puede acceder al grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPor favor, añada el bot al grupo y asígnele permisos de administrador."
                     }
                 )
             return False
@@ -1057,21 +927,11 @@ def verify_bot_permissions():
         if status not in ["administrator", "creator"]:
             logger.error(f"El bot no es administrador en el grupo VIP. Status: {status}")
             for admin_id in ADMIN_IDS:
-                # MENSAJE MEJORADO
                 requests.get(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     params={
                         "chat_id": admin_id,
-                        "text": (
-                            "⚠️ **ALERTA DE SEGURIDAD** ⚠️\n\n"
-                            f"**❌ El bot no es administrador en el grupo VIP (ID: {GROUP_CHAT_ID})**\n\n"
-                            "**⚡ FUNCIONES AFECTADAS**\n"
-                            "**├ Generación de enlaces únicos**\n"
-                            "**└ Expulsión de usuarios no autorizados**\n\n"
-                            "**🛠️ SOLUCIÓN**\n"
-                            "**└ Asignar permisos de administrador al bot**"
-                        ),
-                        "parse_mode": "Markdown"
+                        "text": f"⚠️ ALERTA: El bot no es administrador en el grupo VIP (ID: {GROUP_CHAT_ID}).\n\nPara poder generar enlaces de invitación únicos y expulsar usuarios no autorizados, el bot debe ser administrador del grupo."
                     }
                 )
             return False
@@ -1084,28 +944,20 @@ def verify_bot_permissions():
         permission_errors = []
         
         if not can_restrict:
-            permission_errors.append("**❌ NO tiene permiso para EXPULSAR USUARIOS**")
+            permission_errors.append("❌ NO tiene permiso para EXPULSAR USUARIOS")
         
         if not can_invite:
-            permission_errors.append("**❌ NO tiene permiso para INVITAR USUARIOS**")
+            permission_errors.append("❌ NO tiene permiso para INVITAR USUARIOS")
         
         if permission_errors:
-            # MENSAJE MEJORADO
-            error_msg = (
-                "⚠️ **ALERTA DE PERMISOS** ⚠️\n\n"
-                "**🛑 PERMISOS FALTANTES**\n" + 
-                "\n".join(permission_errors) + 
-                "\n\n**⚡ ACCIÓN REQUERIDA**\n"
-                "**└ Editar permisos del bot en el grupo VIP**"
-            )
+            error_msg = f"⚠️ ALERTA: El bot es administrador pero le faltan permisos esenciales en el grupo VIP:\n\n" + "\n".join(permission_errors) + "\n\nPor favor, edite los permisos del bot y active estos permisos para que funcione correctamente."
             
             for admin_id in ADMIN_IDS:
                 requests.get(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     params={
                         "chat_id": admin_id,
-                        "text": error_msg,
-                        "parse_mode": "Markdown"
+                        "text": error_msg
                     }
                 )
             return False
@@ -1116,7 +968,7 @@ def verify_bot_permissions():
         
     except Exception as e:
         logger.error(f"Error al verificar permisos del bot: {e}")
-        return False# Modificación de la función de animación en bot_handlers.py
+        return False
 
 def handle_new_chat_members(message, bot):
     """Maneja cuando nuevos miembros se unen al grupo"""
@@ -1153,11 +1005,10 @@ def handle_new_chat_members(message, bot):
                 logger.warning(f"⚠️ USUARIO SIN SUSCRIPCIÓN DETECTADO: {user_id} (@{username})")
                 
                 try:
-                    # MENSAJE MEJORADO - Enviar mensaje al grupo
+                    # Enviar mensaje al grupo
                     bot.send_message(
                         chat_id=message.chat.id,
-                        text=f"🛑 **ACCESO DENEGADO**\n\n**└ Usuario {new_member.first_name} (@{username}) no tiene suscripción activa**\n\n**⚙️ Sistema de seguridad activado**",
-                        parse_mode='Markdown'
+                        text=f"🛑 SEGURIDAD: Usuario {new_member.first_name} (@{username}) no tiene suscripción activa y será expulsado automáticamente."
                     )
                     
                     # Expulsar al usuario
@@ -1179,19 +1030,11 @@ def handle_new_chat_members(message, bot):
                     # Registrar la expulsión
                     db.record_expulsion(user_id, "Verificación de nuevo miembro - Sin suscripción activa")
                     
-                    # MENSAJE MEJORADO - Enviar mensaje privado al usuario
+                    # Enviar mensaje privado al usuario
                     try:
                         bot.send_message(
                             chat_id=user_id,
-                            text=(
-                                "⛔ **ACCESO DENEGADO** ⛔\n\n"
-                                "**📛 MOTIVO**\n"
-                                "**└ No tienes una suscripción activa**\n\n"
-                                "**💎 SOLUCIÓN**\n"
-                                "**├ 🔑 Adquiere acceso VIP**\n"
-                                "**└ 🚀 Usa /start para ver planes**"
-                            ),
-                            parse_mode='Markdown'
+                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
                         )
                     except Exception as e:
                         logger.error(f"No se pudo enviar mensaje privado a {user_id}: {e}")
@@ -1199,25 +1042,11 @@ def handle_new_chat_members(message, bot):
                 except Exception as e:
                     logger.error(f"Error al expulsar nuevo miembro no autorizado {user_id}: {e}")
             else:
-                # MENSAJE MEJORADO - Bienvenida a usuario con suscripción válida
-                try:
-                    bot.send_message(
-                        chat_id=message.chat.id,
-                        text=(
-                            f"🎉 **¡BIENVENIDO/A {new_member.first_name}!** 🎉\n\n"
-                            "**💎 Miembro VIP verificado**\n"
-                            "**└ ✅ Suscripción activa confirmada**\n\n"
-                            "**🔥 ¡Disfruta del contenido exclusivo!**"
-                        ),
-                        parse_mode='Markdown'
-                    )
-                except Exception as e:
-                    logger.error(f"Error al enviar mensaje de bienvenida: {e}")
-                
                 logger.info(f"Usuario {username} (ID: {user_id}) se unió al grupo con suscripción válida")
     
     except Exception as e:
         logger.error(f"Error general en handle_new_chat_members: {str(e)}")
+
 
 # 4. MEJORA EN LA FUNCIÓN DE REGISTRO DE HANDLERS
 # Actualiza esta función para incluir el handler /force_verify para uso de admins
@@ -1291,14 +1120,11 @@ def handle_start(message, bot):
         # Guardar usuario en la base de datos
         db.save_user(user_id, username, first_name, last_name)
         
-        # Enviar mensaje de bienvenida con botones (MENSAJE MEJORADO)
+        # Enviar mensaje de bienvenida con botones
         welcome_text = (
-            "🌟 **¡BIENVENIDO AL CLUB VIP!** 🌟\n\n"
-            "**🔒 Acceso Exclusivo**\n"
-            "**├ Contenido Premium**\n"
-            "**├ Archivos Únicos**\n"
-            "**└ Experiencia VIP**\n\n"
-            "**⬇️ Selecciona una opción ⬇️**"
+            "👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\n"
+            "Este es un grupo exclusivo con contenido premium y acceso limitado.\n\n"
+            "Selecciona una opción 👇"
         )
         
         bot.send_message(
@@ -1352,16 +1178,12 @@ def handle_main_menu_callback(call, bot):
             show_plans(bot, chat_id, message_id)
             
         elif call.data == "bot_credits":
-            # Mostrar créditos del bot - MENSAJE MEJORADO
+            # Mostrar créditos del bot
             credits_text = (
-                "🤖 **ACERCA DE NOSOTROS** 🤖\n\n"
-                "**🧠 DESARROLLO**\n"
-                "**└ 👨‍💻 Equipo Premium VIP**\n\n"
-                "**⚙️ VERSIÓN**\n"
-                "**└ 🔄 v1.5.2 (Abril 2025)**\n\n"
-                "**📞 SOPORTE**\n"
-                "**└ 💬 @admin_support**\n\n"
-                "**©️ 2025 DERECHOS RESERVADOS**"
+                "🧠 *Créditos del Bot*\n\n"
+                "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
+                "© 2025 Todos los derechos reservados.\n\n"
+                "Para contacto o soporte: @admin_support"
             )
             
             markup = types.InlineKeyboardMarkup()
@@ -1376,46 +1198,19 @@ def handle_main_menu_callback(call, bot):
             )
             
         elif call.data == "terms":
-            # Mostrar términos de uso - Formato mejorado
+            # Mostrar términos de uso
             try:
                 with open(os.path.join('static', 'terms.txt'), 'r', encoding='utf-8') as f:
                     terms_text = f.read()
-                    # Mejoramos el formato para que se aplique el estilo de ramas
-                    terms_text = terms_text.replace("1. *SUSCRIPCIÓN*", "**1. SUSCRIPCIÓN**\n**├")
-                    terms_text = terms_text.replace("2. *ACCESO*", "**2. ACCESO**\n**├")
-                    terms_text = terms_text.replace("3. *CONTENIDO*", "**3. CONTENIDO**\n**├")
-                    terms_text = terms_text.replace("4. *CANCELACIÓN*", "**4. CANCELACIÓN**\n**├")
-                    terms_text = terms_text.replace("5. *COMPORTAMIENTO*", "**5. COMPORTAMIENTO**\n**├")
-                    terms_text = terms_text.replace("6. *LIMITACIÓN DE RESPONSABILIDAD*", "**6. LIMITACIÓN DE RESPONSABILIDAD**\n**├")
-                    terms_text = terms_text.replace("7. *PRIVACIDAD*", "**7. PRIVACIDAD**\n**├")
-                    terms_text = terms_text.replace("8. *MODIFICACIONES*", "**8. MODIFICACIONES**\n**├")
-                    terms_text = terms_text.replace("   -", "**├")
-                    terms_text = terms_text.replace(".\n", ".**\n")
-                    terms_text = terms_text.replace(".", ".**\n**└")
             except:
-                # Términos con formato mejorado en caso de error al leer el archivo
                 terms_text = (
-                    "📜 **TÉRMINOS DE USO - GRUPO VIP**\n\n"
-                    "**1. SUSCRIPCIÓN**\n"
-                    "**├ El acceso al grupo VIP está condicionado al pago.**\n"
-                    "**├ La suscripción se renovará automáticamente.**\n"
-                    "**└ Los precios pueden cambiar con previo aviso.**\n\n"
-                    "**2. ACCESO**\n"
-                    "**├ Enlaces personales e intransferibles.**\n"
-                    "**├ Cada enlace es válido para un solo uso.**\n"
-                    "**└ Prohibido compartir o revender accesos.**\n\n"
-                    "**3. CONTENIDO**\n"
-                    "**├ Material exclusivo del grupo VIP.**\n"
-                    "**├ Prohibida redistribución o descarga masiva.**\n"
-                    "**└ No responsables por uso indebido.**\n\n"
-                    "**4. CANCELACIÓN**\n"
-                    "**├ Puedes cancelar desde PayPal en cualquier momento.**\n"
-                    "**├ No hay reembolsos por períodos no utilizados.**\n"
-                    "**└ Al cancelar pierdes acceso inmediato.**\n\n"
-                    "**5. COMPORTAMIENTO**\n"
-                    "**├ Se exige respeto hacia otros miembros.**\n"
-                    "**├ Prohibido spam y acoso.**\n"
-                    "**└ Incumplimiento = expulsión sin reembolso.**"
+                    "📜 *Términos de Uso*\n\n"
+                    "1. El contenido del grupo VIP es exclusivo para suscriptores.\n"
+                    "2. No se permiten reembolsos una vez activada la suscripción.\n"
+                    "3. Está prohibido compartir el enlace de invitación.\n"
+                    "4. No se permite redistribuir el contenido fuera del grupo.\n"
+                    "5. El incumplimiento de estas normas resultará en expulsión sin reembolso.\n\n"
+                    "Al suscribirte, aceptas estos términos."
                 )
             
             markup = types.InlineKeyboardMarkup()
@@ -1442,17 +1237,11 @@ def handle_main_menu_callback(call, bot):
 def show_plans(bot, chat_id, message_id=None):
     """Muestra los planes de suscripción disponibles"""
     try:
-        # MENSAJE MEJORADO
         plans_text = (
-            "💎 **PLANES PREMIUM** 💎\n\n"
-            "**🔄 Plan Semanal**\n"
-            "**├ 💰 $3.50 USD**\n"
-            "**└ ⏱️ Duración: 7 días**\n\n"
-            "**🔄 Plan Mensual**\n"
-            "**├ 💰 $5.00 USD**\n"
-            "**└ ⏱️ Duración: 30 días**\n\n"
-            "**❓ ¿Primer pago?**\n"
-            "**└ 🎬 Mira nuestro tutorial 👇**"
+            "💸 Escoge tu plan de suscripción:\n\n"
+            "🔹 Plan Semanal: $3.50 / 1 semana\n"
+            "🔸 Plan Mensual: $5.00 / 1 mes\n\n"
+            "🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
         )
         
         markup = create_plans_markup()
@@ -1506,19 +1295,16 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
             )
             return
         
-        # MENSAJE MEJORADO
+        # Construir mensaje con detalles del plan
         plan_text = (
-            f"🌟 **{plan['display_name']}** 🌟\n\n"
-            f"**✨ DESCRIPCIÓN**\n"
-            f"**└ {plan['description']}**\n\n"
-            f"**🎁 BENEFICIOS**\n"
-            f"**├ 🔐 Acceso Grupo VIP**\n"
-            f"**├ 📁 21,000+ Archivos Premium**\n"
-            f"**└ 🔄 Actualizaciones Continuas**\n\n"
-            f"**💰 DETALLES**\n"
-            f"**├ 💵 Precio: ${plan['price_usd']:.2f} USD**\n"
-            f"**└ 🔄 Renovación: {'Semanal' if plan_id == 'weekly' else 'Mensual'}**\n\n"
-            f"**💳 SELECCIONA MÉTODO DE PAGO 👇**"
+            f"📦 {plan['display_name']}\n\n"
+            f"{plan['description']}\n"
+            f"Beneficios:\n"
+            f"✅ Grupo VIP (Acceso)\n"
+            f"✅ 21,000 archivos exclusivos 📁\n\n"
+            f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
+            f"📆 Facturación: {'semanal' if plan_id == 'weekly' else 'mensual'} (recurrente)\n\n"
+            f"Selecciona un método de pago 👇"
         )
         
         # Crear markup con botones de pago
@@ -1552,24 +1338,17 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
 def show_payment_tutorial(bot, chat_id, message_id):
     """Muestra el tutorial de pagos"""
     try:
-        # MENSAJE MEJORADO
         tutorial_text = (
-            "🎬 **TUTORIAL DE PAGO** 🎬\n\n"
-            "**1️⃣ SELECCIONA TU PLAN**\n"
-            "**├ 🗓️ Semanal $3.50**\n"
-            "**└ 📆 Mensual $5.00**\n\n"
-            "**2️⃣ MÉTODO DE PAGO**\n"
-            "**└ 💳 Clic en \"Pagar con PayPal\"**\n\n"
-            "**3️⃣ COMPLETA TU PAGO**\n"
-            "**├ 🔹 Cuenta PayPal**\n"
-            "**└ 🔸 Tarjeta Crédito/Débito (sin cuenta)**\n\n"
-            "**4️⃣ FINALIZA**\n"
-            "**├ ✅ Completa el proceso**\n"
-            "**└ 📱 Regresa a Telegram**\n\n"
-            "**5️⃣ ACCESO VIP**\n"
-            "**└ 🔗 Recibirás el enlace exclusivo**\n\n"
-            "**⚠️ IMPORTANTE**\n"
-            "**└ 🔄 Renovación automática (cancelable desde PayPal)**"
+            "🎥 *Tutorial de Pagos*\n\n"
+            "Para suscribirte a nuestro grupo VIP, sigue estos pasos:\n\n"
+            "1️⃣ Selecciona el plan que deseas (Semanal o Mensual)\n\n"
+            "2️⃣ Haz clic en 'Pagar con PayPal'\n\n"
+            "3️⃣ Serás redirigido a la página de PayPal donde puedes pagar con:\n"
+            "   - Cuenta de PayPal\n"
+            "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
+            "4️⃣ Completa el pago y regresa a Telegram\n\n"
+            "5️⃣ Recibirás un enlace de invitación al grupo VIP\n\n"
+            "⚠️ Importante: Tu suscripción se renovará automáticamente. Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
         )
         
         markup = types.InlineKeyboardMarkup()
@@ -1659,8 +1438,7 @@ def handle_payment_method(call, bot):
             processing_message = bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=message_id,
-                text="⚡ **PROCESANDO PAGO** ⚡\n\n**├ ⏳◼️◼️◼️◼️◼️**\n**└ Iniciando...**",
-                parse_mode='Markdown',
+                text="🔄 Preparando pago...\nAguarde por favor...",
                 reply_markup=None
             )
             
@@ -1687,19 +1465,17 @@ def handle_payment_method(call, bot):
                     types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
                 )
                 
-                # MENSAJE MEJORADO
+                # Actualizar mensaje con el enlace de pago
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        "✅ **¡ENLACE GENERADO!** ✅\n\n"
-                        f"**🎯 RESUMEN**\n"
-                        f"**├ 📋 Plan: {PLANS[plan_id]['display_name']}**\n"
-                        f"**├ 💰 Precio: ${PLANS[plan_id]['price_usd']:.2f} USD**\n"
-                        f"**└ ⏱️ Período: {'Semanal' if plan_id == 'weekly' else 'Mensual'}**\n\n"
-                        f"**⬇️ PRÓXIMO PASO ⬇️**\n"
-                        f"**├ 🔗 Clic en \"Ir a pagar\"**\n"
-                        f"**└ 🔙 Regresarás automáticamente**"
+                        "🔗 *Tu enlace de pago está listo*\n\n"
+                        f"Plan: {PLANS[plan_id]['display_name']}\n"
+                        f"Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / "
+                        f"{'semana' if plan_id == 'weekly' else 'mes'}\n\n"
+                        "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
+                        "Una vez completado, serás redirigido de vuelta aquí."
                     ),
                     parse_mode='Markdown',
                     reply_markup=markup
@@ -1711,17 +1487,13 @@ def handle_payment_method(call, bot):
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
                 
-                # MENSAJE MEJORADO
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        "⚠️ **ERROR DE CONEXIÓN** ⚠️\n\n"
-                        "**❌ PROBLEMA DETECTADO**\n"
-                        "**└ No se pudo crear enlace de pago**\n\n"
-                        "**🔄 SOLUCIÓN**\n"
-                        "**├ 🕒 Intenta más tarde**\n"
-                        "**└ 👨‍💻 O contacta a soporte**"
+                        "❌ *Error al crear enlace de pago*\n\n"
+                        "Lo sentimos, no pudimos procesar tu solicitud en este momento.\n"
+                        "Por favor, intenta nuevamente más tarde o contacta a soporte."
                     ),
                     parse_mode='Markdown',
                     reply_markup=markup
@@ -1763,14 +1535,11 @@ def handle_recover_access(message, bot):
         subscription = db.get_active_subscription(user_id)
         
         if not subscription:
-            # No tiene suscripción activa - MENSAJE MEJORADO
+            # No tiene suscripción activa
             no_subscription_text = (
-                "⛔ **ACCESO DENEGADO** ⛔\n\n"
-                "**📛 ESTADO DE CUENTA**\n"
-                "**└ ❌ No tienes suscripción activa**\n\n"
-                "**💎 SOLUCIÓN**\n"
-                "**├ 🔑 Adquiere acceso premium**\n"
-                "**└ 🚀 Usa /start para ver planes**"
+                "❌ *No tienes una suscripción activa*\n\n"
+                "Para acceder al grupo VIP, necesitas adquirir una suscripción.\n"
+                "Usa el comando /start para ver nuestros planes disponibles."
             )
             
             markup = types.InlineKeyboardMarkup()
@@ -1792,23 +1561,19 @@ def handle_recover_access(message, bot):
         # Enviar mensaje informativo mientras se genera el enlace
         status_message = bot.send_message(
             chat_id=chat_id,
-            text="🔄 **GENERANDO NUEVO ACCESO**\n\n**├ ⏳ Creando enlace único**\n**└ 🔐 Configurando permisos...**",
-            parse_mode='Markdown'
+            text="🔄 Generando nuevo enlace de invitación... Por favor, espera un momento."
         )
         
         # Generar un nuevo enlace
         invite_link = generate_invite_link(bot, user_id, subscription['sub_id'])
         
         if invite_link:
-            # Enlace generado correctamente - MENSAJE MEJORADO
+            # Enlace generado correctamente
             new_link_text = (
-                "🔄 **¡ACCESO REGENERADO!** 🔄\n\n"
-                "**🎫 NUEVO ENLACE VIP**\n"
-                f"**└ 🔗 [UNIRSE AL GRUPO](${invite_link})**\n\n"
-                "**⏱️ VALIDEZ**\n"
-                f"**├ ⌛ Expira en {INVITE_LINK_EXPIRY_HOURS} horas**\n"
-                "**└ 1️⃣ Un solo uso**\n\n"
-                "**🔐 ACCESO SEGURO Y EXCLUSIVO**"
+                "🎟️ *Nuevo Acceso VIP Generado*\n\n"
+                "Hemos creado un nuevo enlace de invitación para ti:\n"
+                f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o después de un solo uso."
             )
             
             # Actualizar el mensaje de estado con el nuevo enlace
@@ -1822,15 +1587,11 @@ def handle_recover_access(message, bot):
             
             logger.info(f"Usuario {user_id} generó un nuevo enlace de acceso")
         else:
-            # Error al generar el enlace - MENSAJE MEJORADO
+            # Error al generar el enlace
             error_text = (
-                "⚠️ **ERROR DE SISTEMA** ⚠️\n\n"
-                "**🔧 PROBLEMA DETECTADO**\n"
-                "**└ ❌ Imposible generar nuevo enlace**\n\n"
-                "**🆘 SOPORTE INMEDIATO**\n"
-                "**├ 👨‍💻 Contacta: @admin_support**\n"
-                "**└ 📱 Indica: \"Error regeneración enlace\"**\n\n"
-                "**🔍 Referencia: VIP-ERR-" + str(user_id)[-4:] + "**"
+                "❌ *Error al generar enlace*\n\n"
+                "No pudimos generar un nuevo enlace de invitación en este momento.\n"
+                "Por favor, contacta a soporte para recibir asistencia."
             )
             
             # Actualizar el mensaje de estado con el error
@@ -1977,8 +1738,7 @@ def handle_whitelist_duration(message, bot):
         # Enviar mensaje informativo mientras se procesa
         status_message = bot.send_message(
             chat_id=chat_id,
-            text="🔄 **PROCESANDO SOLICITUD**\n\n**├ 🔍 Verificando usuario**\n**├ 🛠️ Generando acceso**\n**└ 🔗 Creando enlace único...**",
-            parse_mode='Markdown'
+            text="🔄 Procesando la solicitud y generando enlace de invitación único..."
         )
         
         # Crear suscripción en la base de datos
@@ -1995,19 +1755,18 @@ def handle_whitelist_duration(message, bot):
         # Generar enlace de invitación único
         invite_link = generate_invite_link(bot, target_user_id, sub_id)
         
-        # Preparar mensaje de confirmación - MENSAJE MEJORADO
+        # Preparar mensaje de confirmación
         confirmation_text = (
-            "✅ **USUARIO AGREGADO CON ÉXITO** ✅\n\n"
-            "**👤 DATOS**\n"
-            f"**├ 🆔 ID: {target_user_id}**\n"
-            f"**├ 📆 Duración: {days} días**\n"
-            f"**└ 🗓️ Expira: {end_date.strftime('%d %b %Y')}**\n\n"
+            "✅ *Usuario agregado a la whitelist exitosamente*\n\n"
+            f"👤 ID: {target_user_id}\n"
+            f"📆 Duración: {days} días\n"
+            f"🗓️ Expira: {end_date.strftime('%d %b %Y')}\n"
         )
         
         if invite_link:
-            confirmation_text += f"**🔗 ENLACE DE INVITACIÓN**\n**├ 🌐 [Acceso Directo]({invite_link})**\n**└ ⚠️ Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un uso**"
+            confirmation_text += f"\n🔗 [Enlace de invitación único]({invite_link})\n⚠️ Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso."
         else:
-            confirmation_text += "**⚠️ ADVERTENCIA**\n**└ ❌ No se pudo generar enlace. Usuario debe usar /recover**"
+            confirmation_text += "\n⚠️ No se pudo generar enlace de invitación. El usuario puede usar /recover para solicitar uno."
         
         # Actualizar el mensaje de estado
         bot.edit_message_text(
@@ -2018,31 +1777,22 @@ def handle_whitelist_duration(message, bot):
             disable_web_page_preview=True
         )
         
-        # Notificar al usuario - MENSAJE MEJORADO
+        # Notificar al usuario
         try:
             user_notification = (
-                "🏆 **¡ACCESO VIP CONCEDIDO!** 🏆\n\n"
-                "**🎁 INVITACIÓN ESPECIAL**\n"
-                "**├ 👑 Otorgada por Administrador**\n"
-                f"**└ ⏳ Duración: {days} días**\n\n"
+                "🎟️ *¡Has sido agregado al grupo VIP!*\n\n"
+                f"Un administrador te ha concedido acceso por {days} días.\n\n"
             )
             
             if invite_link:
                 user_notification += (
-                    "**🚪 ENLACE DE ACCESO**\n"
-                    f"**└ 🔗 [UNIRSE AL GRUPO VIP]({invite_link})**\n\n"
-                    "**📌 INFORMACIÓN**\n"
-                    f"**├ ⏱️ Enlace válido por {INVITE_LINK_EXPIRY_HOURS} horas**\n"
-                    "**├ 1️⃣ Un solo uso**\n"
-                    "**└ 🔄 /recover para nuevo enlace**\n\n"
-                    "**✨ ¡BIENVENIDO AL CLUB EXCLUSIVO!** ✨"
+                    f"Aquí tienes tu enlace de invitación único:\n"
+                    f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                    f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n"
+                    "Si sales del grupo por accidente, usa el comando /recover para solicitar un nuevo enlace."
                 )
             else:
-                user_notification += (
-                    "**🚪 ACCESO AL GRUPO**\n"
-                    "**└ 🔄 Usa /recover para obtener tu enlace de invitación**\n\n"
-                    "**✨ ¡BIENVENIDO AL CLUB EXCLUSIVO!** ✨"
-                )
+                user_notification += "Usa el comando /recover para solicitar tu enlace de invitación."
             
             bot.send_message(
                 chat_id=target_user_id,
@@ -2056,8 +1806,7 @@ def handle_whitelist_duration(message, bot):
             # Informar al admin que no se pudo notificar
             bot.send_message(
                 chat_id=chat_id,
-                text="⚠️ **ADVERTENCIA**\n\n**└ ❌ No se pudo notificar al usuario. Es posible que no haya iniciado el bot.**",
-                parse_mode='Markdown'
+                text=f"⚠️ No se pudo notificar al usuario. Es posible que no haya iniciado el bot."
             )
         
         # Limpiar el estado
@@ -2175,21 +1924,12 @@ def handle_subinfo(message, bot):
 def handle_unknown_message(message, bot):
     """Maneja mensajes que no coinciden con ningún comando conocido"""
     try:
-        # MENSAJE MEJORADO
         bot.send_message(
             chat_id=message.chat.id,
-            text=(
-                "❓ **COMANDO NO RECONOCIDO** ❓\n\n"
-                "**🔍 OPCIONES DISPONIBLES**\n"
-                "**├ /start - Iniciar el bot**\n"
-                "**└ /recover - Recuperar acceso**\n\n"
-                "**🔄 Usa /start para ver el menú principal**"
-            ),
-            parse_mode='Markdown'
+            text="No entiendo ese comando. Por favor, usa /start para ver las opciones disponibles."
         )
     except Exception as e:
         logger.error(f"Error en handle_unknown_message: {str(e)}")
-
 
 def handle_stats_command(message, bot):
     """
@@ -2208,8 +1948,7 @@ def handle_stats_command(message, bot):
         # Mensaje de estado mientras se procesan las estadísticas
         status_message = bot.reply_to(
             message,
-            "🔄 **RECOPILANDO DATOS**\n\n**├ 📊 Analizando estadísticas**\n**└ ⏳ Por favor, espera...**",
-            parse_mode='Markdown'
+            "🔄 Recopilando estadísticas..."
         )
         
         # Obtener conexión a la base de datos
@@ -2256,42 +1995,42 @@ def handle_stats_command(message, bot):
         # Cerrar conexión
         conn.close()
         
-        # MENSAJE MEJORADO - Construir mensaje de estadísticas
+        # Construir mensaje de estadísticas
         stats_text = (
-            "📊 **PANEL DE ESTADÍSTICAS** 📊\n\n"
+            "📊 *Estadísticas del Bot*\n\n"
             
-            "**👥 USUARIOS**\n"
-            f"**├ 🔢 Total: {stats['usuarios']}**\n"
-            f"**└ 🆕 Últimas 24h: {stats['usuarios_nuevos_24h']}**\n\n"
+            "👥 *Usuarios*\n"
+            f"• Totales: {stats['usuarios']}\n"
+            f"• Nuevos (24h): {stats['usuarios_nuevos_24h']}\n\n"
             
-            "**💳 SUSCRIPCIONES**\n"
-            f"**├ 🔢 Total: {stats['suscripciones']}**\n"
-            f"**├ ✅ Activas: {stats['suscripciones_activas']}**\n"
-            f"**└ 🆕 Últimas 24h: {stats['suscripciones_nuevas_24h']}**\n\n"
+            "💳 *Suscripciones*\n"
+            f"• Totales: {stats['suscripciones']}\n"
+            f"• Activas: {stats['suscripciones_activas']}\n"
+            f"• Nuevas (24h): {stats['suscripciones_nuevas_24h']}\n\n"
             
-            "**🔗 ENLACES**\n"
-            f"**└ 🔢 Generados: {stats['enlaces_invitacion']}**\n\n"
+            "🔗 *Enlaces de Invitación*\n"
+            f"• Generados: {stats['enlaces_invitacion']}\n\n"
             
-            "**🛡️ SEGURIDAD**\n"
-            f"**└ 🚫 Expulsiones: {stats['expulsiones_totales']}**\n\n"
+            "🛡️ *Seguridad*\n"
+            f"• Expulsiones: {stats['expulsiones_totales']}\n\n"
         )
         
         # Añadir estadísticas de planes
         if plan_stats:
-            stats_text += "**📑 PLANES POPULARES**\n"
+            stats_text += "📑 *Planes*\n"
             for plan_data in plan_stats:
                 plan_id = plan_data[0]
                 count = plan_data[1]
                 plan_name = PLANS.get(plan_id, {}).get('display_name', plan_id)
-                stats_text += f"**├ {plan_name}: {count}**\n"
+                stats_text += f"• {plan_name}: {count}\n"
             stats_text += "\n"
         
         # Añadir información del panel de administrador
         stats_text += (
-            "**🔐 PANEL ADMIN**\n"
-            f"**└ 🌐 [Acceder]({WEBHOOK_URL}/admin/panel?admin_id={user_id})**\n\n"
+            "🔐 *Panel de Administración*\n"
+            f"• URL: {WEBHOOK_URL}/admin/panel?admin_id={user_id}\n\n"
             
-            f"**⏱️ Actualizado: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}**"
+            "📅 Actualizado: " + datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         )
         
         # Enviar estadísticas
@@ -2330,11 +2069,10 @@ def handle_test_invite(message, bot):
             logger.info(f"Usuario no autorizado {user_id} intentó usar /test_invite")
             return
         
-        # MENSAJE MEJORADO - Mensaje de estado mientras se procesa
+        # Mensaje de estado mientras se procesa
         status_message = bot.reply_to(
             message,
-            "🔄 **GENERANDO ENLACE DE PRUEBA**\n\n**├ 🛠️ Verificando permisos**\n**└ ⏳ Creando enlace único...**",
-            parse_mode='Markdown'
+            "🔄 Generando enlace de invitación de prueba..."
         )
         
         # Verificar permisos del bot en el grupo
@@ -2343,8 +2081,7 @@ def handle_test_invite(message, bot):
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=status_message.message_id,
-                text="❌ **ERROR DE CONFIGURACIÓN**\n\n**└ GROUP_CHAT_ID no está configurado**",
-                parse_mode='Markdown'
+                text="❌ Error: GROUP_CHAT_ID no está configurado. No se puede generar enlace."
             )
             return
         
@@ -2357,8 +2094,7 @@ def handle_test_invite(message, bot):
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=status_message.message_id,
-                    text="❌ **ERROR DE PERMISOS**\n\n**└ El bot no es administrador en el grupo VIP**",
-                    parse_mode='Markdown'
+                    text="❌ Error: El bot no es administrador en el grupo VIP. No puede generar enlaces."
                 )
                 return
             
@@ -2366,8 +2102,7 @@ def handle_test_invite(message, bot):
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=status_message.message_id,
-                    text="❌ **ERROR DE PERMISOS**\n\n**└ El bot no tiene permiso para invitar usuarios**",
-                    parse_mode='Markdown'
+                    text="❌ Error: El bot no tiene permiso para invitar usuarios en el grupo VIP."
                 )
                 return
                 
@@ -2375,8 +2110,7 @@ def handle_test_invite(message, bot):
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=status_message.message_id,
-                text=f"❌ **ERROR DE VERIFICACIÓN**\n\n**└ {str(e)}**",
-                parse_mode='Markdown'
+                text=f"❌ Error al verificar permisos: {str(e)}"
             )
             return
         
@@ -2394,47 +2128,39 @@ def handle_test_invite(message, bot):
                 creates_join_request=False
             )
             
-            # MENSAJE MEJORADO - Si llegamos aquí sin errores, la generación fue exitosa
+            # Si llegamos aquí sin errores, la generación fue exitosa
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=status_message.message_id,
                 text=(
-                    "✅ **ENLACE GENERADO CORRECTAMENTE** ✅\n\n"
-                    "**🔗 ENLACE ÚNICO**\n"
-                    f"**└ {invite.invite_link}**\n\n"
-                    "**ℹ️ INFORMACIÓN**\n"
-                    "**├ ⏱️ Expira en 1 hora**\n"
-                    "**├ 1️⃣ Un solo uso**\n"
-                    "**└ 📝 No registrado en base de datos**"
+                    "✅ Enlace de invitación generado exitosamente\n\n"
+                    f"🔗 {invite.invite_link}\n\n"
+                    "ℹ️ Este es un enlace de prueba que expira en 1 hora y permite un solo uso.\n"
+                    "📝 No se ha registrado en la base de datos."
                 ),
-                parse_mode='Markdown',
                 disable_web_page_preview=True
             )
             
             logger.info(f"Admin {user_id} generó un enlace de prueba exitosamente")
             
         except Exception as e:
-            # MENSAJE MEJORADO - Error
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=status_message.message_id,
                 text=(
-                    "❌ **ERROR AL GENERAR ENLACE** ❌\n\n"
-                    f"**⚠️ DETALLE**\n"
-                    f"**└ {str(e)}**\n\n"
-                    "**🔍 POSIBLES CAUSAS**\n"
-                    "**├ ❌ Permisos insuficientes**\n"
-                    "**├ ❌ ID de grupo incorrecto**\n"
-                    "**└ ❌ Problema con API de Telegram**"
-                ),
-                parse_mode='Markdown'
+                    f"❌ Error al generar enlace: {str(e)}\n\n"
+                    "Posibles causas:\n"
+                    "• El bot no tiene permisos suficientes en el grupo\n"
+                    "• El ID del grupo es incorrecto\n"
+                    "• La API de Telegram está teniendo problemas"
+                )
             )
             
             logger.error(f"Error al generar enlace de prueba: {str(e)}")
             
     except Exception as e:
         logger.error(f"Error en handle_test_invite: {str(e)}")
-        bot.reply_to(message, f"❌ **ERROR INESPERADO**\n\n**└ {str(e)}**", parse_mode='Markdown')
+        bot.reply_to(message, f"❌ Error inesperado: {str(e)}")
 
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
