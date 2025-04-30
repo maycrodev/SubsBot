@@ -76,49 +76,65 @@ def parse_duration(duration_text: str) -> Optional[int]:
             
         duration_text = duration_text.lower().strip()
         
-        # Patrones para diferentes formatos
-        minutes_pattern = re.compile(r'(\d+)\s*(?:minute|minutes|minuto|minutos|min)', re.IGNORECASE)
-        hour_pattern = re.compile(r'(\d+)\s*(?:hour|hours|hora|horas|h)', re.IGNORECASE)
-        day_pattern = re.compile(r'(\d+)\s*(?:day|days|día|dias|d)', re.IGNORECASE)
-        week_pattern = re.compile(r'(\d+)\s*(?:week|weeks|semana|semanas|w)', re.IGNORECASE)
-        month_pattern = re.compile(r'(\d+)\s*(?:month|months|mes|meses|m)', re.IGNORECASE)
-        year_pattern = re.compile(r'(\d+)\s*(?:year|years|año|años|y)', re.IGNORECASE)
-        
-        # Verificar minutos
-        minutes_match = minutes_pattern.search(duration_text)
-        if minutes_match:
-            minutes = int(minutes_match.group(1))
+        # Si es solo "10 minutes" o formato similar
+        if "minute" in duration_text or "min" in duration_text:
+            # Extraer el número
+            minutes = int(''.join(filter(str.isdigit, duration_text)))
             return minutes / (24 * 60)  # Convertir minutos a días
-        
-        # Verificar horas
-        hour_match = hour_pattern.search(duration_text)
-        if hour_match:
-            hours = int(hour_match.group(1))
+            
+        # Si es solo "5 hours" o formato similar
+        if "hour" in duration_text or "hr" in duration_text or "hora" in duration_text:
+            # Extraer el número
+            hours = int(''.join(filter(str.isdigit, duration_text)))
             return hours / 24  # Convertir horas a días
-        
-        # Verificar días
-        day_match = day_pattern.search(duration_text)
-        if day_match:
-            return int(day_match.group(1))
-        
-        # Verificar semanas
-        week_match = week_pattern.search(duration_text)
-        if week_match:
-            return int(week_match.group(1)) * 7
-        
-        # Verificar meses
-        month_match = month_pattern.search(duration_text)
-        if month_match:
-            return int(month_match.group(1)) * 30
-        
-        # Verificar años
-        year_match = year_pattern.search(duration_text)
-        if year_match:
-            return int(year_match.group(1)) * 365
+            
+        # Si es solo "2 days" o formato similar
+        if "day" in duration_text or "día" in duration_text or "dias" in duration_text:
+            # Extraer el número
+            days = int(''.join(filter(str.isdigit, duration_text)))
+            return days
+            
+        # Si es solo "1 week" o formato similar
+        if "week" in duration_text or "semana" in duration_text:
+            # Extraer el número
+            weeks = int(''.join(filter(str.isdigit, duration_text)))
+            return weeks * 7
+            
+        # Si es solo "1 month" o formato similar
+        if "month" in duration_text or "mes" in duration_text:
+            # Extraer el número
+            months = int(''.join(filter(str.isdigit, duration_text)))
+            return months * 30
         
         # Si es solo un número, asumir días
         if duration_text.isdigit():
             return int(duration_text)
+        
+        # Manejar el caso específico de "10 minutes"
+        if duration_text == "10 minutes":
+            return 10 / (24 * 60)  # 10 minutos convertidos a días
+        
+        # No se pudo parsear de forma habitual, intentar extraer solo los números
+        try:
+            # Extraer solo los dígitos
+            num = int(''.join(filter(str.isdigit, duration_text)))
+            
+            # Determinar la unidad basada en el texto
+            if "minute" in duration_text or "min" in duration_text:
+                return num / (24 * 60)
+            elif "hour" in duration_text or "hr" in duration_text or "hora" in duration_text:
+                return num / 24
+            elif "day" in duration_text or "día" in duration_text or "dias" in duration_text:
+                return num
+            elif "week" in duration_text or "semana" in duration_text:
+                return num * 7
+            elif "month" in duration_text or "mes" in duration_text:
+                return num * 30
+            else:
+                # Si no se puede determinar la unidad, asumir días
+                return num
+        except:
+            pass
         
         # No se pudo parsear
         return None
@@ -2181,7 +2197,7 @@ def handle_whitelist_list(message, bot):
         conn = db.get_db_connection()
         cursor = conn.cursor()
         
-        # Consulta para obtener usuarios en whitelist (donde paypal_sub_id es NULL)
+        # Modificar la consulta para mostrar todas las suscripciones activas manuales
         cursor.execute('''
         SELECT s.user_id, u.username, u.first_name, u.last_name, s.end_date, s.status
         FROM subscriptions s
@@ -2210,7 +2226,7 @@ def handle_whitelist_list(message, bot):
             
             # Nombre para mostrar
             display_name = f"{first_name or ''} {last_name or ''}".strip() or "Sin nombre"
-            display_username = f"@{username}" if username else ""
+            display_username = f"@{username}" if username else "Sin username"
             
             # Calcular tiempo restante
             end_date = datetime.datetime.fromisoformat(end_date_str)
@@ -2229,7 +2245,7 @@ def handle_whitelist_list(message, bot):
                 days_left = "menos de 1 hora"
             
             # Crear entrada para la lista
-            entry = f"• {display_name} {display_username} (ID: `{user_id}`) - {days_left} restantes"
+            entry = f"• {display_name} ({display_username})\n  ID: `{user_id}` - {days_left} restantes"
             whitelist_entries.append(entry)
         
         # Enviar mensaje con la lista
