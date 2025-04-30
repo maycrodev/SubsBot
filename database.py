@@ -383,21 +383,34 @@ def remove_expired_subscriptions():
     
     return expired_users
 
-def close_expired_subscriptions():
+def close_expired_subscriptions(bot=None):
     """
     Procesa las suscripciones expiradas
     """
-    from bot_handlers import perform_group_security_check
-    from config import GROUP_CHAT_ID
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    # Obtener usuarios con suscripciones expiradas
-    expired_users = remove_expired_subscriptions()
+    # Marcar suscripciones expiradas
+    cursor.execute("""
+    UPDATE subscriptions 
+    SET status = 'EXPIRED' 
+    WHERE status = 'ACTIVE' AND end_date <= datetime('now')
+    """)
     
-    if expired_users:
-        logger.info(f"Usuarios con suscripciones expiradas: {len(expired_users)}")
-        
-        # Opcional: Llamar a la verificación de seguridad general
-        perform_group_security_check()
+    # Obtener los usuarios con suscripciones expiradas
+    cursor.execute("""
+    SELECT user_id, plan FROM subscriptions 
+    WHERE status = 'EXPIRED'
+    """)
+    
+    expired_users = cursor.fetchall()
+    
+    conn.commit()
+    conn.close()
+    
+    logger.info(f"Suscripciones expiradas procesadas: {len(expired_users)}")
+    
+    return expired_users
 
 # Inicializar la base de datos al importar el módulo
 init_db()

@@ -77,35 +77,67 @@ def parse_duration(duration_text: str) -> Optional[float]:
         duration_text = duration_text.lower().strip()
         logger.info(f"Parseando duración: '{duration_text}'")
         
-        # Manejo directo de casos comunes
-        if duration_text == "10 minutes":
-            return 10 / (24 * 60)  # 10 minutos en días
-        elif duration_text == "10 minutos":
-            return 10 / (24 * 60)  # 10 minutos en días
+        # Definir diccionarios de mapeo para unidades
+        minute_keywords = ['minute', 'min', 'minuto', 'minutos']
+        hour_keywords = ['hour', 'hr', 'hora', 'horas']
+        day_keywords = ['day', 'día', 'dias', 'days']
+        week_keywords = ['week', 'semana', 'semanas']
+        month_keywords = ['month', 'mes', 'meses']
+        
+        # Casos especiales predefinidos
+        special_cases = {
+            "10 minutes": 10 / (24 * 60),
+            "10 minutos": 10 / (24 * 60),
+            "1 minute": 1 / (24 * 60),
+            "1 minuto": 1 / (24 * 60)
+        }
+        
+        # Verificar casos especiales primero
+        if duration_text in special_cases:
+            return special_cases[duration_text]
         
         # Extraer números y unidades
         numbers = ''.join(c if c.isdigit() else ' ' for c in duration_text).split()
         if not numbers:
             return None
         
-        num = int(numbers[0])  # Tomar el primer número
+        try:
+            num = int(numbers[0])  # Tomar el primer número
+        except ValueError:
+            logger.warning(f"No se pudo convertir '{numbers[0]}' a número")
+            return None
         
         # Determinar la unidad
-        if "minute" in duration_text or "min" in duration_text or "minuto" in duration_text:
-            return num / (24 * 60)
-        elif "hour" in duration_text or "hr" in duration_text or "hora" in duration_text:
-            return num / 24
-        elif "day" in duration_text or "día" in duration_text or "dias" in duration_text or "day" in duration_text:
-            return num
-        elif "week" in duration_text or "semana" in duration_text:
-            return num * 7
-        elif "month" in duration_text or "mes" in duration_text:
-            return num * 30
-        elif duration_text.isdigit():
-            return int(duration_text)
+        for keyword in minute_keywords:
+            if keyword in duration_text:
+                return num / (24 * 60)
         
-        # Si llegamos aquí y tenemos un número, asumimos días
-        return num
+        for keyword in hour_keywords:
+            if keyword in duration_text:
+                return num / 24
+        
+        for keyword in day_keywords:
+            if keyword in duration_text:
+                return num
+        
+        for keyword in week_keywords:
+            if keyword in duration_text:
+                return num * 7
+        
+        for keyword in month_keywords:
+            if keyword in duration_text:
+                return num * 30
+        
+        # Si es solo un número, intentar interpretarlo como días
+        if duration_text.replace(' ', '').isdigit():
+            try:
+                return int(duration_text)
+            except ValueError:
+                pass
+        
+        # Si no se reconoce ninguna unidad
+        logger.warning(f"Unidad no reconocida en '{duration_text}'")
+        return None
         
     except Exception as e:
         logger.error(f"Error al parsear duración '{duration_text}': {str(e)}")
@@ -524,8 +556,8 @@ def schedule_security_verification(bot):
         # Ciclo de verificación
         while True:
             try:
-                # Tiempo de espera (cambia a 21600 para 6 horas en producción)
-                time.sleep(30)  # Tiempo para pruebas
+                # CAMBIO: Verificar cada 5 minutos (300 segundos)
+                time.sleep(30)  
                 
                 logger.info("🕒 Iniciando verificación periódica de seguridad")
                 
@@ -536,9 +568,8 @@ def schedule_security_verification(bot):
                 # Realizar verificación de seguridad
                 perform_group_security_check(bot, GROUP_CHAT_ID)
                 
-                # Opcional: Cerrar suscripciones expiradas
-                from database import close_expired_subscriptions
-                close_expired_subscriptions(bot)
+                # Cerrar suscripciones expiradas
+                db.close_expired_subscriptions()
                 
             except Exception as e:
                 logger.error(f"❌ Error en verificación periódica: {e}")
@@ -558,43 +589,33 @@ def perform_group_security_check(bot, group_id):
         
         logger.info(f"Iniciando verificación de seguridad del grupo {group_id}")
         
-        # 1. Obtener todas las suscripciones expiradas
+        # Obtener todas las suscripciones expiradas
         conn = db.get_db_connection()
         cursor = conn.cursor()
         
-        # Consultar suscripciones expiradas
+        # MODIFICACIÓN CLAVE: Consultar TODOS los tipos de suscripciones expiradas
         cursor.execute("""
-        SELECT user_id, sub_id, plan, end_date 
+        SELECT user_id, sub_id, plan, end_date, paypal_sub_id 
         FROM subscriptions 
         WHERE status = 'ACTIVE' AND end_date <= datetime('now')
         """)
         expired_subscriptions = cursor.fetchall()
         
-        # Consultar whitelist (suscripciones con paypal_sub_id = NULL) expiradas
-        cursor.execute("""
-        SELECT user_id, sub_id, plan, end_date 
-        FROM subscriptions 
-        WHERE status = 'ACTIVE' AND paypal_sub_id IS NULL AND end_date <= datetime('now')
-        """)
-        expired_whitelist = cursor.fetchall()
-        
-        # Combinar suscripciones expiradas y whitelist
-        all_expired = expired_subscriptions + expired_whitelist
-        
-        logger.info(f"Encontrados {len(all_expired)} usuarios con suscripciones/whitelist expiradas")
+        logger.info(f"Encontrados {len(expired_subscriptions)} usuarios con suscripciones expiradas")
         
         # Expulsar usuarios expirados
-        for user_data in all_expired:
-            user_id, sub_id, plan, end_date = user_data
+        for user_data in expired_subscriptions:
+            user_id, sub_id, plan, end_date, paypal_sub_id = user_data
             
             # Omitir administradores
             if user_id in ADMIN_IDS:
                 continue
             
             try:
-                # Verificar que el usuario esté en el grupo
+                # MODIFICACIÓN: Verificar la existencia del usuario en el grupo
                 try:
-                    bot.get_chat_member(group_id, user_id)
+                    chat_member = bot.get_chat_member(group_id, user_id)
+                    logger.info(f"Verificando usuario {user_id} en el grupo. Estado actual: {chat_member.status}")
                 except Exception as e:
                     logger.info(f"Usuario {user_id} no está en el grupo. Saltando...")
                     continue
@@ -605,7 +626,7 @@ def perform_group_security_check(bot, group_id):
                     user_id=user_id
                 )
                 
-                # Desbanear para permitir que vuelva si obtiene suscripción
+                # Desbanear inmediatamente para permitir que vuelva si obtiene suscripción
                 bot.unban_chat_member(
                     chat_id=group_id,
                     user_id=user_id,
@@ -639,25 +660,13 @@ def perform_group_security_check(bot, group_id):
             except Exception as e:
                 logger.error(f"Error al procesar expiración para usuario {user_id}: {e}")
         
-        # Notificar a los administradores
-        for admin_id in ADMIN_IDS:
-            try:
-                bot.send_message(
-                    chat_id=admin_id,
-                    text=(
-                        f"🔍 Verificación de expiración completada:\n"
-                        f"• {len(all_expired)} usuarios expulsados por suscripción/whitelist expirada"
-                    )
-                )
-            except Exception as e:
-                logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
-        
         conn.close()
         return True
         
     except Exception as e:
         logger.error(f"Error en verificación de expiración: {e}")
         return False
+    
 def check_and_fix_bot_permissions(message, bot):
     """Verifica y corrige los permisos del bot en el grupo VIP"""
     try:
