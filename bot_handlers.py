@@ -14,8 +14,8 @@ from typing import Dict, Optional, Tuple, Any
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Diccionario para almacenar estados de administradores
-admin_states = None
+# admin_states será asignado desde app.py
+admin_states = None  # Será asignado desde app.py
 
 # Diccionario para almacenar las animaciones de pago en curso
 payment_animations = {}

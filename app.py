@@ -79,6 +79,8 @@ app = Flask(__name__)
 # Importar el sistema centralizado de handlers
 import bot_handlers
 
+bot_handlers.admin_states = admin_states
+
 @app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
 def webhook():
     """Recibe las actualizaciones de Telegram a través de webhook"""
@@ -120,7 +122,11 @@ def webhook():
                                 logger.info(f"Comando de test_invite procesado para {update.message.from_user.id}")
                                 return 'OK', 200
                             elif update.message.text.startswith('/whitelist'):
-                                bot_handlers.handle_whitelist(update.message, bot)
+                                if ' list' in update.message.text:
+                                    bot_handlers.handle_whitelist_list(update.message, bot)
+                                else:
+                                    # Manejar directamente en app.py
+                                    handle_whitelist_command(update.message, bot)
                                 logger.info(f"Comando whitelist procesado para {update.message.from_user.id}")
                                 return 'OK', 200
                             elif update.message.text.startswith('/subinfo'):
@@ -492,6 +498,119 @@ def webhook():
     except Exception as e:
         logger.error(f"Error al procesar webhook: {str(e)}")
         return 'Error interno', 500
+
+# Añade esta función a app.py, justo antes o después de la función webhook
+def handle_whitelist_command(message, bot):
+    """Maneja el comando /whitelist para agregar un usuario a la whitelist manualmente"""
+    try:
+        admin_id = message.from_user.id
+        chat_id = message.chat.id
+        
+        # Verificar que sea un administrador
+        if admin_id not in ADMIN_IDS:
+            bot.send_message(
+                chat_id=chat_id,
+                text="⛔ No tienes permisos para usar este comando."
+            )
+            return
+        
+        # Extraer el comando
+        command_parts = message.text.split()
+        
+        # Si es solo "/whitelist", mostrar instrucciones
+        if len(command_parts) == 1:
+            help_text = (
+                "ℹ️ *Comandos de Whitelist*\n\n"
+                "Para añadir un usuario:\n"
+                "`/whitelist USER_ID` - Añade un usuario a la whitelist\n\n"
+                "Para ver usuarios en whitelist:\n"
+                "`/whitelist list` - Muestra los usuarios en whitelist\n\n"
+                "Ejemplo: `/whitelist 1234567890`"
+            )
+            bot.send_message(
+                chat_id=chat_id,
+                text=help_text,
+                parse_mode='Markdown'
+            )
+            return
+            
+        # Si es "/whitelist list", redireccionar a la función específica
+        if len(command_parts) == 2 and command_parts[1].lower() == 'list':
+            bot_handlers.handle_whitelist_list(message, bot)
+            return
+            
+        # Comando para añadir a un usuario
+        if len(command_parts) >= 2:
+            try:
+                target_user_id = int(command_parts[1])
+            except ValueError:
+                bot.send_message(
+                    chat_id=chat_id,
+                    text="❌ ID de usuario inválido. Debe ser un número."
+                )
+                return
+            
+            # Obtener información del usuario
+            user = db.get_user(target_user_id)
+            
+            # Si el usuario no existe en la BD, guardar con información mínima
+            if not user:
+                db.save_user(target_user_id)
+                user = {'user_id': target_user_id, 'username': None, 'first_name': None, 'last_name': None}
+            
+            # Preparar mensaje de confirmación
+            username_display = user.get('username', 'Sin username')
+            first_name = user.get('first_name', '')
+            last_name = user.get('last_name', '')
+            full_name = f"{first_name} {last_name}".strip() or "Sin nombre"
+            
+            confirmation_text = (
+                "🛡️ *Administración - Añadir a Whitelist*\n\n"
+                f"👤 Usuario: {full_name}\n"
+                f"🔤 Username: @{username_display}\n"
+                f"🆔 ID: `{target_user_id}`\n\n"
+                "⏱️ Por favor, ingresa la duración del acceso:\n"
+                "Ejemplos: `10 minutes`, `5 hours`, `2 days`, `1 week`, `1 month`"
+            )
+            
+            # Crear markup con solo botón de cancelar
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("❌ Cancelar", callback_data="whitelist_cancel"))
+            
+            # Guardar estado para esperar la respuesta con la duración
+            admin_states[admin_id] = {
+                'action': 'whitelist',
+                'target_user_id': target_user_id,
+                'message_id': None
+            }
+            
+            # Enviar mensaje de confirmación
+            sent_message = bot.send_message(
+                chat_id=chat_id,
+                text=confirmation_text,
+                parse_mode='Markdown',
+                reply_markup=markup
+            )
+            
+            # Guardar ID del mensaje enviado
+            admin_states[admin_id]['message_id'] = sent_message.message_id
+            
+            # Registrar el próximo paso: esperar duración
+            bot.register_next_step_handler(message, lambda msg: bot_handlers.handle_whitelist_duration(msg, bot))
+            
+        else:
+            bot.send_message(
+                chat_id=chat_id,
+                text="❌ Uso incorrecto. Por favor, usa `/whitelist USER_ID`",
+                parse_mode='Markdown'
+            )
+        
+    except Exception as e:
+        logger.error(f"Error en handle_whitelist_command: {str(e)}")
+        bot.send_message(
+            chat_id=message.chat.id,
+            text=f"❌ Ocurrió un error al procesar tu solicitud: {str(e)}. Por favor, intenta nuevamente."
+        )
 
 @app.route('/admin/reset-webhook')
 def reset_webhook_endpoint():
