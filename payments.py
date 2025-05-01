@@ -115,6 +115,8 @@ def create_product_if_not_exists() -> Optional[str]:
         logger.error(f"Error al crear producto en PayPal: {str(e)}")
         return None
 
+# Modificación para la función create_plan en payments.py
+
 def create_plan(plan_id: str, product_id: str) -> Optional[str]:
     """Crea un plan de suscripción en PayPal para el producto dado"""
     try:
@@ -138,15 +140,33 @@ def create_plan(plan_id: str, product_id: str) -> Optional[str]:
             "Prefer": "return=representation"  # Solicitar la representación completa en la respuesta
         }
         
+        # MODIFICACIÓN: Verificar si es un plan de prueba (duración menor a 1 día)
+        is_test_plan = plan_details['duration_days'] < 1
+        
         # Determinar la unidad de tiempo y frecuencia según la duración
         interval_unit = "DAY"
         interval_count = plan_details['duration_days']
-        if plan_id == "monthly":
-            interval_unit = "MONTH"
-            interval_count = 1
-        elif plan_id == "weekly":
-            interval_unit = "WEEK"
-            interval_count = 1
+        
+        # Para planes normales, usar las reglas estándar
+        if not is_test_plan:
+            if plan_id == "monthly" or interval_count >= 30:
+                interval_unit = "MONTH"
+                interval_count = max(1, int(interval_count / 30))
+            elif plan_id == "weekly" or (interval_count >= 7 and interval_count < 30):
+                interval_unit = "WEEK"
+                interval_count = max(1, int(interval_count / 7))
+        else:
+            # PARA PLANES DE PRUEBA: Usar 1 día como mínimo para PayPal
+            # pero mantendremos el valor real para nuestro sistema
+            logger.info(f"Plan de prueba detectado: {plan_id} con duración de {plan_details['duration_days']} días")
+            interval_unit = "DAY"
+            interval_count = 1  # Usar 1 día como mínimo para PayPal
+        
+        # Asegurar que interval_count sea al menos 1
+        interval_count = max(1, int(interval_count))
+        
+        # Log para depuración
+        logger.info(f"Creando plan con interval_unit: {interval_unit}, interval_count: {interval_count}")
         
         data = {
             "product_id": product_id,
