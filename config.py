@@ -119,10 +119,10 @@ PLANS = {
         'row': 1,
         'highlight': True
     },
-    'quarterly': {
-        'name': 'Plan Trimestral',
+    'prueba': {
+        'name': 'Plan prueba',
         'price_usd': 12.00,
-        'duration_days': 90,
+        'duration_days': 0.00138889,
         'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 𝙏𝙍𝙄𝙈𝙀𝙎𝙏𝙍𝘼𝙇',
         'description': 'Acceso: 3 meses al grupo VIP con descuento',
         'short_description': 'Plan Trimestral: $12.00 / 3 meses',
