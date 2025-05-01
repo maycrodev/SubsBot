@@ -123,10 +123,10 @@ PLANS = {
         'name': 'Plan prueba',
         'price_usd': 12.00,
         'duration_days': 0.00138889,
-        'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 𝙏𝙍𝙄𝙈𝙀𝙎𝙏𝙍𝘼𝙇',
+        'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 prueba',
         'description': 'Acceso: 3 meses al grupo VIP con descuento',
-        'short_description': 'Plan Trimestral: $12.00 / 3 meses',
-        'button_text': 'Plan Trimestral',
+        'short_description': 'Plan Trimestral: $12.00 / 3 prueba',
+        'button_text': 'Plan prueba',
         'button_emoji': '📅',
         'benefits': [
             'Acceso al grupo VIP',
