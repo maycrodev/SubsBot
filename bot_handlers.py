@@ -266,36 +266,37 @@ def schedule_renewal_checks(bot):
 def generate_plans_text():
     """
     Genera el texto de descripción de planes dinámicamente 
-    basado en la configuración de PLANS
+    con el toque encantador de tu portera anime ✨
     """
-    # Sort plans by the 'order' field
+    # Ordena los planes según el campo 'order'
     sorted_plans = sorted(PLANS.items(), key=lambda x: x[1].get('order', 999))
     
-    # Start with the header
+    # Encabezado con un toque cálido
     payment_type = "Suscripciones" if RECURRING_PAYMENTS_ENABLED else "Planes"
-    plans_text = f"💸 Escoge tu {payment_type.lower()}:\n\n"
+    plans_text = f"💸 Aquí tienes las {payment_type.lower()} disponibles ദ്ദി(ᵔᗜᵔ)\n\n"
     
-    # Add each plan in order
+    # Agrega cada plan
     for plan_id, plan in sorted_plans:
         emoji = plan.get('button_emoji', '🔹')
         
-        # Check if this specific plan overrides the global setting
+        # Verifica si el plan tiene su propio tipo de pago
         plan_recurring = plan.get('recurring')
         is_recurring = RECURRING_PAYMENTS_ENABLED if plan_recurring is None else plan_recurring
         
-        # Add payment type indicator
+        # Texto del tipo de pago
         payment_type_text = "(renovación automática)" if is_recurring else "(pago único)"
         
-        # Use short_description or generate an automatic description
+        # Descripción
         description = plan.get('short_description', 
                               f"{plan['name']}: ${plan['price_usd']} / {plan['duration_days']} días")
         
         plans_text += f"{emoji} {description} {payment_type_text}\n"
     
-    # Add tutorial message
-    plans_text += "\n🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
+    # Mensaje final de ayuda
+    plans_text += "\n🧑‍🏫 ¿Necesitas ayuda para pagar? He preparado un tutorial para ti~ (˶ᵔ ᵕ ᵔ˶)"
     
     return plans_text
+
 
 def start_processing_animation(bot, chat_id, message_id):
     """Inicia una animación de procesamiento en el mensaje"""
@@ -1690,10 +1691,12 @@ def handle_start(message, bot):
         
         # Enviar mensaje de bienvenida con botones
         welcome_text = (
-            "👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\n"
-            "Este es un grupo exclusivo con contenido premium y acceso limitado.\n\n"
-            "Selecciona una opción 👇"
+            "👋 ¡Ohayou~! ヾ(๑╹◡╹)ﾉ Soy la portera del grupo VIP, un placer conocerte ♪\n\n"
+            "Este grupo es un espacio exclusivo con contenido premium y acceso limitado.\n\n"
+            "Estoy aquí para ayudarte a ingresar correctamente al grupo 💫\n\n"
+            "Por favor, elige una opción para continuar 👇"
         )
+
         
         bot.send_message(
             chat_id=user_id,
@@ -1884,21 +1887,21 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
         
         # Payment type text
         if is_recurring:
-            payment_type_text = f"Facturación: {duration_type} (recurrente)\n" + \
-                              "El pago se renovará automáticamente hasta que canceles."
+            payment_type_text = f"⏳ Facturación: {duration_type} (recurrente)\n" + \
+                                "Este plan se renovará automáticamente hasta que decidas cancelarlo, (˶˃ ᵕ ˂˶)~"
         else:
-            payment_type_text = f"Duración: {plan['duration_days']} días\n" + \
-                              "Pago único (sin renovación automática)"
+            payment_type_text = f"📅 Duración: {plan['duration_days']} días\n" + \
+                                "Este es un pago único, sin renovaciones automáticas. ¡Sin compromisos!"
         
-        # Build message with plan details
+        # Construye el mensaje con los detalles del plan
         plan_text = (
             f"📦 {plan['display_name']}\n\n"
             f"{plan['description']}\n"
-            f"Beneficios:\n"
+            f"✨ Beneficios incluidos:\n"
             f"{benefits_text}\n"
             f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
-            f"📆 {payment_type_text}\n\n"
-            f"Selecciona un método de pago 👇"
+            f"{payment_type_text}\n\n"
+            f"Elige tu método de pago aquí abajito~ 👇"
         )
         
         # Create markup with payment buttons
@@ -1938,11 +1941,11 @@ def show_payment_tutorial(bot, chat_id, message_id):
     try:
         payment_type = "suscripciones" if RECURRING_PAYMENTS_ENABLED else "pagos"
         renewal_text = (
-            "⚠️ Importante: Tu suscripción se renovará automáticamente. "
-            "Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
+            "⚠️ *Importante*: Tu suscripción se renovará automáticamente, (づ ᴗ _ᴗ)づ♡ \n"
+            "Puedes cancelarla cuando quieras desde tu cuenta de PayPal, así que no te preocupes, ¿ok?"
         ) if RECURRING_PAYMENTS_ENABLED else (
-            "⚠️ Importante: Este es un pago único. "
-            "Cuando termine tu período, deberás realizar un nuevo pago para mantener el acceso."
+            "⚠️ *Importante*: Este es un pago único.\n"
+            "Cuando finalice tu período, tendrás que hacer un nuevo pago si deseas seguir en el grupo VIP~"
         )
         
         tutorial_text = (
@@ -1954,7 +1957,7 @@ def show_payment_tutorial(bot, chat_id, message_id):
             "   - Cuenta de PayPal\n"
             "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
             "4️⃣ Completa el pago y regresa a Telegram\n\n"
-            "5️⃣ Recibirás un enlace de invitación al grupo VIP\n\n"
+            "5️⃣ Recibirás una entrada al grupo VIP ◝(ᵔᵕᵔ)◜\n\n"
             f"{renewal_text}"
         )
         
@@ -2121,16 +2124,16 @@ def handle_payment_method(call, bot):
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        f"🔗 *Tu enlace de {payment_type.lower()} está listo*\n\n"
-                        f"Plan: {plan['display_name']}\n"
-                        f"Precio: ${plan['price_usd']:.2f} USD / "
-                        f"{period} {renewal_text}\n\n"
-                        f"Por favor, haz clic en el botón de abajo para completar tu {payment_type.lower()} con PayPal.\n"
-                        "Una vez completado, serás redirigido de vuelta aquí."
+                        f"🔗 *Tu enlace de {payment_type.lower()} está listo, •⩊• ~*\n\n"
+                        f"📦 Plan: {plan['display_name']}\n"
+                        f"💵 Precio: ${plan['price_usd']:.2f} USD / {period} {renewal_text}\n\n"
+                        f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n"
+                        "Una vez que termines, te daré tu entrada y te dejaré entrar (˶ˆᗜˆ˵)"
                     ),
                     parse_mode='Markdown',
                     reply_markup=markup
                 )
+
                 
                 logger.info(f"Enlace de pago PayPal creado para usuario {user_id}, plan {plan_id}, tipo: {payment_type}")
             else:
