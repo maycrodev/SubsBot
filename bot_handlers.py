@@ -1425,55 +1425,6 @@ def handle_new_chat_members(message, bot):
     except Exception as e:
         logger.error(f"Error general en handle_new_chat_members: {str(e)}")
 
-
-# 4. MEJORA EN LA FUNCIÓN DE REGISTRO DE HANDLERS
-# Actualiza esta función para incluir el handler /force_verify para uso de admins
-
-def register_handlers(bot):
-    """Registra todos los handlers con el bot"""
-    
-    # Registrar comandos de administrador primero
-    register_admin_commands(bot)
-
-    # Handler para verificar permisos del bot
-    bot.register_message_handler(
-        lambda message: check_and_fix_bot_permissions(message, bot),
-        commands=['check_bot_permissions']
-    )
-    
-    # Handler para el comando /start
-    bot.register_message_handler(lambda message: handle_start(message, bot), commands=['start'])
-    
-    # IMPORTANTE: El handler para verify_all debe ir ANTES que otros handlers
-    bot.register_message_handler(lambda message: handle_verify_all_members(message, bot), 
-                              commands=['verify_all', 'force_verify'])
-    
-    # Handler para nuevos miembros
-    bot.register_message_handler(lambda message: handle_new_chat_members(message, bot), 
-                              content_types=['new_chat_members'])
-    
-    # Handler para el comando de recuperación de acceso
-    bot.register_message_handler(lambda message: handle_recover_access(message, bot), 
-                              func=lambda message: message.text == '🎟️ Recuperar Acceso VIP' or 
-                                                  message.text == '/recover' or
-                                                  message.text.startswith('/recover'))
-    
-    # Callback handlers para los botones
-    bot.register_callback_query_handler(lambda call: handle_main_menu_callback(call, bot), 
-                                      func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms'])
-    
-    bot.register_callback_query_handler(lambda call: handle_plans_callback(call, bot), 
-                                      func=lambda call: call.data in ['tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'])
-    
-    bot.register_callback_query_handler(lambda call: handle_payment_method(call, bot), 
-                                      func=lambda call: call.data.startswith('payment_'))
-    
-    # Handler por defecto para mensajes no reconocidos
-    bot.register_message_handler(lambda message: handle_unknown_message(message, bot), func=lambda message: True)
-    
-    # Iniciar verificación periódica automática
-    schedule_security_verification(bot)
-
 def handle_start(message, bot):
     """Maneja el comando /start"""
     try:
@@ -1759,6 +1710,10 @@ def handle_plans_callback(call, bot):
             show_plan_details(bot, chat_id, message_id, "weekly")
             
         elif call.data == "monthly_plan":
+            # Mostrar detalles del plan mensual
+            show_plan_details(bot, chat_id, message_id, "monthly")
+
+        elif call.data == "PRUEBA_plan":
             # Mostrar detalles del plan mensual
             show_plan_details(bot, chat_id, message_id, "monthly")
             
@@ -3039,7 +2994,7 @@ def register_handlers(bot):
                                       func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms'])
     
     bot.register_callback_query_handler(lambda call: handle_plans_callback(call, bot), 
-                                      func=lambda call: call.data in ['tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'])
+                                      func=lambda call: call.data in ['tutorial', 'weekly_plan', 'monthly_plan', 'PRUEBA_plan', 'back_to_main'])
     
     bot.register_callback_query_handler(lambda call: handle_payment_method(call, bot), 
                                       func=lambda call: call.data.startswith('payment_'))
