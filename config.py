@@ -82,7 +82,28 @@ Parámetros para cada plan:
 - order: Orden de aparición en la UI (menor número = aparece primero)
 - row: Fila en la que aparecerá el botón (1, 2, etc.)
 - highlight: Si el plan debe destacarse (True/False)
+
+
+PLANS = {
+    'monthly': {
+        # ...other plan details...
+        'recurring': True,  # This plan will always use recurring payments
+    },
+    'yearly': {
+        # ...other plan details...
+        'recurring': False,  # This plan will always use one-time payments
+    },
+    'weekly': {
+        # ...other plan details...
+        'recurring': None,  # This plan will use the global setting
+    }
+}
+
+
 '''
+
+RECURRING_PAYMENTS_ENABLED = False # False for one-time payments, True for recurring payments
+
 PLANS = {
     'weekly': {
         'name': 'Plan Semanal',
@@ -99,7 +120,8 @@ PLANS = {
         ],
         'order': 1,
         'row': 1,
-        'highlight': False
+        'highlight': False,
+        'recurring': None  # Optional: to override the global setting (None = use global setting)
     },
     'monthly': {
         'name': 'Plan Mensual',
@@ -117,7 +139,8 @@ PLANS = {
         ],
         'order': 2,
         'row': 1,
-        'highlight': True
+        'highlight': True,
+        'recurring': None  # Optional: to override the global setting (None = use global setting)
     },
     'prueba': {
         'name': 'Plan prueba',
@@ -136,9 +159,12 @@ PLANS = {
         ],
         'order': 3,
         'row': 2,
-        'highlight': True
+        'highlight': True,
+        'recurring': None  # Optional: to override the global setting (None = use global setting)
     }
 }
+
+logger.info(f"Tipo de pago: {'Recurrente' if RECURRING_PAYMENTS_ENABLED else 'Único (no recurrente)'}")
 
 # Verifica y establece valores predeterminados para campos faltantes en la configuración de planes
 for plan_id, plan in PLANS.items():

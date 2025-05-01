@@ -2,7 +2,7 @@ import logging
 from operator import itemgetter
 from telebot import types
 import database as db
-from config import ADMIN_IDS, PLANS, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT, GROUP_INVITE_LINK, WEBHOOK_URL, GROUP_CHAT_ID
+from config import ADMIN_IDS, PLANS, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT, GROUP_INVITE_LINK, WEBHOOK_URL, GROUP_CHAT_ID, RECURRING_PAYMENTS_ENABLED
 import payments as pay
 import datetime
 import threading
@@ -201,21 +201,31 @@ def generate_plans_text():
     Genera el texto de descripción de planes dinámicamente 
     basado en la configuración de PLANS
     """
-    # Ordenar planes por el campo 'order'
+    # Sort plans by the 'order' field
     sorted_plans = sorted(PLANS.items(), key=lambda x: x[1].get('order', 999))
     
-    # Iniciar con el encabezado
-    plans_text = "💸 Escoge tu plan de suscripción:\n\n"
+    # Start with the header
+    payment_type = "Suscripciones" if RECURRING_PAYMENTS_ENABLED else "Planes"
+    plans_text = f"💸 Escoge tu {payment_type.lower()}:\n\n"
     
-    # Añadir cada plan ordenadamente
+    # Add each plan in order
     for plan_id, plan in sorted_plans:
         emoji = plan.get('button_emoji', '🔹')
-        # Usar short_description o generar una descripción automática
+        
+        # Check if this specific plan overrides the global setting
+        plan_recurring = plan.get('recurring')
+        is_recurring = RECURRING_PAYMENTS_ENABLED if plan_recurring is None else plan_recurring
+        
+        # Add payment type indicator
+        payment_type_text = "(renovación automática)" if is_recurring else "(pago único)"
+        
+        # Use short_description or generate an automatic description
         description = plan.get('short_description', 
                               f"{plan['name']}: ${plan['price_usd']} / {plan['duration_days']} días")
-        plans_text += f"{emoji} {description}\n"
+        
+        plans_text += f"{emoji} {description} {payment_type_text}\n"
     
-    # Añadir mensaje del tutorial
+    # Add tutorial message
     plans_text += "\n🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
     
     return plans_text
@@ -272,28 +282,46 @@ def generate_invite_link(bot, user_id, sub_id):
         logger.error(f"Error en generate_invite_link: {str(e)}")
         return None
 
-def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_id: str, 
-                                  subscription_details: Dict) -> bool:
-    """Procesa una suscripción exitosa"""
+def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id: str, 
+                                   payment_details: Dict, is_recurring: bool = None) -> bool:
+    """
+    Procesa un pago exitoso (suscripción recurrente o pago único)
+    
+    Args:
+        bot: Instancia del bot de Telegram
+        user_id: ID del usuario
+        plan_id: ID del plan
+        payment_id: ID del pago (subscription_id o order_id)
+        payment_details: Detalles del pago de PayPal
+        is_recurring: Si es un pago recurrente o único. Si es None, se usa la configuración global
+        
+    Returns:
+        bool: True si el proceso fue exitoso, False en caso contrario
+    """
     try:
-        # Obtener detalles del plan
+        # Get plan details
         plan = PLANS.get(plan_id)
         if not plan:
             logger.error(f"Plan no encontrado: {plan_id}")
             return False
         
-        # Obtener información del usuario
+        # If is_recurring is not specified, use plan setting or global setting
+        if is_recurring is None:
+            plan_recurring = plan.get('recurring')
+            is_recurring = RECURRING_PAYMENTS_ENABLED if plan_recurring is None else plan_recurring
+        
+        # Get user information
         user = db.get_user(user_id)
         if not user:
-            # Guardar usuario con información mínima si no existe
+            # Save user with minimal information if not exists
             db.save_user(user_id)
             user = {'user_id': user_id, 'username': None, 'first_name': None, 'last_name': None}
         
-        # Calcular fechas
+        # Calculate dates
         start_date = datetime.datetime.now()
         end_date = start_date + datetime.timedelta(days=plan['duration_days'])
         
-        # Crear suscripción en la base de datos
+        # Create subscription in database
         sub_id = db.create_subscription(
             user_id=user_id,
             plan=plan_id,
@@ -301,17 +329,18 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
             start_date=start_date,
             end_date=end_date,
             status='ACTIVE',
-            paypal_sub_id=paypal_sub_id
+            paypal_sub_id=payment_id,
+            is_recurring=is_recurring
         )
         
-        # Enviar mensaje provisional mientras se genera el enlace
+        # Send provisional message while generating the invitation link
         provisional_message = bot.send_message(
             chat_id=user_id,
             text="🔄 *Preparando tu acceso VIP...*\n\nEstamos generando tu enlace de invitación exclusivo. Por favor, espera un momento.",
             parse_mode='Markdown'
         )
         
-        # Generar enlace de invitación único
+        # Generate unique invitation link
         invite_link = generate_invite_link(bot, user_id, sub_id)
         
         if not invite_link:
@@ -327,7 +356,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
                 parse_mode='Markdown'
             )
             
-            # Notificar a los administradores del problema
+            # Notify administrators about the problem
             admin_error_notification = (
                 "🚨 *ERROR CON ENLACE DE INVITACIÓN*\n\n"
                 f"Usuario: {user.get('username', 'Sin username')} (id{user_id})\n"
@@ -346,12 +375,23 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
                 except Exception as e:
                     logger.error(f"Error al notificar al admin {admin_id}: {str(e)}")
         else:
-            # Enviar mensaje de confirmación con el enlace
+            # Send confirmation message with the link
+            payment_type_text = "Suscripción" if is_recurring else "Pago único"
+            renewal_note = (
+                f"⚠️ *Esta suscripción se renovará automáticamente* al final del período. " 
+                f"Puedes cancelarla en cualquier momento desde PayPal."
+            ) if is_recurring else (
+                f"⚠️ *Este es un pago único*. Tu acceso expirará el {end_date.strftime('%d/%m/%Y')}. " 
+                f"Deberás realizar un nuevo pago para renovar tu acceso."
+            )
+            
             confirmation_text = (
-                "🎟️ *¡Acceso VIP Confirmado!*\n\n"
+                f"🎟️ *¡{payment_type_text} VIP Confirmado!*\n\n"
                 "Aquí tienes tu acceso exclusivo 👇\n\n"
                 f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
-                f"⚠️ Nota: Este enlace es único, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
+                f"{renewal_note}\n\n"
+                f"📆 Tu acceso expira el: {end_date.strftime('%d/%m/%Y')}\n\n"
+                f"ℹ️ Nota: Este enlace es único, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
                 "Si sales del grupo por accidente y necesitas un nuevo enlace, puedes usar el comando /recover"
             )
             
@@ -363,21 +403,26 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
                 disable_web_page_preview=True
             )
         
-        # Notificar a los administradores
+        # Notify administrators
         username_display = user.get('username', 'Sin username')
         first_name = user.get('first_name', '')
         last_name = user.get('last_name', '')
         full_name = f"{first_name} {last_name}".strip() or "Sin nombre"
         
+        payment_type_admin = "RECURRENTE" if is_recurring else "ÚNICO"
+        renewal_admin = "Se renovará automáticamente" if is_recurring else "No renovable (pago único)"
+        
         admin_notification = (
-            "🎉 *¡Nueva Suscripción! (PayPal)*\n\n"
+            f"🎉 *¡Nuevo {payment_type_admin}!*\n\n"
             "Detalles:\n"
-            f"• ID pago: {paypal_sub_id}\n"
+            f"• ID pago: {payment_id}\n"
             f"• Usuario: {username_display} (@{username_display}) (id{user_id})\n"
             f"• Nombre: {full_name}\n"
             f"• Plan: {plan['display_name']}\n"
             f"• Facturación: ${plan['price_usd']:.2f} / "
             f"{'1 semana' if plan_id == 'weekly' else '1 mes'}\n"
+            f"• Tipo: {payment_type_admin}\n"
+            f"• Renovación: {renewal_admin}\n"
             f"• Fecha: {start_date.strftime('%d %b %Y %I:%M %p')}\n"
             f"• Expira: {end_date.strftime('%d %b %Y')}\n"
             f"• Estado: ✅ ACTIVO\n"
@@ -394,7 +439,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, paypal_sub_
             except Exception as e:
                 logger.error(f"Error al notificar al admin {admin_id}: {str(e)}")
         
-        logger.info(f"Suscripción exitosa procesada para usuario {user_id}, plan {plan_id}")
+        logger.info(f"Pago exitoso procesado para usuario {user_id}, plan {plan_id}, tipo: {payment_type_admin}")
         return True
         
     except Exception as e:
@@ -1668,34 +1713,50 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
             )
             return
         
-        # Generar texto de beneficios
+        # Generate benefits text
         benefits_text = ""
         for benefit in plan.get('benefits', ['Acceso al grupo VIP']):
             benefits_text += f"✅ {benefit}\n"
         
-        # Obtener tipo de facturación según duración
+        # Get billing type based on duration
         if plan['duration_days'] >= 30:
-            billing_type = "mensual"
+            duration_type = "mensual"
         elif plan['duration_days'] >= 7:
-            billing_type = "semanal"
+            duration_type = "semanal"
         else:
-            billing_type = "diaria"
+            duration_type = "diaria"
         
-        # Construir mensaje con detalles del plan
+        # Check if this plan overrides the global recurring setting
+        plan_recurring = plan.get('recurring')
+        is_recurring = RECURRING_PAYMENTS_ENABLED if plan_recurring is None else plan_recurring
+        
+        # Payment type text
+        if is_recurring:
+            payment_type_text = f"Facturación: {duration_type} (recurrente)\n" + \
+                              "El pago se renovará automáticamente hasta que canceles."
+        else:
+            payment_type_text = f"Duración: {plan['duration_days']} días\n" + \
+                              "Pago único (sin renovación automática)"
+        
+        # Build message with plan details
         plan_text = (
             f"📦 {plan['display_name']}\n\n"
             f"{plan['description']}\n"
             f"Beneficios:\n"
             f"{benefits_text}\n"
             f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
-            f"📆 Facturación: {billing_type} (recurrente)\n\n"
+            f"📆 {payment_type_text}\n\n"
             f"Selecciona un método de pago 👇"
         )
         
-        # Crear markup con botones de pago
+        # Create markup with payment buttons
         markup = types.InlineKeyboardMarkup(row_width=1)
+        
+        # Button text depends on payment type
+        button_text = "Suscribirse con PayPal" if is_recurring else "Pagar con PayPal"
+        
         markup.add(
-            types.InlineKeyboardButton("🅿️ Pagar con PayPal", callback_data=f"payment_paypal_{plan_id}"),
+            types.InlineKeyboardButton(f"🅿️ {button_text}", callback_data=f"payment_paypal_{plan_id}"),
             types.InlineKeyboardButton("🔙 Atrás", callback_data="view_plans")
         )
         
@@ -1723,17 +1784,26 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
 def show_payment_tutorial(bot, chat_id, message_id):
     """Muestra el tutorial de pagos"""
     try:
+        payment_type = "suscripciones" if RECURRING_PAYMENTS_ENABLED else "pagos"
+        renewal_text = (
+            "⚠️ Importante: Tu suscripción se renovará automáticamente. "
+            "Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
+        ) if RECURRING_PAYMENTS_ENABLED else (
+            "⚠️ Importante: Este es un pago único. "
+            "Cuando termine tu período, deberás realizar un nuevo pago para mantener el acceso."
+        )
+        
         tutorial_text = (
-            "🎥 *Tutorial de Pagos*\n\n"
-            "Para suscribirte a nuestro grupo VIP, sigue estos pasos:\n\n"
+            f"🎥 *Tutorial de {payment_type.capitalize()}*\n\n"
+            f"Para acceder a nuestro grupo VIP, sigue estos pasos:\n\n"
             "1️⃣ Selecciona el plan que deseas (Semanal o Mensual)\n\n"
-            "2️⃣ Haz clic en 'Pagar con PayPal'\n\n"
+            "2️⃣ Haz clic en el botón de pago\n\n"
             "3️⃣ Serás redirigido a la página de PayPal donde puedes pagar con:\n"
             "   - Cuenta de PayPal\n"
             "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
             "4️⃣ Completa el pago y regresa a Telegram\n\n"
             "5️⃣ Recibirás un enlace de invitación al grupo VIP\n\n"
-            "⚠️ Importante: Tu suscripción se renovará automáticamente. Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
+            f"{renewal_text}"
         )
         
         markup = types.InlineKeyboardMarkup()
@@ -1823,21 +1893,20 @@ def handle_payment_method(call, bot):
         message_id = call.message.message_id
         user_id = call.from_user.id
         
-        # Extraer el método de pago y plan del callback data
+        # Extract payment method and plan from callback data
         _, method, plan_id = call.data.split('_')
         
-        # Verificar que el plan existe en la configuración
-        from config import PLANS
+        # Check if the plan exists in the configuration
         if plan_id not in PLANS:
             bot.answer_callback_query(call.id, "Plan no disponible actualmente")
             logger.error(f"Usuario {user_id} solicitó plan inexistente: {plan_id}")
             
-            # Volver a mostrar planes disponibles
+            # Show available plans again
             show_plans(bot, chat_id, message_id)
             return
         
         if method == "paypal":
-            # Mostrar animación de "procesando"
+            # Show processing animation
             processing_message = bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=message_id,
@@ -1845,7 +1914,7 @@ def handle_payment_method(call, bot):
                 reply_markup=None
             )
             
-            # Iniciar animación de "procesando"
+            # Start processing animation
             animation_thread = threading.Thread(
                 target=start_processing_animation,
                 args=(bot, chat_id, processing_message.message_id)
@@ -1853,25 +1922,35 @@ def handle_payment_method(call, bot):
             animation_thread.daemon = True
             animation_thread.start()
             
-            # Crear enlace de suscripción de PayPal
-            subscription_url = pay.create_subscription_link(plan_id, user_id)
+            # Create payment link (will handle both one-time and recurring)
+            from payments import create_payment_link
+            payment_url = create_payment_link(plan_id, user_id)
             
-            # Detener la animación
+            # Stop the animation
             if chat_id in payment_animations:
                 payment_animations[chat_id]['active'] = False
             
-            if subscription_url:
-                # Crear markup con botón para pagar
+            if payment_url:
+                # Create markup with pay button
                 markup = types.InlineKeyboardMarkup()
+                
+                # Check if this plan overrides the global recurring setting
+                plan = PLANS[plan_id]
+                plan_recurring = plan.get('recurring')
+                is_recurring = RECURRING_PAYMENTS_ENABLED if plan_recurring is None else plan_recurring
+                
+                # Payment button text based on payment type
+                button_text = "Suscribirse" if is_recurring else "Pagar ahora"
+                
                 markup.add(
-                    types.InlineKeyboardButton("💳 Ir a pagar", url=subscription_url),
+                    types.InlineKeyboardButton(f"💳 {button_text}", url=payment_url),
                     types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
                 )
                 
-                # Crear descripción del plan dinámicamente
-                plan = PLANS[plan_id]
+                # Create plan description dynamically
+                payment_type = "Suscripción" if is_recurring else "Pago único"
                 
-                # Determinar periodo de facturación basado en duración
+                # Determine period based on duration
                 if plan['duration_days'] <= 7:
                     period = 'semana'
                 elif plan['duration_days'] <= 30:
@@ -1883,25 +1962,27 @@ def handle_payment_method(call, bot):
                 else:
                     period = 'año'
                 
-                # Actualizar mensaje con el enlace de pago
+                renewal_text = "(renovación automática)" if is_recurring else "(sin renovación automática)"
+                
+                # Update message with payment link
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        "🔗 *Tu enlace de pago está listo*\n\n"
+                        f"🔗 *Tu enlace de {payment_type.lower()} está listo*\n\n"
                         f"Plan: {plan['display_name']}\n"
                         f"Precio: ${plan['price_usd']:.2f} USD / "
-                        f"{period}\n\n"
-                        "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
+                        f"{period} {renewal_text}\n\n"
+                        f"Por favor, haz clic en el botón de abajo para completar tu {payment_type.lower()} con PayPal.\n"
                         "Una vez completado, serás redirigido de vuelta aquí."
                     ),
                     parse_mode='Markdown',
                     reply_markup=markup
                 )
                 
-                logger.info(f"Enlace de pago PayPal creado para usuario {user_id}, plan {plan_id}")
+                logger.info(f"Enlace de pago PayPal creado para usuario {user_id}, plan {plan_id}, tipo: {payment_type}")
             else:
-                # Error al crear enlace de pago
+                # Error creating payment link
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
                 
@@ -1919,7 +2000,7 @@ def handle_payment_method(call, bot):
                 
                 logger.error(f"Error al crear enlace de pago PayPal para usuario {user_id}, plan {plan_id}")
         
-        # Responder al callback para quitar el "reloj de espera" en el cliente
+        # Answer callback to remove the waiting clock in the client
         bot.answer_callback_query(call.id)
         
     except Exception as e:
@@ -1927,7 +2008,7 @@ def handle_payment_method(call, bot):
         try:
             bot.answer_callback_query(call.id, "❌ Ocurrió un error. Intenta nuevamente.")
             
-            # Detener cualquier animación en curso
+            # Stop any ongoing animation
             if chat_id in payment_animations:
                 payment_animations[chat_id]['active'] = False
                 
@@ -1942,7 +2023,7 @@ def handle_payment_method(call, bot):
                 )
         except:
             pass
-        
+
 def handle_recover_access(message, bot):
     """Maneja la solicitud de recuperación de acceso VIP"""
     try:

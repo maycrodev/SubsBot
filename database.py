@@ -128,6 +128,46 @@ def create_subscription(user_id: int, plan: str, price_usd: float,
     
     return sub_id
 
+def get_subscription_by_payment_id(payment_id: str) -> Optional[Dict]:
+    """Obtiene una suscripción por su ID de pago en PayPal (order_id para pagos únicos)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM subscriptions WHERE paypal_sub_id = ?', (payment_id,))
+    subscription = cursor.fetchone()
+    
+    conn.close()
+    
+    if subscription:
+        return dict(subscription)
+    return None
+
+def is_subscription_recurring(sub_id: int) -> bool:
+    """Verifica si una suscripción es recurrente o de pago único"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # If the column doesn't exist yet, add it (for backward compatibility)
+    cursor.execute("PRAGMA table_info(subscriptions)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    if 'is_recurring' not in columns:
+        cursor.execute('ALTER TABLE subscriptions ADD COLUMN is_recurring BOOLEAN DEFAULT 1')
+        conn.commit()
+        # When upgrading, we assume all existing subscriptions were recurring
+        cursor.execute('UPDATE subscriptions SET is_recurring = 1')
+        conn.commit()
+    
+    cursor.execute('SELECT is_recurring FROM subscriptions WHERE sub_id = ?', (sub_id,))
+    result = cursor.fetchone()
+    
+    conn.close()
+    
+    if not result:
+        return True  # Default to True if no result (shouldn't happen)
+    
+    return bool(result[0])
+
 def get_active_subscription(user_id: int) -> Optional[Dict]:
     """Obtiene la suscripción activa de un usuario si existe"""
     conn = get_db_connection()

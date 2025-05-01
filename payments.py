@@ -6,7 +6,7 @@ import os
 from typing import Dict, Optional, Tuple
 import logging
 
-from config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_MODE, PLANS, WEBHOOK_URL, DB_PATH
+from config import PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_MODE, PLANS, WEBHOOK_URL, DB_PATH, RECURRING_PAYMENTS_ENABLED
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -114,6 +114,176 @@ def create_product_if_not_exists() -> Optional[str]:
     except Exception as e:
         logger.error(f"Error al crear producto en PayPal: {str(e)}")
         return None
+
+def create_order(plan_id: str, user_id: int) -> Optional[str]:
+    """Crea una orden de pago único en PayPal"""
+    try:
+        token = get_access_token()
+        if not token:
+            logger.error("No se pudo obtener token para crear orden")
+            return None
+        
+        plan_details = PLANS.get(plan_id)
+        if not plan_details:
+            logger.error(f"Plan no reconocido: {plan_id}")
+            return None
+        
+        # Generate a unique request ID
+        request_id = f"order-{plan_id}-{user_id}-{datetime.datetime.now().timestamp()}"
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "PayPal-Request-Id": request_id,
+            "Prefer": "return=representation"
+        }
+        
+        # Configure return URLs with user_id and plan_id
+        return_url = f"{WEBHOOK_URL}/paypal/return?user_id={user_id}&plan_id={plan_id}&payment_type=order"
+        cancel_url = f"{WEBHOOK_URL}/paypal/cancel?user_id={user_id}&plan_id={plan_id}&payment_type=order"
+        
+        data = {
+            "intent": "CAPTURE",
+            "purchase_units": [
+                {
+                    "amount": {
+                        "currency_code": "USD",
+                        "value": str(plan_details['price_usd'])
+                    },
+                    "description": plan_details['description'],
+                    "custom_id": f"{user_id}:{plan_id}"  # Store user_id and plan_id for webhook processing
+                }
+            ],
+            "application_context": {
+                "brand_name": "Bot Suscripciones VIP",
+                "locale": "es-ES",
+                "shipping_preference": "NO_SHIPPING",
+                "user_action": "PAY_NOW",
+                "return_url": return_url,
+                "cancel_url": cancel_url
+            }
+        }
+        
+        logger.info(f"Creando orden de pago único en PayPal para usuario {user_id}, plan {plan_id}")
+        response = requests.post(f"{BASE_URL}/v2/checkout/orders", headers=headers, json=data)
+        
+        # Log response for debugging
+        if response.status_code not in [200, 201, 202]:
+            logger.error(f"Error al crear orden: Status code {response.status_code}")
+            logger.error(f"Respuesta: {response.text}")
+            return None
+            
+        response.raise_for_status()
+        
+        order_data = response.json()
+        order_id = order_data.get("id")
+        
+        if order_id:
+            logger.info(f"Orden creada con ID: {order_id}")
+        
+        # Extract and return the approval URL
+        for link in order_data.get("links", []):
+            if link.get("rel") == "approve":
+                approve_url = link.get("href")
+                logger.info(f"Enlace de aprobación generado para orden: {approve_url}")
+                return approve_url
+        
+        logger.error("No se encontró enlace de aprobación en la respuesta")
+        return None
+    except Exception as e:
+        logger.error(f"Error al crear orden de pago único: {str(e)}")
+        return None
+
+def verify_and_capture_order(order_id: str) -> Optional[Dict]:
+    """Verifica y captura un pago único"""
+    try:
+        token = get_access_token()
+        if not token:
+            logger.error("No se pudo obtener token para verificar orden")
+            return None
+        
+        # First, get order details
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        logger.info(f"Verificando orden con ID: {order_id}")
+        response = requests.get(f"{BASE_URL}/v2/checkout/orders/{order_id}", headers=headers)
+        
+        if response.status_code != 200:
+            logger.error(f"Error al verificar orden: Status code {response.status_code}")
+            logger.error(f"Respuesta: {response.text}")
+            return None
+            
+        response.raise_for_status()
+        
+        order_data = response.json()
+        order_status = order_data.get("status")
+        
+        # If the order is approved, capture it
+        if order_status == "APPROVED":
+            logger.info(f"Orden {order_id} aprobada, procediendo a capturar el pago")
+            
+            # Capture the payment
+            capture_response = requests.post(
+                f"{BASE_URL}/v2/checkout/orders/{order_id}/capture",
+                headers=headers
+            )
+            
+            if capture_response.status_code not in [200, 201, 202]:
+                logger.error(f"Error al capturar pago: Status code {capture_response.status_code}")
+                logger.error(f"Respuesta: {capture_response.text}")
+                return None
+                
+            capture_response.raise_for_status()
+            
+            capture_data = capture_response.json()
+            capture_status = capture_data.get("status")
+            
+            if capture_status == "COMPLETED":
+                logger.info(f"Pago capturado exitosamente para orden {order_id}")
+                return capture_data
+            else:
+                logger.error(f"Captura de pago no completada: {capture_status}")
+                return None
+        else:
+            logger.info(f"Orden {order_id} no está aprobada. Estado actual: {order_status}")
+            return order_data
+    except Exception as e:
+        logger.error(f"Error al verificar y capturar orden: {str(e)}")
+        return None
+    
+def create_payment_link(plan_id: str, user_id: int) -> Optional[str]:
+    """
+    Crea un enlace de pago para que el usuario pague a través de PayPal.
+    Maneja tanto pagos únicos como recurrentes según la configuración.
+    """
+    try:
+        # Determine if this should be a recurring payment
+        plan_details = PLANS.get(plan_id)
+        if not plan_details:
+            logger.error(f"Plan no reconocido: {plan_id}")
+            return None
+        
+        # Check plan-specific setting first, then fall back to global setting
+        is_recurring = plan_details.get('recurring')
+        if is_recurring is None:  # If not set at plan level
+            is_recurring = RECURRING_PAYMENTS_ENABLED
+        
+        # Create the appropriate payment link
+        if is_recurring:
+            logger.info(f"Creando enlace de pago RECURRENTE para usuario {user_id}, plan {plan_id}")
+            return create_subscription_link(plan_id, user_id)
+        else:
+            logger.info(f"Creando enlace de pago ÚNICO para usuario {user_id}, plan {plan_id}")
+            return create_order(plan_id, user_id)
+            
+    except Exception as e:
+        logger.error(f"Error al crear enlace de pago: {str(e)}")
+        return None
+    
+
 
 # Modificación para la función create_plan en payments.py
 
@@ -223,21 +393,21 @@ def create_plan(plan_id: str, product_id: str) -> Optional[str]:
         return None
 
 def create_subscription_link(plan_id: str, user_id: int) -> Optional[str]:
-    """Crea un enlace de suscripción para que el usuario se suscriba a través de PayPal"""
+    """Crea un enlace de suscripción recurrente a través de PayPal"""
     try:
-        # 1. Primero verificamos que las credenciales sean válidas obteniendo un token
+        # 1. First verify that the credentials are valid by getting a token
         token = get_access_token()
         if not token:
             logger.error("No se pudo obtener token de acceso para crear suscripción")
             return None
             
-        # 2. Obtener un producto o crear uno nuevo
+        # 2. Get a product or create a new one
         product_id = create_product_if_not_exists()
         if not product_id:
             logger.error("No se pudo obtener/crear el producto para la suscripción")
             return None
         
-        # 3. Crear el plan basado en el producto
+        # 3. Create the plan based on the product
         paypal_plan_id = create_plan(plan_id, product_id)
         if not paypal_plan_id:
             logger.error(f"No se pudo crear el plan de suscripción para {plan_id}")
@@ -249,9 +419,9 @@ def create_subscription_link(plan_id: str, user_id: int) -> Optional[str]:
             "PayPal-Request-Id": f"subscription-{user_id}-{datetime.datetime.now().timestamp()}"
         }
         
-        # Configurar la URL de retorno con el ID del usuario y el plan
-        return_url = f"{WEBHOOK_URL}/paypal/return?user_id={user_id}&plan_id={plan_id}"
-        cancel_url = f"{WEBHOOK_URL}/paypal/cancel?user_id={user_id}&plan_id={plan_id}"
+        # Configure return URLs with user_id, plan_id and payment type
+        return_url = f"{WEBHOOK_URL}/paypal/return?user_id={user_id}&plan_id={plan_id}&payment_type=subscription"
+        cancel_url = f"{WEBHOOK_URL}/paypal/cancel?user_id={user_id}&plan_id={plan_id}&payment_type=subscription"
         
         data = {
             "plan_id": paypal_plan_id,
@@ -272,7 +442,7 @@ def create_subscription_link(plan_id: str, user_id: int) -> Optional[str]:
         logger.info(f"Creando enlace de suscripción para usuario {user_id}, plan {plan_id}")
         response = requests.post(f"{BASE_URL}/v1/billing/subscriptions", headers=headers, json=data)
         
-        # Registrar respuesta para depuración
+        # Log response for debugging
         if response.status_code not in [200, 201, 202]:
             logger.error(f"Error al crear suscripción: Status code {response.status_code}")
             logger.error(f"Respuesta: {response.text}")
@@ -282,7 +452,7 @@ def create_subscription_link(plan_id: str, user_id: int) -> Optional[str]:
         
         response_data = response.json()
         
-        # Extraer y devolver el enlace de aprobación (approve URL)
+        # Extract and return the approval URL
         for link in response_data.get("links", []):
             if link.get("rel") == "approve":
                 approve_url = link.get("href")
@@ -365,47 +535,69 @@ def cancel_subscription(subscription_id: str, reason: str = "Cancelado por el bo
         return False
 
 def process_webhook_event(event_data: Dict) -> Tuple[bool, str]:
-    """Procesa eventos de webhook de PayPal"""
+    """Procesa eventos de webhook de PayPal para suscripciones y pagos únicos"""
     try:
         event_type = event_data.get("event_type")
         
-        # Registro del evento para debugging
-        logger.info(f"Evento PayPal recibido: {event_type}")
-        logger.info(f"Datos del evento: {json.dumps(event_data)[:500]}...")  # Mostrar primeros 500 caracteres
+        # Log the event for debugging
+        logger.info(f"PayPal webhook recibido: {event_type}")
+        logger.info(f"Datos del evento: {json.dumps(event_data)[:500]}...")  # Show first 500 chars
         
-        # Manejar diferentes tipos de eventos
-        if event_type == "BILLING.SUBSCRIPTION.CREATED":
-            # Una suscripción ha sido creada, pero aún no está activa
-            return True, "Suscripción creada"
+        # Extract the resource (can be subscription or order)
+        resource = event_data.get("resource", {})
+        
+        # Handle subscription events (recurring payments)
+        if event_type.startswith("BILLING.SUBSCRIPTION"):
+            # Existing subscription handling logic
+            if event_type == "BILLING.SUBSCRIPTION.CREATED":
+                return True, "Suscripción creada"
+            elif event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
+                return True, "Suscripción activada"
+            elif event_type == "BILLING.SUBSCRIPTION.UPDATED":
+                return True, "Suscripción actualizada"
+            elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
+                return True, "Suscripción cancelada"
+            elif event_type == "BILLING.SUBSCRIPTION.SUSPENDED":
+                return True, "Suscripción suspendida"
+            elif event_type == "BILLING.SUBSCRIPTION.PAYMENT.FAILED":
+                return True, "Pago fallido"
+            else:
+                logger.warning(f"Evento de suscripción no manejado: {event_type}")
+                return False, f"Evento de suscripción no manejado: {event_type}"
+        
+        # Handle payment/order events (one-time payments)
+        elif event_type.startswith("PAYMENT.") or event_type.startswith("CHECKOUT.ORDER"):
+            if event_type == "PAYMENT.CAPTURE.COMPLETED":
+                # Payment has been completed successfully
+                order_id = resource.get("supplementary_data", {}).get("related_ids", {}).get("order_id")
+                custom_id = resource.get("custom_id", "")
+                
+                logger.info(f"Pago completado para orden {order_id}, custom_id: {custom_id}")
+                
+                # Extract user_id and plan_id from custom_id (format: "user_id:plan_id")
+                if ":" in custom_id:
+                    user_id, plan_id = custom_id.split(":", 1)
+                    logger.info(f"Pago de usuario {user_id} para plan {plan_id}")
+                
+                return True, "Pago completado"
             
-        elif event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
-            # La suscripción está activa
-            return True, "Suscripción activada"
-            
-        elif event_type == "BILLING.SUBSCRIPTION.UPDATED":
-            # La suscripción ha sido actualizada
-            return True, "Suscripción actualizada"
-            
-        elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
-            # La suscripción ha sido cancelada
-            return True, "Suscripción cancelada"
-            
-        elif event_type == "BILLING.SUBSCRIPTION.SUSPENDED":
-            # La suscripción ha sido suspendida
-            return True, "Suscripción suspendida"
-            
-        elif event_type == "BILLING.SUBSCRIPTION.PAYMENT.FAILED":
-            # Un pago de la suscripción ha fallado
-            return True, "Pago fallido"
-            
-        elif event_type == "PAYMENT.SALE.COMPLETED":
-            # Se ha completado un pago
-            return True, "Pago completado"
-            
+            elif event_type == "CHECKOUT.ORDER.APPROVED":
+                order_id = resource.get("id")
+                logger.info(f"Orden {order_id} aprobada")
+                return True, "Orden aprobada"
+                
+            elif event_type == "CHECKOUT.ORDER.COMPLETED":
+                order_id = resource.get("id")
+                logger.info(f"Orden {order_id} completada")
+                return True, "Orden completada"
+                
+            else:
+                logger.warning(f"Evento de pago/orden no manejado: {event_type}")
+                return False, f"Evento de pago/orden no manejado: {event_type}"
+        
         else:
-            # Evento no manejado
-            logger.warning(f"Evento no manejado: {event_type}")
-            return False, f"Evento no manejado: {event_type}"
+            logger.warning(f"Tipo de evento no manejado: {event_type}")
+            return False, f"Tipo de evento no manejado: {event_type}"
             
     except Exception as e:
         logger.error(f"Error al procesar evento de webhook: {str(e)}")
