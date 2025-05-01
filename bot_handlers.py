@@ -11,8 +11,8 @@ import os
 import re
 from typing import Dict, Optional, Tuple, Any
 
-global security_thread_running
-security_thread_running = False
+global renewal_thread_running
+renewal_thread_running = False
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -195,6 +195,116 @@ def create_invite_link(bot, user_id, sub_id):
     except Exception as e:
         logger.error(f"Error al crear enlace de invitación: {str(e)}")
         return None
+
+# Modificaciones a realizar en bot_handlers.py
+
+# 1. Agregar función para iniciar el proceso de verificación diaria de renovaciones
+def schedule_renewal_checks(bot):
+    """
+    Inicia un hilo separado para verificar renovaciones de suscripciones pendientes
+    
+    Args:
+        bot: Instancia del bot de Telegram
+        
+    Returns:
+        threading.Thread: Hilo iniciado para verificaciones
+    """
+    import threading
+    import time
+    import logging
+    import datetime
+    
+    logger = logging.getLogger(__name__)
+    
+    def renewal_check_thread():
+        """Función ejecutada en un hilo separado para verificar renovaciones periódicamente"""
+        # Indicador para saber si el hilo está activo
+        global renewal_thread_running
+        renewal_thread_running = True
+        
+        logger.info("🔄 HILO DE RENOVACIONES INICIADO - Verificación periódica activada")
+        
+        # Notificar a los administradores
+        from config import ADMIN_IDS
+        for admin_id in ADMIN_IDS:
+            try:
+                bot.send_message(
+                    chat_id=admin_id,
+                    text="🔄 Sistema de renovación automática iniciado: Se procesarán renovaciones diariamente."
+                )
+            except Exception:
+                pass  # Ignorar errores al notificar
+        
+        # Variable para rastrear la última fecha de verificación completa
+        last_full_check_date = None
+        
+        while renewal_thread_running:
+            try:
+                # Realizar verificaciones cada hora, pero procesamiento completo solo una vez al día
+                current_time = datetime.datetime.now()
+                
+                # Verificar si debemos hacer una verificación completa (cada 24 horas)
+                do_full_check = False
+                
+                if last_full_check_date is None:
+                    # Primera ejecución
+                    do_full_check = True
+                elif (current_time - last_full_check_date).total_seconds() >= 86400:  # 24 horas
+                    # Han pasado 24 horas desde la última verificación
+                    do_full_check = True
+                
+                if do_full_check:
+                    logger.info("🔍 Iniciando verificación completa de renovaciones")
+                    
+                    # Importar función de procesamiento
+                    import payments as pay
+                    
+                    # Procesar renovaciones
+                    notified, errors = pay.process_subscription_renewals(bot)
+                    
+                    logger.info(f"✅ Verificación de renovaciones completada: {notified} notificaciones enviadas, {errors} errores")
+                    
+                    # Actualizar fecha de última verificación
+                    last_full_check_date = current_time
+                    
+                    # Notificar a los administradores si hubo errores
+                    if errors > 0:
+                        from config import ADMIN_IDS
+                        for admin_id in ADMIN_IDS:
+                            try:
+                                bot.send_message(
+                                    chat_id=admin_id,
+                                    text=f"⚠️ Alerta: Se encontraron {errors} errores durante el procesamiento de renovaciones automáticas."
+                                )
+                            except Exception:
+                                pass
+                else:
+                    # En verificaciones no completas, solo registrar actividad
+                    logger.info("Hilo de renovaciones activo - Próxima verificación completa en: " + 
+                               str(datetime.timedelta(seconds=86400 - (current_time - last_full_check_date).total_seconds())))
+                
+                # Esperar antes de la próxima verificación (1 hora)
+                # Dividir en intervalos pequeños para poder responder a señales de parada
+                for _ in range(30):  # 60 minutos = 1 hora
+                    if not renewal_thread_running:
+                        break
+                    time.sleep(1)  # 60 segundos = 1 minuto
+                
+            except Exception as e:
+                logger.error(f"❌ Error en ciclo de verificación de renovaciones: {e}")
+                # En caso de error, esperar y continuar
+                time.sleep(300)  # 5 minutos
+        
+        logger.warning("⚠️ HILO DE RENOVACIONES TERMINADO")
+        renewal_thread_running = False
+    
+    # Crear e iniciar el hilo
+    thread = threading.Thread(target=renewal_check_thread, daemon=True)
+    thread.start()
+    
+    logger.info("🔄 Hilo de verificación de renovaciones iniciado en segundo plano")
+    
+    return thread
 
 def generate_plans_text():
     """
@@ -446,12 +556,32 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
         logger.error(f"Error en process_successful_subscription: {str(e)}")
         return False
 
-def update_subscription_from_webhook(bot, event_data: Dict) -> bool:
-    """Actualiza la suscripción en la base de datos según el evento de webhook de PayPal"""
+def update_subscription_from_webhook(bot, event_data):
+    """
+    Actualiza la suscripción en la base de datos según el evento de webhook de PayPal
+    
+    Args:
+        bot: Instancia del bot de Telegram
+        event_data (dict): Datos del evento recibido de PayPal
+        
+    Returns:
+        bool: True si se procesó correctamente, False en caso de error
+    """
     try:
+        import logging
+        import database as db
+        import datetime
+        from config import PLANS, ADMIN_IDS
+        
+        logger = logging.getLogger(__name__)
+        
         event_type = event_data.get("event_type")
         resource = event_data.get("resource", {})
+        
+        # Obtener ID de suscripción o pago
         subscription_id = resource.get("id")
+        if not subscription_id and 'billing_agreement_id' in resource:
+            subscription_id = resource.get("billing_agreement_id")
         
         if not subscription_id:
             logger.error("Evento de webhook sin ID de suscripción")
@@ -475,7 +605,7 @@ def update_subscription_from_webhook(bot, event_data: Dict) -> bool:
         elif event_type == "BILLING.SUBSCRIPTION.UPDATED":
             # Verificar si hay cambios en la fecha de expiración
             # Esto dependerá de la estructura exacta del evento
-            pass
+            logger.info(f"Suscripción {sub_id} actualizada en PayPal")
             
         elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
             # Marcar la suscripción como cancelada
@@ -545,26 +675,74 @@ def update_subscription_from_webhook(bot, event_data: Dict) -> bool:
             
             # Calcular nueva fecha de expiración
             current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
-            new_end_date = current_end_date + datetime.timedelta(days=plan['duration_days'])
+            
+            # MODIFICACIÓN: Verificar si la suscripción ya ha vencido
+            now = datetime.datetime.now()
+            
+            if current_end_date < now:
+                # La suscripción ya venció, calcular desde hoy
+                logger.info(f"Suscripción {sub_id} ya venció. Calculando nueva fecha desde hoy.")
+                new_end_date = now + datetime.timedelta(days=plan['duration_days'])
+            else:
+                # La suscripción aún está activa, extender desde la fecha actual de vencimiento
+                new_end_date = current_end_date + datetime.timedelta(days=plan['duration_days'])
             
             # Extender la suscripción
             db.extend_subscription(sub_id, new_end_date)
             
+            # NUEVO: Registrar la renovación en el historial
+            try:
+                # Obtener datos de pago adicionales
+                payment_id = resource.get("id") 
+                amount = resource.get("amount", {}).get("total", plan['price_usd'])
+                
+                # Guardar en historial
+                db.record_subscription_renewal(
+                    sub_id, 
+                    user_id,
+                    plan_id,
+                    float(amount),
+                    current_end_date,
+                    new_end_date,
+                    payment_id,
+                    "COMPLETED"
+                )
+            except Exception as e:
+                logger.error(f"Error al registrar renovación en historial: {e}")
+            
             # Notificar al usuario
             try:
-                bot.send_message(
-                    chat_id=user_id,
-                    text=(
-                        "✅ *Suscripción renovada exitosamente*\n\n"
-                        f"Tu suscripción al grupo VIP ha sido renovada hasta el {new_end_date.strftime('%d %b %Y')}.\n"
-                        "¡Gracias por tu continuado apoyo!"
-                    ),
-                    parse_mode='Markdown'
-                )
+                # Importar función para notificar renovación exitosa
+                import payments as pay
+                
+                # Notificar al usuario
+                pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
+                
             except Exception as e:
                 logger.error(f"Error al notificar renovación al usuario {user_id}: {str(e)}")
             
             logger.info(f"Suscripción {sub_id} renovada hasta {new_end_date}")
+            
+            # Notificar a los administradores
+            for admin_id in ADMIN_IDS:
+                try:
+                    # Obtener información del usuario para el mensaje personalizado
+                    user_info = db.get_user(user_id)
+                    username = user_info.get('username', 'Sin username') if user_info else 'Desconocido'
+                    
+                    bot.send_message(
+                        chat_id=admin_id,
+                        text=(
+                            "💰 *Renovación automática exitosa*\n\n"
+                            f"Usuario: {username} (ID: {user_id})\n"
+                            f"Plan: {plan.get('display_name', plan_id)}\n"
+                            f"Monto: ${float(amount) if 'amount' in locals() else plan['price_usd']:.2f} USD\n"
+                            f"Nueva fecha de expiración: {new_end_date.strftime('%d/%m/%Y')}"
+                        ),
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    logger.error(f"Error al notificar renovación a admin {admin_id}: {str(e)}")
         
         return True
         
@@ -2861,6 +3039,12 @@ def handle_stats_command(message, bot):
     Uso: /stats
     """
     try:
+        import logging
+        import database as db
+        from config import WEBHOOK_URL, ADMIN_IDS
+        
+        logger = logging.getLogger(__name__)
+        
         user_id = message.from_user.id
         chat_id = message.chat.id
         
@@ -2884,7 +3068,9 @@ def handle_stats_command(message, bot):
             "usuarios": db.get_table_count(conn, "users"),
             "suscripciones": db.get_table_count(conn, "subscriptions"),
             "suscripciones_activas": db.get_active_subscriptions_count(conn),
-            "enlaces_invitacion": db.get_table_count(conn, "invite_links")
+            "enlaces_invitacion": db.get_table_count(conn, "invite_links"),
+            # NUEVO: Contador de renovaciones
+            "renovaciones_totales": db.get_table_count(conn, "subscription_renewals")
         }
         
         # Estadísticas adicionales
@@ -2903,6 +3089,13 @@ def handle_stats_command(message, bot):
         """)
         stats["suscripciones_nuevas_24h"] = cursor.fetchone()[0]
         
+        # NUEVO: Renovaciones en las últimas 24 horas
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscription_renewals
+        WHERE renewal_date > datetime('now', '-1 day')
+        """)
+        stats["renovaciones_24h"] = cursor.fetchone()[0]
+        
         # Cantidad de expulsiones
         cursor.execute("SELECT COUNT(*) FROM expulsions")
         stats["expulsiones_totales"] = cursor.fetchone()[0]
@@ -2915,6 +3108,15 @@ def handle_stats_command(message, bot):
         ORDER BY total DESC
         """)
         plan_stats = cursor.fetchall()
+        
+        # NUEVO: Próximas renovaciones en los siguientes 7 días
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions 
+        WHERE status = 'ACTIVE' 
+        AND is_recurring = 1
+        AND date(end_date) BETWEEN date('now') AND date('now', '+7 day')
+        """)
+        stats["renovaciones_proximas_7d"] = cursor.fetchone()[0]
         
         # Cerrar conexión
         conn.close()
@@ -2932,6 +3134,12 @@ def handle_stats_command(message, bot):
             f"• Activas: {stats['suscripciones_activas']}\n"
             f"• Nuevas (24h): {stats['suscripciones_nuevas_24h']}\n\n"
             
+            # NUEVO: Sección de renovaciones
+            "🔄 *Renovaciones*\n"
+            f"• Totales: {stats['renovaciones_totales']}\n"
+            f"• Últimas 24h: {stats['renovaciones_24h']}\n"
+            f"• Próximos 7 días: {stats['renovaciones_proximas_7d']}\n\n"
+            
             "🔗 *Enlaces de Invitación*\n"
             f"• Generados: {stats['enlaces_invitacion']}\n\n"
             
@@ -2942,6 +3150,7 @@ def handle_stats_command(message, bot):
         # Añadir estadísticas de planes
         if plan_stats:
             stats_text += "📑 *Planes*\n"
+            from config import PLANS
             for plan_data in plan_stats:
                 plan_id = plan_data[0]
                 count = plan_data[1]
@@ -2950,10 +3159,14 @@ def handle_stats_command(message, bot):
             stats_text += "\n"
         
         # Añadir información del panel de administrador
-        from config import WEBHOOK_URL
+        import datetime
         stats_text += (
             "🔐 *Panel de Administración*\n"
             f"• URL: {WEBHOOK_URL}/admin/panel?admin_id={user_id}\n\n"
+            
+            # NUEVO: Información sobre comandos de renovación
+            "🔄 *Comandos de Renovación*\n"
+            "• /check_renewals - Verificación manual de renovaciones\n\n"
             
             "📅 Actualizado: " + datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         )

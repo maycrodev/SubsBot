@@ -18,7 +18,7 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Tabla de usuarios
+    # Tabla de usuarios (existente)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -29,7 +29,7 @@ def init_db():
     )
     ''')
     
-    # Tabla de suscripciones
+    # Tabla de suscripciones (existente, con modificación para is_recurring)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS subscriptions (
         sub_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,11 +40,12 @@ def init_db():
         end_date TIMESTAMP,
         status TEXT,
         paypal_sub_id TEXT,
+        is_recurring BOOLEAN DEFAULT 1,
         FOREIGN KEY (user_id) REFERENCES users (user_id)
     )
     ''')
     
-    # Tabla de enlaces de invitación
+    # Tabla de enlaces de invitación (existente)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS invite_links (
         link_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +58,7 @@ def init_db():
     )
     ''')
     
-    # Tabla de expulsiones
+    # Tabla de expulsiones (existente)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS expulsions (
         expel_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,8 +69,206 @@ def init_db():
     )
     ''')
     
+    # NUEVAS TABLAS
+    
+    # Tabla de historial de renovaciones
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS subscription_renewals (
+        renewal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sub_id INTEGER,
+        user_id INTEGER,
+        plan TEXT,
+        amount_usd REAL,
+        previous_end_date TIMESTAMP,
+        new_end_date TIMESTAMP,
+        renewal_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        payment_id TEXT,
+        status TEXT,
+        FOREIGN KEY (sub_id) REFERENCES subscriptions (sub_id),
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+    )
+    ''')
+    
+    # Tabla de notificaciones de renovación
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS renewal_notifications (
+        notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sub_id INTEGER,
+        user_id INTEGER,
+        sent_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (sub_id) REFERENCES subscriptions (sub_id),
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+    )
+    ''')
+    
     conn.commit()
     conn.close()
+
+def record_subscription_renewal(sub_id, user_id, plan, amount_usd, previous_end_date, new_end_date, payment_id=None, status="COMPLETED"):
+    """
+    Registra una renovación de suscripción en el historial
+    
+    Args:
+        sub_id (int): ID de la suscripción
+        user_id (int): ID del usuario
+        plan (str): ID del plan
+        amount_usd (float): Monto cobrado en USD
+        previous_end_date (datetime): Fecha de expiración anterior
+        new_end_date (datetime): Nueva fecha de expiración
+        payment_id (str, optional): ID del pago en PayPal
+        status (str, optional): Estado de la renovación
+        
+    Returns:
+        int: ID de la renovación creada
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    INSERT INTO subscription_renewals (
+        sub_id, user_id, plan, amount_usd, previous_end_date, new_end_date, payment_id, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (sub_id, user_id, plan, amount_usd, previous_end_date, new_end_date, payment_id, status))
+    
+    renewal_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return renewal_id
+
+def record_renewal_notification(sub_id, user_id):
+    """
+    Registra una notificación de renovación próxima
+    
+    Args:
+        sub_id (int): ID de la suscripción
+        user_id (int): ID del usuario
+        
+    Returns:
+        int: ID de la notificación creada
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    INSERT INTO renewal_notifications (sub_id, user_id)
+    VALUES (?, ?)
+    ''', (sub_id, user_id))
+    
+    notification_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return notification_id
+
+def get_subscription_renewals(sub_id=None, user_id=None, limit=10):
+    """
+    Obtiene el historial de renovaciones de suscripción
+    
+    Args:
+        sub_id (int, optional): Filtrar por ID de suscripción
+        user_id (int, optional): Filtrar por ID de usuario
+        limit (int, optional): Límite de resultados
+        
+    Returns:
+        list: Lista de renovaciones
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    query = '''
+    SELECT * FROM subscription_renewals
+    '''
+    
+    params = []
+    where_clauses = []
+    
+    if sub_id:
+        where_clauses.append("sub_id = ?")
+        params.append(sub_id)
+    
+    if user_id:
+        where_clauses.append("user_id = ?")
+        params.append(user_id)
+    
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
+    
+    query += " ORDER BY renewal_date DESC LIMIT ?"
+    params.append(limit)
+    
+    cursor.execute(query, params)
+    renewals = cursor.fetchall()
+    
+    conn.close()
+    
+    return [dict(renewal) for renewal in renewals]
+
+def get_pending_renewal_subscriptions(minutes_before=10):
+    """
+    Obtiene suscripciones recurrentes que vencerán en los próximos minutos
+    
+    Args:
+        minutes_before (int): Minutos antes del vencimiento
+        
+    Returns:
+        list: Lista de suscripciones próximas a vencer
+    """
+    from datetime import datetime, timedelta
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Calcular fecha objetivo
+    target_date = datetime.now() + timedelta(minutes=minutes_before)
+    target_date_str = target_date.strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Modificar la consulta para usar datetime en lugar de date
+    cursor.execute('''
+    SELECT s.*, u.username, u.first_name, u.last_name
+    FROM subscriptions s
+    JOIN users u ON s.user_id = u.user_id
+    WHERE s.status = 'ACTIVE' 
+      AND s.is_recurring = 1
+      AND s.paypal_sub_id IS NOT NULL
+      AND datetime(s.end_date) <= datetime(?)
+      AND datetime(s.end_date) >= datetime('now')
+    ''', (target_date_str,))
+    
+    subscriptions = cursor.fetchall()
+    conn.close()
+    
+    return [dict(subscription) for subscription in subscriptions]
+
+def get_recently_notified_subscriptions(hours=24):
+    """
+    Obtiene las suscripciones que ya han sido notificadas recientemente sobre renovación
+    
+    Args:
+        hours (int): Horas previas a considerar
+        
+    Returns:
+        list: Lista de IDs de suscripciones ya notificadas
+    """
+    from datetime import datetime, timedelta
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Calcular fecha límite
+    limit_date = datetime.now() - timedelta(hours=hours)
+    limit_date_str = limit_date.strftime('%Y-%m-%d %H:%M:%S')
+    
+    cursor.execute('''
+    SELECT sub_id 
+    FROM renewal_notifications
+    WHERE sent_date >= ?
+    ''', (limit_date_str,))
+    
+    results = cursor.fetchall()
+    conn.close()
+    
+    return [row[0] for row in results]
 
 # Funciones para manipular usuarios
 def save_user(user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> int:
@@ -108,6 +307,47 @@ def get_user(user_id: int) -> Optional[Dict]:
     if user:
         return dict(user)
     return None
+
+def add_renewals_table():
+    """
+    Crea una tabla para registrar el historial de renovaciones automáticas
+    Esta función debe ejecutarse al inicializar la base de datos
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Crear tabla de historial de renovaciones
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS subscription_renewals (
+        renewal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sub_id INTEGER,
+        user_id INTEGER,
+        plan TEXT,
+        amount_usd REAL,
+        previous_end_date TIMESTAMP,
+        new_end_date TIMESTAMP,
+        renewal_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        payment_id TEXT,
+        status TEXT,
+        FOREIGN KEY (sub_id) REFERENCES subscriptions (sub_id),
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+    )
+    ''')
+    
+    # Crear tabla de notificaciones de renovación
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS renewal_notifications (
+        notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sub_id INTEGER,
+        user_id INTEGER,
+        sent_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (sub_id) REFERENCES subscriptions (sub_id),
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
 
 # Funciones para manipular suscripciones
 def create_subscription(
@@ -219,10 +459,37 @@ def update_subscription_status(sub_id: int, status: str) -> bool:
     return affected > 0
 
 def extend_subscription(sub_id: int, new_end_date: datetime.datetime) -> bool:
-    """Extiende la fecha de expiración de una suscripción"""
+    """
+    Extiende la fecha de expiración de una suscripción y asegura que mantenga estado ACTIVE
+    
+    Args:
+        sub_id (int): ID de la suscripción
+        new_end_date (datetime): Nueva fecha de expiración
+        
+    Returns:
+        bool: True si la operación fue exitosa
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Registrar información para diagnóstico
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Extendiendo suscripción {sub_id} hasta {new_end_date}")
+    
+    # Obtener información actual de la suscripción
+    cursor.execute('SELECT status, end_date FROM subscriptions WHERE sub_id = ?', (sub_id,))
+    current = cursor.fetchone()
+    
+    if not current:
+        logger.error(f"No se encontró la suscripción {sub_id} para extender")
+        conn.close()
+        return False
+    
+    current_status = current['status']
+    current_end_date = current['end_date']
+    
+    # Actualizar la suscripción
     cursor.execute('''
     UPDATE subscriptions 
     SET end_date = ?, 
@@ -232,6 +499,14 @@ def extend_subscription(sub_id: int, new_end_date: datetime.datetime) -> bool:
     
     affected = cursor.rowcount
     conn.commit()
+    
+    # Registrar cambio de estado si es necesario
+    if current_status != 'ACTIVE':
+        logger.info(f"Suscripción {sub_id} cambió de estado {current_status} a ACTIVE")
+    
+    # Registrar extensión
+    logger.info(f"Suscripción {sub_id} extendida de {current_end_date} a {new_end_date}")
+    
     conn.close()
     
     return affected > 0

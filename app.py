@@ -725,6 +725,119 @@ def get_telegram_user():
         logger.error(f"Error en get_telegram_user: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+@app.route('/admin/check-renewals', methods=['GET'])
+def admin_check_renewals():
+    """Endpoint para forzar una verificación de renovaciones pendientes"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Importar función desde payments
+        import payments as pay
+        
+        # Ejecutar la verificación
+        notified, errors = pay.process_subscription_renewals(bot)
+        
+        if notified >= 0:  # Consideramos éxito incluso si no hay notificaciones
+            return jsonify({
+                "success": True,
+                "message": f"Verificación de renovaciones ejecutada: {notified} notificadas, {errors} errores"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "La verificación de renovaciones falló. Revise los logs para más detalles."
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error en endpoint de verificación de renovaciones: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/admin/renewal-stats', methods=['GET'])
+def admin_renewal_stats():
+    """Endpoint para obtener estadísticas de renovaciones"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Obtener estadísticas de renovaciones
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        
+        # Total de renovaciones
+        cursor.execute("SELECT COUNT(*) FROM subscription_renewals")
+        total_renewals = cursor.fetchone()[0]
+        
+        # Renovaciones en los últimos 30 días
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscription_renewals
+        WHERE renewal_date >= datetime('now', '-30 day')
+        """)
+        last_30_days = cursor.fetchone()[0]
+        
+        # Renovaciones en los últimos 7 días
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscription_renewals
+        WHERE renewal_date >= datetime('now', '-7 day')
+        """)
+        last_7_days = cursor.fetchone()[0]
+        
+        # Renovaciones por plan
+        cursor.execute("""
+        SELECT plan, COUNT(*) as count
+        FROM subscription_renewals
+        GROUP BY plan
+        ORDER BY count DESC
+        """)
+        plans = {}
+        for row in cursor.fetchall():
+            plans[row[0]] = row[1]
+        
+        # Próximas renovaciones en los siguientes 7 días
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions
+        WHERE status = 'ACTIVE'
+        AND is_recurring = 1
+        AND date(end_date) BETWEEN date('now') AND date('now', '+7 day')
+        """)
+        upcoming_7_days = cursor.fetchone()[0]
+        
+        # Últimas 10 renovaciones
+        cursor.execute("""
+        SELECT sr.*, u.username
+        FROM subscription_renewals sr
+        JOIN users u ON sr.user_id = u.user_id
+        ORDER BY sr.renewal_date DESC
+        LIMIT 10
+        """)
+        recent = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        # Compilar estadísticas
+        stats = {
+            "total": total_renewals,
+            "last_30_days": last_30_days,
+            "last_7_days": last_7_days,
+            "by_plan": plans,
+            "upcoming_7_days": upcoming_7_days,
+            "recent": recent
+        }
+        
+        return jsonify({
+            "success": True,
+            "stats": stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error al obtener estadísticas de renovaciones: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/paypal/webhook', methods=['POST'])
 def paypal_webhook():
     """Maneja los webhooks de PayPal"""
@@ -1182,50 +1295,60 @@ def admin_database():
         logger.error(f"Error en admin_database: {str(e)}")
         return jsonify({"error": str(e)}), 500
     
-from bot_handlers import schedule_security_verification, force_security_check
+from bot_handlers import schedule_security_verification, force_security_check, schedule_renewal_checks,  register_handlers
 
+# 3. Modificar la función initialize_security para iniciar también las renovaciones
 def initialize_security():
-    """Inicializa el sistema de seguridad al iniciar"""
+    """Inicializa el sistema de seguridad y renovaciones al iniciar"""
     try:
-        logger.info("🔐 Inicializando sistema de seguridad...")
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.info("🔐 Inicializando sistema de seguridad y renovaciones...")
         
         # Registrar handlers del bot
-        bot_handlers.register_handlers(bot)
+        register_handlers(bot)
         logger.info("✅ Handlers registrados correctamente")
         
         # Realizar verificación inicial completa de membresías
+        from app import verify_all_memberships_on_startup
         verify_all_memberships_on_startup()
         logger.info("✅ Verificación inicial de membresías completada")
         
-        # Iniciar hilo de verificación periódica
+        # Iniciar hilo de verificación periódica de seguridad
         schedule_security_verification(bot)
+        
+        # NUEVO: Iniciar hilo de verificación periódica de renovaciones
+        schedule_renewal_checks(bot)
         
         # Forzar una verificación inicial
         force_security_check(bot)
         
-        logger.info("✅ Sistema de seguridad inicializado correctamente")
+        logger.info("✅ Sistema de seguridad y renovaciones inicializado correctamente")
         
         # Notificar a los administradores
+        from config import ADMIN_IDS
         for admin_id in ADMIN_IDS:
             try:
                 bot.send_message(
                     chat_id=admin_id,
                     text="🔐 Bot reiniciado y sistema de seguridad inicializado correctamente.\n"
-                         "Se ha iniciado la verificación periódica de suscripciones expiradas."
+                         "Se ha iniciado la verificación periódica de suscripciones y renovaciones automáticas."
                 )
             except Exception as e:
                 logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
                 
     except Exception as e:
-        logger.error(f"❌ Error al inicializar sistema de seguridad: {e}")
+        logger.error(f"❌ Error al inicializar sistema de seguridad y renovaciones: {e}")
         
         # Intentar notificar a los administradores sobre el error
+        from config import ADMIN_IDS
         for admin_id in ADMIN_IDS:
             try:
                 bot.send_message(
                     chat_id=admin_id,
-                    text=f"⚠️ ERROR AL INICIALIZAR SEGURIDAD: {e}\n"
-                         "El bot está activo pero el sistema de expulsión automática podría no funcionar correctamente."
+                    text=f"⚠️ ERROR AL INICIALIZAR SEGURIDAD Y RENOVACIONES: {e}\n"
+                         "El bot está activo pero los sistemas automáticos podrían no funcionar correctamente."
                 )
             except:
                 pass
