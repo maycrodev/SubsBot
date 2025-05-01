@@ -788,10 +788,11 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
             logger.error(f"⚠️ CRÍTICO: Error al verificar permisos del bot: {e}")
             return False
         
-        # PASO 2: Si no hay suscripciones expiradas proporcionadas, obtenerlas con FORCE=True
+        # PASO 2: Si no hay suscripciones expiradas proporcionadas, obtenerlas con FORCE=False
+        # Cambiamos el valor force de True a False para evitar expulsar usuarios con suscripciones aún activas
         if expired_subscriptions is None:
             logger.info("Obteniendo suscripciones expiradas de la base de datos...")
-            expired_subscriptions = db.check_and_update_subscriptions(force=True)
+            expired_subscriptions = db.check_and_update_subscriptions(force=False)
         
         # PASO 3: Procesar suscripciones expiradas
         total_count = len(expired_subscriptions)
@@ -815,6 +816,13 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
             # Excluir administradores
             if user_id in ADMIN_IDS:
                 logger.info(f"Ignorando admin {user_id}")
+                skipped += 1
+                continue
+            
+            # VERIFICACIÓN EXTRA: Confirmar que el usuario no tiene ninguna suscripción activa
+            # Esta verificación adicional evita expulsar usuarios que pueden tener otra suscripción activa
+            if db.has_valid_subscription(user_id):
+                logger.info(f"Usuario {user_id} tiene otra suscripción activa. Omitiendo expulsión.")
                 skipped += 1
                 continue
             
@@ -1606,14 +1614,23 @@ def handle_new_chat_members(message, bot):
             if user_id in ADMIN_IDS:
                 logger.info(f"Administrador {username} (ID: {user_id}) se unió al grupo")
                 continue
-                
-            subscription = db.get_active_subscription(user_id)
             
-            if not subscription:
+            # CAMBIO IMPORTANTE: Usar has_valid_subscription en lugar de get_active_subscription
+            # Esto asegura que verificamos correctamente si la suscripción es válida
+            has_subscription = db.has_valid_subscription(user_id)
+            
+            if not has_subscription:
                 # No tiene suscripción activa, expulsar
-                logger.warning(f"⚠️ USUARIO SIN SUSCRIPCIÓN DETECTADO: {user_id} (@{username})")
+                logger.warning(f"⚠️ USUARIO SIN SUSCRIPCIÓN DETECTADA: {user_id} (@{username})")
                 
                 try:
+                    # Obtener información detallada para registro
+                    subscription = db.get_subscription_by_user_id(user_id)
+                    if subscription:
+                        status = subscription.get('status', 'UNKNOWN')
+                        end_date = subscription.get('end_date', 'UNKNOWN')
+                        logger.warning(f"Suscripción encontrada pero no válida: Status={status}, End Date={end_date}")
+                    
                     # Enviar mensaje al grupo
                     bot.send_message(
                         chat_id=message.chat.id,

@@ -760,25 +760,15 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
     logger.info(f"Verificación iniciada a: {current_time}")
     
     try:
-        # PASO 1: Marcar todas las suscripciones expiradas (tanto de pago como whitelist)
-        if force:
-            # Si es forzado, verificar todas las suscripciones independientemente del estado
-            query = """
-            UPDATE subscriptions 
-            SET status = 'EXPIRED'
-            WHERE 
-                (status = 'ACTIVE' OR status = 'SUSPENDED') AND 
-                datetime(end_date) <= datetime('now')
-            """
-        else:
-            # Verificación normal (solo suscripciones activas)
-            query = """
-            UPDATE subscriptions 
-            SET status = 'EXPIRED'
-            WHERE 
-                status = 'ACTIVE' AND 
-                datetime(end_date) <= datetime('now')
-            """
+        # PASO 1: Marcar como EXPIRED solo las suscripciones ACTIVE que han expirado
+        # Importante: No cambiar el estado de suscripciones que no sean ACTIVE
+        query = """
+        UPDATE subscriptions 
+        SET status = 'EXPIRED'
+        WHERE 
+            status = 'ACTIVE' AND 
+            datetime(end_date) <= datetime('now')
+        """
         
         cursor.execute(query)
         
@@ -787,8 +777,8 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
         logger.info(f"Suscripciones actualizadas a EXPIRED: {affected_rows}")
         
         # PASO 2: Obtener todas las suscripciones expiradas para procesamiento
-        # Si es forzado, obtenemos todas las suscripciones que deberían estar expiradas
-        # independientemente de su estado actual
+        # Solo consideramos expiradas las que tengan estado EXPIRED
+        # Si force=True, incluimos también las que han expirado en fecha pero no tienen estado EXPIRED
         if force:
             expired_query = """
             SELECT 
@@ -854,35 +844,8 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 - Tiempo transcurrido desde expiración: {time_diff}
                 """)
                 
-                # Si la suscripción debería estar expirada pero no tiene el estado correcto,
-                # actualizarla explícitamente
-                if status != 'EXPIRED' and end_date and current_time > end_date:
-                    cursor.execute(
-                        "UPDATE subscriptions SET status = 'EXPIRED' WHERE sub_id = ?", 
-                        (sub[1],)
-                    )
-                    logger.info(f"Corregido estado de suscripción {sub[1]} a EXPIRED")
             except Exception as e:
                 logger.error(f"Error al procesar datos de suscripción expirada: {e}")
-        
-        # Verificar si quedaron algunas suscripciones en estado ACTIVE pero con fecha expirada
-        cursor.execute("""
-        SELECT COUNT(*) FROM subscriptions 
-        WHERE status = 'ACTIVE' AND datetime(end_date) <= datetime('now')
-        """)
-        anomalies = cursor.fetchone()[0]
-        
-        if anomalies > 0:
-            logger.warning(f"⚠️ Se detectaron {anomalies} suscripciones con estado ACTIVE pero fecha expirada")
-            
-            # Corregir anomalías
-            cursor.execute("""
-            UPDATE subscriptions 
-            SET status = 'EXPIRED'
-            WHERE status = 'ACTIVE' AND datetime(end_date) <= datetime('now')
-            """)
-            
-            logger.info(f"✅ Se corrigieron {cursor.rowcount} suscripciones anómalas")
         
         logger.info(f"Total expiradas: {len(expired_subscriptions)} (Whitelist: {whitelist_count}, Pagadas: {paid_count})")
         
@@ -1015,6 +978,8 @@ def has_valid_subscription(user_id: int) -> bool:
     cursor = conn.cursor()
     
     try:
+        # Cambio importante: usar solo estado ACTIVE y comparación de fechas
+        # La consulta anterior podría fallar por cómo se manejan los timestamps
         cursor.execute("""
         SELECT COUNT(*) FROM subscriptions 
         WHERE user_id = ? 
@@ -1024,9 +989,26 @@ def has_valid_subscription(user_id: int) -> bool:
         
         count = cursor.fetchone()[0]
         
+        # Registro adicional para diagnóstico
+        if count == 0:
+            # Si no hay suscripciones activas, verificar si hay alguna suscripción y su estado
+            cursor.execute("""
+            SELECT sub_id, status, end_date FROM subscriptions 
+            WHERE user_id = ? 
+            ORDER BY end_date DESC LIMIT 1
+            """, (user_id,))
+            
+            sub = cursor.fetchone()
+            if sub:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Usuario {user_id} tiene suscripción {sub[0]} en estado {sub[1]} que vence en {sub[2]}")
+        
         return count > 0
         
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
         logger.error(f"Error al verificar suscripción válida: {e}")
         return False
         

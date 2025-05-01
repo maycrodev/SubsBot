@@ -620,6 +620,9 @@
             <p>Acciones disponibles para administrar el bot</p>
             
             <div class="actions">
+                <a href="javascript:void(0)" class="btn btn-secondary" id="check-subscriptions-btn" onclick="checkSubscriptions()">
+                    <i class="fas fa-user-check"></i> Verificar Estado de Suscripciones
+                </a>
                 <a href="/admin/download-database?admin_id={{ admin_id }}" class="btn" id="download-btn">
                     <i class="fas fa-download"></i> Descargar Base de Datos
                 </a>
@@ -638,6 +641,350 @@
             </div>
         </div>
     </div>
+
+    <script>
+
+        // Función para verificar el estado de las suscripciones
+function checkSubscriptions() {
+    const adminId = new URLSearchParams(window.location.search).get('admin_id');
+    if (!adminId) {
+        alert("Error: No se pudo determinar el ID de administrador");
+        return;
+    }
+    
+    // Crear modal para mostrar los resultados
+    const modalId = "subscription-check-modal";
+    let modal = document.getElementById(modalId);
+    
+    if (!modal) {
+        // Crear el modal si no existe
+        modal = document.createElement("div");
+        modal.id = modalId;
+        modal.style.position = "fixed";
+        modal.style.top = "0";
+        modal.style.left = "0";
+        modal.style.width = "100%";
+        modal.style.height = "100%";
+        modal.style.backgroundColor = "rgba(0,0,0,0.5)";
+        modal.style.zIndex = "1000";
+        modal.style.display = "flex";
+        modal.style.justifyContent = "center";
+        modal.style.alignItems = "center";
+        
+        const modalContent = document.createElement("div");
+        modalContent.style.backgroundColor = "var(--card-bg)";
+        modalContent.style.borderRadius = "12px";
+        modalContent.style.padding = "25px";
+        modalContent.style.maxWidth = "80%";
+        modalContent.style.maxHeight = "80%";
+        modalContent.style.overflow = "auto";
+        modalContent.style.boxShadow = "var(--shadow)";
+        
+        const closeBtn = document.createElement("div");
+        closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+        closeBtn.style.position = "absolute";
+        closeBtn.style.top = "15px";
+        closeBtn.style.right = "15px";
+        closeBtn.style.cursor = "pointer";
+        closeBtn.style.fontSize = "1.2rem";
+        closeBtn.style.color = "var(--text-color)";
+        closeBtn.onclick = () => {
+            document.body.removeChild(modal);
+        };
+        
+        const title = document.createElement("h3");
+        title.textContent = "Verificación de Suscripciones";
+        title.style.marginBottom = "20px";
+        
+        const content = document.createElement("div");
+        content.id = "subscription-check-content";
+        
+        modalContent.appendChild(closeBtn);
+        modalContent.appendChild(title);
+        modalContent.appendChild(content);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+    } else {
+        // Si el modal ya existe, simplemente mostrarlo
+        modal.style.display = "flex";
+        document.getElementById("subscription-check-content").innerHTML = 
+            '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i><p style="margin-top: 10px;">Verificando suscripciones...</p></div>';
+    }
+    
+    // Realizar la consulta SQL para obtener las suscripciones
+    const sqlQuery = `
+    SELECT 
+        s.sub_id, 
+        s.user_id, 
+        u.username, 
+        s.plan, 
+        s.price_usd, 
+        s.start_date, 
+        s.end_date, 
+        s.status,
+        s.paypal_sub_id,
+        CASE 
+            WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') THEN 'INCORRECTO: Debería ser EXPIRED' 
+            WHEN s.status = 'EXPIRED' AND datetime(s.end_date) > datetime('now') THEN 'INCORRECTO: Debería ser ACTIVE'
+            ELSE 'CORRECTO'
+        END as estado_verificado,
+        CASE
+            WHEN s.paypal_sub_id IS NULL THEN 'WHITELIST'
+            ELSE 'PAGADA'
+        END as tipo_subscripcion
+    FROM subscriptions s
+    LEFT JOIN users u ON s.user_id = u.user_id
+    WHERE (s.status = 'ACTIVE' OR s.status = 'EXPIRED')
+    ORDER BY 
+        CASE 
+            WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') THEN 1
+            WHEN s.status = 'EXPIRED' AND datetime(s.end_date) > datetime('now') THEN 2
+            ELSE 3
+        END,
+        s.end_date DESC
+    LIMIT 100;`;
+    
+    // Enviar la consulta al endpoint de la base de datos
+    fetch(`/admin/database?admin_id=${adminId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `query=${encodeURIComponent(sqlQuery)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            document.getElementById("subscription-check-content").innerHTML = `
+                <div class="info-message error-message">
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Error:</strong> ${data.error}
+                </div>`;
+            return;
+        }
+        
+        // Si no hay resultados
+        if (!data.results || data.results.length === 0) {
+            document.getElementById("subscription-check-content").innerHTML = `
+                <div class="info-message success-message">
+                    <i class="fas fa-check-circle"></i> No se encontraron problemas con las suscripciones.
+                </div>`;
+            return;
+        }
+        
+        // Contador de errores
+        let errorCount = 0;
+        const results = data.results;
+        
+        // Preparar tabla HTML para mostrar resultados
+        let tableHTML = `
+            <div class="info-message" style="margin-bottom: 15px;">
+                <i class="fas fa-info-circle"></i> Se encontraron <strong>${results.length}</strong> suscripciones. 
+                A continuación se muestran aquellas que podrían tener problemas.
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Sub ID</th>
+                            <th>Usuario</th>
+                            <th>Plan</th>
+                            <th>Fecha fin</th>
+                            <th>Estado actual</th>
+                            <th>Verificación</th>
+                            <th>Tipo</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+        
+        // Añadir filas solo para suscripciones con problemas
+        results.forEach(sub => {
+            // Solo mostrar las que tienen problemas
+            if (sub.estado_verificado !== 'CORRECTO') {
+                errorCount++;
+                
+                // Determinar clases de estilo
+                const rowClass = sub.estado_verificado.includes('INCORRECTO') ? 'style="background-color: rgba(255, 99, 71, 0.1);"' : '';
+                const statusClass = sub.status === 'ACTIVE' ? 'badge-active' : 'badge-cancelled';
+                
+                // Acción recomendada según el problema
+                let accionRecomendada = '';
+                if (sub.status === 'ACTIVE' && sub.estado_verificado.includes('EXPIRED')) {
+                    accionRecomendada = `<button onclick="fixSubscription('expire', ${sub.sub_id})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;">Marcar como expirada</button>`;
+                } else if (sub.status === 'EXPIRED' && sub.estado_verificado.includes('ACTIVE')) {
+                    accionRecomendada = `<button onclick="fixSubscription('activate', ${sub.sub_id})" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;">Reactivar</button>`;
+                }
+                
+                tableHTML += `
+                    <tr ${rowClass}>
+                        <td>${sub.sub_id}</td>
+                        <td>${sub.username || 'Sin username'} <small>(${sub.user_id})</small></td>
+                        <td>${sub.plan}</td>
+                        <td>${new Date(sub.end_date).toLocaleString()}</td>
+                        <td><span class="badge ${statusClass}">${sub.status}</span></td>
+                        <td><strong>${sub.estado_verificado}</strong></td>
+                        <td>${sub.tipo_subscripcion}</td>
+                        <td>${accionRecomendada}</td>
+                    </tr>`;
+            }
+        });
+        
+        tableHTML += `</tbody></table></div>`;
+        
+        // Si no hay errores específicos
+        if (errorCount === 0) {
+            tableHTML = `
+                <div class="info-message success-message">
+                    <i class="fas fa-check-circle"></i> Todas las suscripciones tienen un estado correcto.
+                </div>
+                <p style="margin-top: 15px;">Se verificaron ${results.length} suscripciones y no se encontraron problemas.</p>`;
+        } else {
+            // Añadir botón para corregir todas las suscripciones a la vez
+            tableHTML = `
+                <div class="info-message error-message" style="margin-bottom: 15px;">
+                    <i class="fas fa-exclamation-triangle"></i> Se encontraron <strong>${errorCount}</strong> suscripciones con problemas.
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <button onclick="fixAllSubscriptions()" class="btn" style="margin-right: 10px;">
+                        <i class="fas fa-magic"></i> Corregir todas las suscripciones
+                    </button>
+                </div>
+                
+                ${tableHTML}`;
+        }
+        
+        // Actualizar el contenido del modal
+        document.getElementById("subscription-check-content").innerHTML = tableHTML;
+    })
+    .catch(error => {
+        document.getElementById("subscription-check-content").innerHTML = `
+            <div class="info-message error-message">
+                <i class="fas fa-exclamation-triangle"></i> <strong>Error:</strong> ${error.message}
+            </div>`;
+    });
+}
+
+// Función para corregir una suscripción específica
+function fixSubscription(action, subId) {
+    const adminId = new URLSearchParams(window.location.search).get('admin_id');
+    if (!adminId) {
+        alert("Error: No se pudo determinar el ID de administrador");
+        return;
+    }
+    
+    // Preparar la consulta SQL según la acción
+    let sqlQuery = '';
+    
+    if (action === 'expire') {
+        sqlQuery = `UPDATE subscriptions SET status = 'EXPIRED' WHERE sub_id = ${subId};`;
+    } else if (action === 'activate') {
+        sqlQuery = `UPDATE subscriptions SET status = 'ACTIVE' WHERE sub_id = ${subId};`;
+    } else {
+        alert("Acción no reconocida");
+        return;
+    }
+    
+    // Enviar la consulta al servidor
+    fetch(`/admin/database?admin_id=${adminId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `query=${encodeURIComponent(sqlQuery)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(`Error: ${data.error}`);
+            return;
+        }
+        
+        alert(`Suscripción ${subId} actualizada correctamente`);
+        
+        // Actualizar la tabla
+        checkSubscriptions();
+    })
+    .catch(error => {
+        alert(`Error: ${error.message}`);
+    });
+}
+
+// Función para corregir todas las suscripciones de una vez
+function fixAllSubscriptions() {
+    const adminId = new URLSearchParams(window.location.search).get('admin_id');
+    if (!adminId) {
+        alert("Error: No se pudo determinar el ID de administrador");
+        return;
+    }
+    
+    // Mostrar ventana de confirmación
+    if (!confirm("¿Estás seguro de que quieres corregir todas las suscripciones con estado incorrecto?")) {
+        return;
+    }
+    
+    // Consulta para corregir todas las suscripciones expiradas que aparecen como activas
+    const sqlQuery1 = `
+    UPDATE subscriptions 
+    SET status = 'EXPIRED' 
+    WHERE status = 'ACTIVE' AND datetime(end_date) <= datetime('now');`;
+    
+    // Consulta para corregir todas las suscripciones activas que aparecen como expiradas
+    const sqlQuery2 = `
+    UPDATE subscriptions 
+    SET status = 'ACTIVE' 
+    WHERE status = 'EXPIRED' AND datetime(end_date) > datetime('now');`;
+    
+    // Ejecutar la primera consulta
+    fetch(`/admin/database?admin_id=${adminId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `query=${encodeURIComponent(sqlQuery1)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(`Error al corregir suscripciones expiradas: ${data.error}`);
+            return;
+        }
+        
+        const expiradas = data.rows_affected || 0;
+        
+        // Ejecutar la segunda consulta
+        return fetch(`/admin/database?admin_id=${adminId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `query=${encodeURIComponent(sqlQuery2)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(`Error al corregir suscripciones activas: ${data.error}`);
+                return;
+            }
+            
+            const activadas = data.rows_affected || 0;
+            
+            alert(`Se han corregido ${expiradas} suscripciones expiradas y ${activadas} suscripciones activas.`);
+            
+            // Actualizar la tabla
+            checkSubscriptions();
+        });
+    })
+    .catch(error => {
+        alert(`Error: ${error.message}`);
+    });
+}
+
+
+
+    </script>
+
 
     <script>
         // Función mejorada para cargar avatar y nombre de usuario desde Telegram
