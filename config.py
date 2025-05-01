@@ -160,7 +160,7 @@ PLANS = {
         'order': 3,
         'row': 2,
         'highlight': True,
-        'recurring': None  # Optional: to override the global setting (None = use global setting)
+        'recurring': True  # Optional: to override the global setting (None = use global setting)
     }
 }
 
