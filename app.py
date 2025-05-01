@@ -1207,17 +1207,16 @@ def admin_database():
     
 from bot_handlers import schedule_security_verification, force_security_check
 
-@app.before_first_request
 def initialize_security():
-    """Inicializa el sistema de seguridad al recibir la primera solicitud"""
+    """Inicializa el sistema de seguridad al iniciar"""
     try:
         logger.info("🔐 Inicializando sistema de seguridad...")
         
-        # Registrar handlers del bot - IMPORTANTE: Añade esta línea
+        # Registrar handlers del bot
         bot_handlers.register_handlers(bot)
         logger.info("✅ Handlers registrados correctamente")
         
-        # Realizar verificación inicial completa de membresías - IMPORTANTE: Añade esta línea
+        # Realizar verificación inicial completa de membresías
         verify_all_memberships_on_startup()
         logger.info("✅ Verificación inicial de membresías completada")
         
@@ -1253,3 +1252,7 @@ def initialize_security():
                 )
             except:
                 pass
+
+# AÑADE esta línea al final del archivo para llamar a la función
+# directamente cuando la aplicación arranca
+initialize_security()
