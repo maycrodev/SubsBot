@@ -76,6 +76,8 @@ def log_webhook_data(update):
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
+admin_states = {}
+
 # Importar el sistema centralizado de handlers
 import bot_handlers
 
@@ -132,6 +134,11 @@ def webhook():
                             elif update.message.text.startswith('/subinfo'):
                                 bot_handlers.handle_subinfo(update.message, bot)
                                 logger.info(f"Comando subinfo procesado para {update.message.from_user.id}")
+                                return 'OK', 200
+                            # NUEVO: Manejar comando para forzar verificación de seguridad
+                            elif update.message.text == '/force_security_check':
+                                bot_handlers.admin_force_security_check(update.message, bot)
+                                logger.info(f"Comando force_security_check procesado para {update.message.from_user.id}")
                                 return 'OK', 200
                         except Exception as e:
                             logger.error(f"Error al procesar comando de administrador: {str(e)}")
@@ -483,6 +490,23 @@ def webhook():
                             else:
                                 logger.info(f"Usuario {user_id} se unió al grupo con suscripción válida")
                     
+                    # AÑADIR ESTA NUEVA SECCIÓN: Verificar usuarios ya existentes en el grupo
+                    elif status == 'member' and old_status == 'member':
+                        # Este es un buen momento para verificar si algún usuario con suscripción expirada
+                        # sigue en el grupo (puede ocurrir si el bot se reinició)
+                        
+                        # Usar un hilo separado para no bloquear la respuesta
+                        def verify_expired_thread():
+                            try:
+                                from bot_handlers import force_security_check
+                                force_security_check(bot)
+                            except Exception as e:
+                                logger.error(f"Error en verificación automática: {e}")
+                        
+                        # Ejecutar la verificación en segundo plano
+                        threading.Thread(target=verify_expired_thread, daemon=True).start()
+                        logger.info("Iniciada verificación automática en segundo plano")
+                
                     return 'OK', 200
                     
                 except Exception as e:
@@ -498,6 +522,42 @@ def webhook():
     except Exception as e:
         logger.error(f"Error al procesar webhook: {str(e)}")
         return 'Error interno', 500
+
+def verify_all_memberships_on_startup():
+    """
+    Verifica todas las suscripciones al iniciar el bot y expulsa a los usuarios que ya no deberían estar en el grupo.
+    Esta función se llama una sola vez al iniciar el bot.
+    """
+    try:
+        logger.info("🔍 Verificando todas las suscripciones al iniciar...")
+        
+        # Importar las funciones necesarias
+        from bot_handlers import perform_group_security_check
+        import database as db
+        from config import GROUP_CHAT_ID
+        
+        # Obtener todas las suscripciones expiradas
+        expired_subscriptions = db.check_and_update_subscriptions(force=True)
+        
+        if expired_subscriptions:
+            logger.info(f"Encontradas {len(expired_subscriptions)} suscripciones expiradas")
+            
+            # Realizar expulsión de usuarios con suscripciones expiradas
+            if GROUP_CHAT_ID:
+                result = perform_group_security_check(bot, GROUP_CHAT_ID, expired_subscriptions)
+                
+                if result:
+                    logger.info(f"✅ Verificación inicial completada: {len(expired_subscriptions)} suscripciones procesadas")
+                else:
+                    logger.error("❌ Verificación inicial falló")
+            else:
+                logger.error("❌ GROUP_CHAT_ID no está configurado. No se puede realizar verificación inicial")
+        else:
+            logger.info("✅ No hay suscripciones expiradas al iniciar")
+            
+    except Exception as e:
+        logger.error(f"Error en verificación inicial: {e}")
+
 
 # Añade esta función a app.py, justo antes o después de la función webhook
 def handle_whitelist_command(message, bot):
@@ -805,6 +865,126 @@ def admin_panel():
         logger.error(f"Error en admin_panel: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/admin/force-security-check', methods=['GET'])
+def admin_force_security_check_endpoint():
+    """Endpoint para forzar una verificación de seguridad"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Importar la función desde bot_handlers
+        from bot_handlers import force_security_check
+        
+        # Ejecutar la verificación
+        result = force_security_check(bot)
+        
+        if result:
+            return jsonify({
+                "success": True,
+                "message": "Verificación de seguridad ejecutada exitosamente"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "La verificación de seguridad falló. Revise los logs para más detalles."
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error en endpoint de verificación de seguridad: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# Modificación 2: Añadir un endpoint para revisar y reiniciar el hilo de seguridad
+# Añade esto después del endpoint anterior:
+
+@app.route('/admin/check-security-thread', methods=['GET'])
+def admin_check_security_thread():
+    """Endpoint para verificar y reiniciar el hilo de seguridad si es necesario"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Importar la función desde bot_handlers
+        from bot_handlers import check_security_thread_status, security_thread_running
+        
+        # Verificar el estado actual
+        current_status = security_thread_running
+        
+        # Intentar reiniciar el hilo si es necesario
+        if not current_status:
+            result = check_security_thread_status(bot)
+            new_status = security_thread_running
+        else:
+            result = True
+            new_status = current_status
+        
+        return jsonify({
+            "success": True,
+            "previous_status": current_status,
+            "current_status": new_status,
+            "restarted": not current_status and new_status,
+            "message": "Hilo de seguridad verificado" + (" y reiniciado" if not current_status and new_status else "")
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en endpoint de verificación de hilo: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# Modificación 3: Añadir una ruta para obtener el estado de las suscripciones expiradas
+# Añade esto después del endpoint anterior:
+
+@app.route('/admin/expired-subscriptions', methods=['GET'])
+def admin_expired_subscriptions():
+    """Endpoint para obtener información sobre suscripciones expiradas"""
+    try:
+        # Verificación básica de autenticación
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) not in ADMIN_IDS:
+            return jsonify({"error": "Acceso no autorizado"}), 401
+        
+        # Importar la función desde database
+        import database as db
+        
+        # Obtener las suscripciones expiradas
+        expired_subscriptions = db.check_and_update_subscriptions(force=True)
+        
+        # Obtener información detallada de cada suscripción
+        detailed_info = []
+        for user_id, sub_id, plan in expired_subscriptions:
+            # Obtener información del usuario
+            user = db.get_user(user_id)
+            
+            # Obtener información de la suscripción
+            subscription = db.get_subscription_info(sub_id)
+            
+            if user and subscription:
+                detailed_info.append({
+                    "user_id": user_id,
+                    "username": user.get('username', 'Sin username'),
+                    "first_name": user.get('first_name', ''),
+                    "last_name": user.get('last_name', ''),
+                    "sub_id": sub_id,
+                    "plan": plan,
+                    "start_date": subscription.get('start_date', ''),
+                    "end_date": subscription.get('end_date', ''),
+                    "status": subscription.get('status', ''),
+                    "is_whitelist": db.is_whitelist_subscription(sub_id)
+                })
+        
+        return jsonify({
+            "success": True,
+            "count": len(expired_subscriptions),
+            "subscriptions": detailed_info
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en endpoint de suscripciones expiradas: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 # Añadir endpoint para descargar base de datos
 @app.route('/admin/download-database')
 def download_database():
@@ -1024,3 +1204,52 @@ def admin_database():
     except Exception as e:
         logger.error(f"Error en admin_database: {str(e)}")
         return jsonify({"error": str(e)}), 500
+    
+from bot_handlers import schedule_security_verification, force_security_check
+
+@app.before_first_request
+def initialize_security():
+    """Inicializa el sistema de seguridad al recibir la primera solicitud"""
+    try:
+        logger.info("🔐 Inicializando sistema de seguridad...")
+        
+        # Registrar handlers del bot - IMPORTANTE: Añade esta línea
+        bot_handlers.register_handlers(bot)
+        logger.info("✅ Handlers registrados correctamente")
+        
+        # Realizar verificación inicial completa de membresías - IMPORTANTE: Añade esta línea
+        verify_all_memberships_on_startup()
+        logger.info("✅ Verificación inicial de membresías completada")
+        
+        # Iniciar hilo de verificación periódica
+        schedule_security_verification(bot)
+        
+        # Forzar una verificación inicial
+        force_security_check(bot)
+        
+        logger.info("✅ Sistema de seguridad inicializado correctamente")
+        
+        # Notificar a los administradores
+        for admin_id in ADMIN_IDS:
+            try:
+                bot.send_message(
+                    chat_id=admin_id,
+                    text="🔐 Bot reiniciado y sistema de seguridad inicializado correctamente.\n"
+                         "Se ha iniciado la verificación periódica de suscripciones expiradas."
+                )
+            except Exception as e:
+                logger.error(f"No se pudo notificar al admin {admin_id}: {e}")
+                
+    except Exception as e:
+        logger.error(f"❌ Error al inicializar sistema de seguridad: {e}")
+        
+        # Intentar notificar a los administradores sobre el error
+        for admin_id in ADMIN_IDS:
+            try:
+                bot.send_message(
+                    chat_id=admin_id,
+                    text=f"⚠️ ERROR AL INICIALIZAR SEGURIDAD: {e}\n"
+                         "El bot está activo pero el sistema de expulsión automática podría no funcionar correctamente."
+                )
+            except:
+                pass

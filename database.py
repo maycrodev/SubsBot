@@ -415,10 +415,13 @@ def close_expired_subscriptions(bot=None):
     
     return expired_users
 
-def check_and_update_subscriptions() -> List[Tuple[int, int, str]]:
+def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
     """
     Verifica y actualiza el estado de las suscripciones expiradas
     Retorna lista de (user_id, sub_id, plan)
+    
+    Args:
+        force (bool): Si es True, fuerza la verificación incluso de suscripciones ya marcadas como expiradas
     """
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -427,73 +430,279 @@ def check_and_update_subscriptions() -> List[Tuple[int, int, str]]:
     current_time = datetime.datetime.now()
     logger.info(f"Verificación iniciada a: {current_time}")
     
-    # PASO 1: Marcar todas las suscripciones expiradas (tanto de pago como whitelist)
-    cursor.execute("""
-    UPDATE subscriptions 
-    SET status = 'EXPIRED'
-    WHERE 
-        status = 'ACTIVE' AND 
-        datetime(end_date) <= datetime('now')
-    """)
-    
-    # Registrar cuántas filas fueron afectadas
-    affected_rows = cursor.rowcount
-    logger.info(f"Suscripciones actualizadas a EXPIRED: {affected_rows}")
-    
-    # PASO 2: Obtener todas las suscripciones expiradas para procesamiento
-    cursor.execute("""
-    SELECT 
-        user_id, 
-        sub_id, 
-        plan, 
-        end_date, 
-        start_date,
-        CASE WHEN paypal_sub_id IS NULL THEN 'WHITELIST' ELSE 'PAID' END as subscription_type
-    FROM subscriptions 
-    WHERE status = 'EXPIRED'
-    """)
-    
-    expired_subscriptions = cursor.fetchall()
-    
-    # Registro detallado de suscripciones expiradas
-    whitelist_count = 0
-    paid_count = 0
-    
-    for sub in expired_subscriptions:
-        try:
-            end_date = datetime.datetime.fromisoformat(sub[3]) if sub[3] else None
-            start_date = datetime.datetime.fromisoformat(sub[4]) if sub[4] else None
-            sub_type = sub[5] if len(sub) > 5 else "DESCONOCIDO"
+    try:
+        # PASO 1: Marcar todas las suscripciones expiradas (tanto de pago como whitelist)
+        if force:
+            # Si es forzado, verificar todas las suscripciones independientemente del estado
+            query = """
+            UPDATE subscriptions 
+            SET status = 'EXPIRED'
+            WHERE 
+                (status = 'ACTIVE' OR status = 'SUSPENDED') AND 
+                datetime(end_date) <= datetime('now')
+            """
+        else:
+            # Verificación normal (solo suscripciones activas)
+            query = """
+            UPDATE subscriptions 
+            SET status = 'EXPIRED'
+            WHERE 
+                status = 'ACTIVE' AND 
+                datetime(end_date) <= datetime('now')
+            """
+        
+        cursor.execute(query)
+        
+        # Registrar cuántas filas fueron afectadas
+        affected_rows = cursor.rowcount
+        logger.info(f"Suscripciones actualizadas a EXPIRED: {affected_rows}")
+        
+        # PASO 2: Obtener todas las suscripciones expiradas para procesamiento
+        # Si es forzado, obtenemos todas las suscripciones que deberían estar expiradas
+        # independientemente de su estado actual
+        if force:
+            expired_query = """
+            SELECT 
+                user_id, 
+                sub_id, 
+                plan, 
+                end_date, 
+                start_date,
+                status,
+                CASE WHEN paypal_sub_id IS NULL THEN 'WHITELIST' ELSE 'PAID' END as subscription_type
+            FROM subscriptions 
+            WHERE 
+                (status = 'EXPIRED' OR 
+                (datetime(end_date) <= datetime('now') AND status != 'CANCELLED'))
+            """
+        else:
+            expired_query = """
+            SELECT 
+                user_id, 
+                sub_id, 
+                plan, 
+                end_date, 
+                start_date,
+                status,
+                CASE WHEN paypal_sub_id IS NULL THEN 'WHITELIST' ELSE 'PAID' END as subscription_type
+            FROM subscriptions 
+            WHERE status = 'EXPIRED'
+            """
+        
+        cursor.execute(expired_query)
+        expired_subscriptions = cursor.fetchall()
+        
+        # Registro detallado de suscripciones expiradas
+        whitelist_count = 0
+        paid_count = 0
+        
+        for sub in expired_subscriptions:
+            try:
+                end_date = datetime.datetime.fromisoformat(sub[3]) if sub[3] else None
+                start_date = datetime.datetime.fromisoformat(sub[4]) if sub[4] else None
+                status = sub[5] if len(sub) > 5 else "DESCONOCIDO"
+                sub_type = sub[6] if len(sub) > 6 else "DESCONOCIDO"
+                
+                # Contar por tipo
+                if sub_type == 'WHITELIST':
+                    whitelist_count += 1
+                elif sub_type == 'PAID':
+                    paid_count += 1
+                    
+                time_diff = "N/A"
+                if end_date:
+                    time_diff = current_time - end_date
+                    
+                logger.info(f"""
+                Suscripción expirada:
+                - User ID: {sub[0]}
+                - Sub ID: {sub[1]}
+                - Plan: {sub[2]}
+                - Tipo: {sub_type}
+                - Status: {status}
+                - Fecha de inicio: {start_date}
+                - Fecha de fin: {end_date}
+                - Tiempo transcurrido desde expiración: {time_diff}
+                """)
+                
+                # Si la suscripción debería estar expirada pero no tiene el estado correcto,
+                # actualizarla explícitamente
+                if status != 'EXPIRED' and end_date and current_time > end_date:
+                    cursor.execute(
+                        "UPDATE subscriptions SET status = 'EXPIRED' WHERE sub_id = ?", 
+                        (sub[1],)
+                    )
+                    logger.info(f"Corregido estado de suscripción {sub[1]} a EXPIRED")
+            except Exception as e:
+                logger.error(f"Error al procesar datos de suscripción expirada: {e}")
+        
+        # Verificar si quedaron algunas suscripciones en estado ACTIVE pero con fecha expirada
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions 
+        WHERE status = 'ACTIVE' AND datetime(end_date) <= datetime('now')
+        """)
+        anomalies = cursor.fetchone()[0]
+        
+        if anomalies > 0:
+            logger.warning(f"⚠️ Se detectaron {anomalies} suscripciones con estado ACTIVE pero fecha expirada")
             
-            # Contar por tipo
-            if sub_type == 'WHITELIST':
-                whitelist_count += 1
-            elif sub_type == 'PAID':
-                paid_count += 1
-                
-            time_diff = "N/A"
-            if end_date:
-                time_diff = current_time - end_date
-                
-            logger.info(f"""
-            Suscripción expirada:
-            - User ID: {sub[0]}
-            - Sub ID: {sub[1]}
-            - Plan: {sub[2]}
-            - Tipo: {sub_type}
-            - Fecha de inicio: {start_date}
-            - Fecha de fin: {end_date}
-            - Tiempo transcurrido desde expiración: {time_diff}
+            # Corregir anomalías
+            cursor.execute("""
+            UPDATE subscriptions 
+            SET status = 'EXPIRED'
+            WHERE status = 'ACTIVE' AND datetime(end_date) <= datetime('now')
             """)
-        except Exception as e:
-            logger.error(f"Error al procesar datos de suscripción expirada: {e}")
+            
+            logger.info(f"✅ Se corrigieron {cursor.rowcount} suscripciones anómalas")
+        
+        logger.info(f"Total expiradas: {len(expired_subscriptions)} (Whitelist: {whitelist_count}, Pagadas: {paid_count})")
+        
+        conn.commit()
+        
+        # Retornar solo los datos necesarios (user_id, sub_id, plan)
+        return [(sub[0], sub[1], sub[2]) for sub in expired_subscriptions]
+        
+    except Exception as e:
+        logger.error(f"Error en check_and_update_subscriptions: {e}")
+        conn.rollback()
+        return []
+        
+    finally:
+        conn.close()
+
+def get_users_to_expel() -> List[Tuple[int, str, str]]:
+    """
+    Obtiene una lista de todos los usuarios que deberían ser expulsados del grupo VIP.
+    Incluye todos los usuarios con suscripciones expiradas o canceladas.
     
-    logger.info(f"Total expiradas: {len(expired_subscriptions)} (Whitelist: {whitelist_count}, Pagadas: {paid_count})")
+    Returns:
+        List[Tuple[int, str, str]]: Lista de tuplas (user_id, motivo, tipo_suscripción)
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    conn.commit()
-    conn.close()
+    try:
+        # Obtener usuarios con suscripciones expiradas o canceladas
+        cursor.execute("""
+        SELECT 
+            u.user_id, 
+            s.status, 
+            s.end_date,
+            CASE WHEN s.paypal_sub_id IS NULL THEN 'WHITELIST' ELSE 'PAID' END as subscription_type
+        FROM users u
+        JOIN subscriptions s ON u.user_id = s.user_id
+        WHERE s.status IN ('EXPIRED', 'CANCELLED')
+        OR datetime(s.end_date) <= datetime('now')
+        GROUP BY u.user_id
+        """)
+        
+        results = cursor.fetchall()
+        
+        # Formatear resultados
+        users_to_expel = []
+        for row in results:
+            user_id = row[0]
+            status = row[1]
+            end_date = row[2]
+            sub_type = row[3]
+            
+            # Determinar motivo de expulsión
+            if status == 'EXPIRED' or (end_date and datetime.datetime.fromisoformat(end_date) <= datetime.datetime.now()):
+                reason = "Suscripción expirada"
+            elif status == 'CANCELLED':
+                reason = "Suscripción cancelada"
+            else:
+                reason = "Suscripción no válida"
+            
+            users_to_expel.append((user_id, reason, sub_type))
+        
+        return users_to_expel
+        
+    except Exception as e:
+        logger.error(f"Error en get_users_to_expel: {e}")
+        return []
+        
+    finally:
+        conn.close()
+
+def record_failed_expulsion(user_id: int, reason: str, error_message: str) -> int:
+    """
+    Registra un intento fallido de expulsión para seguimiento y diagnóstico
     
-    return [(sub[0], sub[1], sub[2]) for sub in expired_subscriptions]
+    Args:
+        user_id: ID del usuario que no pudo ser expulsado
+        reason: Motivo por el que debía ser expulsado
+        error_message: Mensaje de error que ocurrió al intentar expulsar
+        
+    Returns:
+        int: ID del registro de fallo
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Primero verificar si la tabla existe
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS failed_expulsions (
+            fail_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            reason TEXT,
+            error_message TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+        )
+        """)
+        
+        # Insertar el registro
+        cursor.execute("""
+        INSERT INTO failed_expulsions (user_id, reason, error_message)
+        VALUES (?, ?, ?)
+        """, (user_id, reason, error_message))
+        
+        fail_id = cursor.lastrowid
+        conn.commit()
+        
+        return fail_id
+        
+    except Exception as e:
+        logger.error(f"Error al registrar expulsión fallida: {e}")
+        conn.rollback()
+        return -1
+        
+    finally:
+        conn.close()
+
+def has_valid_subscription(user_id: int) -> bool:
+    """
+    Verifica si un usuario tiene alguna suscripción válida actualmente
+    
+    Args:
+        user_id: ID del usuario a verificar
+        
+    Returns:
+        bool: True si tiene al menos una suscripción válida, False en caso contrario
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions 
+        WHERE user_id = ? 
+        AND status = 'ACTIVE' 
+        AND datetime(end_date) > datetime('now')
+        """, (user_id,))
+        
+        count = cursor.fetchone()[0]
+        
+        return count > 0
+        
+    except Exception as e:
+        logger.error(f"Error al verificar suscripción válida: {e}")
+        return False
+        
+    finally:
+        conn.close()
 
 def is_whitelist_subscription(sub_id: int) -> bool:
     """Verifica si una suscripción es de tipo whitelist (manual, sin pago)"""
