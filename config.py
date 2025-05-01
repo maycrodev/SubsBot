@@ -67,30 +67,96 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 logger.info(f"Ruta de la base de datos: {DB_PATH}")
 
 # Configuración de planes
+# Estructura mejorada con información para UI
+'''
+Parámetros para cada plan:
+- name: Nombre interno del plan
+- price_usd: Precio en dólares
+- duration_days: Duración en días
+- display_name: Nombre que se muestra en la UI
+- description: Descripción detallada del plan
+- short_description: Descripción corta para listado de planes
+- button_text: Texto para el botón
+- button_emoji: Emoji para el botón
+- benefits: Lista de beneficios específicos del plan
+- order: Orden de aparición en la UI (menor número = aparece primero)
+- row: Fila en la que aparecerá el botón (1, 2, etc.)
+- highlight: Si el plan debe destacarse (True/False)
+'''
 PLANS = {
     'weekly': {
         'name': 'Plan Semanal',
         'price_usd': 3.50,
         'duration_days': 7,
         'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 𝙎𝙀𝙈𝘼𝙉𝘼𝙇',
-        'description': 'Acceso: 1 semana al grupo VIP'
+        'description': 'Acceso: 1 semana al grupo VIP',
+        'short_description': 'Plan Semanal: $3.50 / 1 semana',
+        'button_text': 'Plan Semanal',
+        'button_emoji': '🗓️',
+        'benefits': [
+            'Acceso al grupo VIP',
+            '21,000 archivos exclusivos 📁'
+        ],
+        'order': 1,
+        'row': 1,
+        'highlight': False
     },
     'monthly': {
         'name': 'Plan Mensual',
         'price_usd': 5.00,
         'duration_days': 30,
         'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 𝙈𝙀𝙉𝙎𝙐𝘼𝙇',
-        'description': 'Acceso: 1 mes al grupo VIP'
+        'description': 'Acceso: 1 mes al grupo VIP',
+        'short_description': 'Plan Mensual: $5.00 / 1 mes',
+        'button_text': 'Plan Mensual',
+        'button_emoji': '📆',
+        'benefits': [
+            'Acceso al grupo VIP',
+            '21,000 archivos exclusivos 📁',
+            'Prioridad en soporte'
+        ],
+        'order': 2,
+        'row': 1,
+        'highlight': True
     },
-
-    'PRUEBA': {
+    'quarterly': {
         'name': 'Plan Trimestral',
         'price_usd': 12.00,
-        'duration_days': 0.00138889,
-        'display_name': 'SUBSCRIPCION DE PRUEBA',
-        'description': 'Acceso: SUB SUB SUBSCRIPCION DE PRUEBA'
+        'duration_days': 90,
+        'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 𝙏𝙍𝙄𝙈𝙀𝙎𝙏𝙍𝘼𝙇',
+        'description': 'Acceso: 3 meses al grupo VIP con descuento',
+        'short_description': 'Plan Trimestral: $12.00 / 3 meses',
+        'button_text': 'Plan Trimestral',
+        'button_emoji': '📅',
+        'benefits': [
+            'Acceso al grupo VIP',
+            '21,000 archivos exclusivos 📁',
+            'Prioridad en soporte',
+            'Contenido exclusivo para suscriptores trimestrales'
+        ],
+        'order': 3,
+        'row': 2,
+        'highlight': True
     }
 }
+
+# Verifica y establece valores predeterminados para campos faltantes en la configuración de planes
+for plan_id, plan in PLANS.items():
+    # Valores predeterminados para campos opcionales
+    if 'short_description' not in plan:
+        plan['short_description'] = f"{plan['name']}: ${plan['price_usd']} / {plan['duration_days']} días"
+    if 'button_text' not in plan:
+        plan['button_text'] = plan['name']
+    if 'button_emoji' not in plan:
+        plan['button_emoji'] = '📦'
+    if 'benefits' not in plan:
+        plan['benefits'] = ['Acceso al grupo VIP']
+    if 'order' not in plan:
+        plan['order'] = 999  # Por defecto, último lugar
+    if 'row' not in plan:
+        plan['row'] = 1  # Por defecto, primera fila
+    if 'highlight' not in plan:
+        plan['highlight'] = False  # Por defecto, sin destacar
 
 logger.info(f"Planes configurados: {', '.join(PLANS.keys())}")
 

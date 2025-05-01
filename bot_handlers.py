@@ -1,4 +1,5 @@
 import logging
+from operator import itemgetter
 from telebot import types
 import database as db
 from config import ADMIN_IDS, PLANS, INVITE_LINK_EXPIRY_HOURS, INVITE_LINK_MEMBER_LIMIT, GROUP_INVITE_LINK, WEBHOOK_URL, GROUP_CHAT_ID
@@ -194,6 +195,30 @@ def create_invite_link(bot, user_id, sub_id):
     except Exception as e:
         logger.error(f"Error al crear enlace de invitación: {str(e)}")
         return None
+
+def generate_plans_text():
+    """
+    Genera el texto de descripción de planes dinámicamente 
+    basado en la configuración de PLANS
+    """
+    # Ordenar planes por el campo 'order'
+    sorted_plans = sorted(PLANS.items(), key=lambda x: x[1].get('order', 999))
+    
+    # Iniciar con el encabezado
+    plans_text = "💸 Escoge tu plan de suscripción:\n\n"
+    
+    # Añadir cada plan ordenadamente
+    for plan_id, plan in sorted_plans:
+        emoji = plan.get('button_emoji', '🔹')
+        # Usar short_description o generar una descripción automática
+        description = plan.get('short_description', 
+                              f"{plan['name']}: ${plan['price_usd']} / {plan['duration_days']} días")
+        plans_text += f"{emoji} {description}\n"
+    
+    # Añadir mensaje del tutorial
+    plans_text += "\n🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
+    
+    return plans_text
 
 def start_processing_animation(bot, chat_id, message_id):
     """Inicia una animación de procesamiento en el mensaje"""
@@ -514,22 +539,49 @@ def create_main_menu_markup():
     return markup
 
 def create_plans_markup():
-    """Crea los botones para el menú de planes"""
-    markup = types.InlineKeyboardMarkup(row_width=2)
+    """
+    Crea dinámicamente el markup de botones para los planes
+    basado en la configuración de PLANS
+    """
+    markup = types.InlineKeyboardMarkup()
     
-    # Agregar tutorial de pagos
+    # Añadir botón de tutorial primero
     markup.add(types.InlineKeyboardButton("🎥 Tutorial de Pagos", callback_data="tutorial"))
     
-    # Agregar planes
-    markup.add(
-        types.InlineKeyboardButton("🗓️ Plan Semanal", callback_data="weekly_plan"),
-        types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan")
-    )
+    # Ordenar planes por 'order'
+    sorted_plans = sorted(PLANS.items(), key=lambda x: x[1].get('order', 999))
     
-    # Agregar botón de volver
+    # Agrupar planes por filas
+    rows = {}
+    for plan_id, plan in sorted_plans:
+        row_num = plan.get('row', 1)
+        if row_num not in rows:
+            rows[row_num] = []
+        
+        # Crear botón para el plan
+        button_text = f"{plan.get('button_emoji', '📦')} {plan.get('button_text', plan['name'])}"
+        callback_data = f"{plan_id}_plan"
+        
+        # Añadir botón a la fila correspondiente
+        rows[row_num].append(types.InlineKeyboardButton(button_text, callback_data=callback_data))
+    
+    # Añadir filas al markup en orden
+    for row_num in sorted(rows.keys()):
+        markup.add(*rows[row_num])  # Desempaquetar la lista de botones
+    
+    # Añadir botón de volver
     markup.add(types.InlineKeyboardButton("🔙 Atrás", callback_data="back_to_main"))
     
     return markup
+
+def get_plan_from_callback(callback_data):
+    """
+    Extrae el ID del plan desde el callback_data
+    Ejemplo: "weekly_plan" -> "weekly"
+    """
+    if "_plan" in callback_data:
+        return callback_data.split("_")[0]
+    return None
 
 def perform_group_security_check(bot, group_id, expired_subscriptions=None):
     """Realiza verificación de seguridad y expulsa usuarios no autorizados"""
@@ -1554,15 +1606,14 @@ def handle_main_menu_callback(call, bot):
             pass
 
 def show_plans(bot, chat_id, message_id=None):
-    """Muestra los planes de suscripción disponibles"""
+    """
+    Muestra los planes de suscripción disponibles de forma dinámica
+    """
     try:
-        plans_text = (
-            "💸 Escoge tu plan de suscripción:\n\n"
-            "🔹 Plan Semanal: $3.50 / 1 semana\n"
-            "🔸 Plan Mensual: $5.00 / 1 mes\n\n"
-            "🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
-        )
+        # Generar texto de planes dinámicamente
+        plans_text = generate_plans_text()
         
+        # Generar markup dinámicamente
         markup = create_plans_markup()
         
         if message_id:
@@ -1603,7 +1654,10 @@ def show_plans(bot, chat_id, message_id=None):
             pass
 
 def show_plan_details(bot, chat_id, message_id, plan_id):
-    """Muestra los detalles de un plan específico"""
+    """
+    Muestra los detalles de un plan específico de forma dinámica
+    basado en la configuración
+    """
     try:
         plan = PLANS.get(plan_id)
         if not plan:
@@ -1614,15 +1668,27 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
             )
             return
         
+        # Generar texto de beneficios
+        benefits_text = ""
+        for benefit in plan.get('benefits', ['Acceso al grupo VIP']):
+            benefits_text += f"✅ {benefit}\n"
+        
+        # Obtener tipo de facturación según duración
+        if plan['duration_days'] >= 30:
+            billing_type = "mensual"
+        elif plan['duration_days'] >= 7:
+            billing_type = "semanal"
+        else:
+            billing_type = "diaria"
+        
         # Construir mensaje con detalles del plan
         plan_text = (
             f"📦 {plan['display_name']}\n\n"
             f"{plan['description']}\n"
             f"Beneficios:\n"
-            f"✅ Grupo VIP (Acceso)\n"
-            f"✅ 21,000 archivos exclusivos 📁\n\n"
+            f"{benefits_text}\n"
             f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
-            f"📆 Facturación: {'semanal' if plan_id == 'weekly' else 'mensual'} (recurrente)\n\n"
+            f"📆 Facturación: {billing_type} (recurrente)\n\n"
             f"Selecciona un método de pago 👇"
         )
         
@@ -1695,7 +1761,9 @@ def show_payment_tutorial(bot, chat_id, message_id):
             pass
 
 def handle_plans_callback(call, bot):
-    """Maneja los callbacks relacionados con la selección de planes"""
+    """
+    Maneja los callbacks relacionados con la selección de planes de forma dinámica
+    """
     try:
         chat_id = call.message.chat.id
         message_id = call.message.message_id
@@ -1704,13 +1772,16 @@ def handle_plans_callback(call, bot):
             # Mostrar tutorial de pagos
             show_payment_tutorial(bot, chat_id, message_id)
             
-        elif call.data == "weekly_plan":
-            # Mostrar detalles del plan semanal
-            show_plan_details(bot, chat_id, message_id, "weekly")
-            
-        elif call.data == "monthly_plan":
-            # Mostrar detalles del plan mensual
-            show_plan_details(bot, chat_id, message_id, "monthly")
+        elif call.data.endswith("_plan"):
+            # Extraer el ID del plan desde el callback_data
+            plan_id = get_plan_from_callback(call.data)
+            if plan_id and plan_id in PLANS:
+                # Mostrar detalles del plan
+                show_plan_details(bot, chat_id, message_id, plan_id)
+            else:
+                bot.answer_callback_query(call.id, "Plan no disponible")
+                # Volver a mostrar todos los planes
+                show_plans(bot, chat_id, message_id)
             
         elif call.data == "view_plans":
             # Volver a la vista de planes
@@ -1723,6 +1794,9 @@ def handle_plans_callback(call, bot):
                 "Este es un grupo exclusivo con contenido premium y acceso limitado.\n\n"
                 "Selecciona una opción 👇"
             )
+            
+            # Usar create_main_menu_markup() que debe existir en el código original
+            from bot_handlers import create_main_menu_markup
             
             bot.edit_message_text(
                 chat_id=chat_id,
@@ -1751,6 +1825,16 @@ def handle_payment_method(call, bot):
         
         # Extraer el método de pago y plan del callback data
         _, method, plan_id = call.data.split('_')
+        
+        # Verificar que el plan existe en la configuración
+        from config import PLANS
+        if plan_id not in PLANS:
+            bot.answer_callback_query(call.id, "Plan no disponible actualmente")
+            logger.error(f"Usuario {user_id} solicitó plan inexistente: {plan_id}")
+            
+            # Volver a mostrar planes disponibles
+            show_plans(bot, chat_id, message_id)
+            return
         
         if method == "paypal":
             # Mostrar animación de "procesando"
@@ -1784,15 +1868,30 @@ def handle_payment_method(call, bot):
                     types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
                 )
                 
+                # Crear descripción del plan dinámicamente
+                plan = PLANS[plan_id]
+                
+                # Determinar periodo de facturación basado en duración
+                if plan['duration_days'] <= 7:
+                    period = 'semana'
+                elif plan['duration_days'] <= 30:
+                    period = 'mes'
+                elif plan['duration_days'] <= 90:
+                    period = '3 meses'
+                elif plan['duration_days'] <= 180:
+                    period = '6 meses'
+                else:
+                    period = 'año'
+                
                 # Actualizar mensaje con el enlace de pago
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
                         "🔗 *Tu enlace de pago está listo*\n\n"
-                        f"Plan: {PLANS[plan_id]['display_name']}\n"
-                        f"Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / "
-                        f"{'semana' if plan_id == 'weekly' else 'mes'}\n\n"
+                        f"Plan: {plan['display_name']}\n"
+                        f"Precio: ${plan['price_usd']:.2f} USD / "
+                        f"{period}\n\n"
                         "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
                         "Una vez completado, serás redirigido de vuelta aquí."
                     ),
@@ -1843,7 +1942,7 @@ def handle_payment_method(call, bot):
                 )
         except:
             pass
-
+        
 def handle_recover_access(message, bot):
     """Maneja la solicitud de recuperación de acceso VIP"""
     try:

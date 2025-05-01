@@ -207,91 +207,14 @@ def webhook():
                             logger.error(f"Error al procesar callback whitelist: {str(e)}")
                     
                     if call.data == "view_plans":
-                        # Mostrar planes
-                        plans_text = (
-                            "💸 Escoge tu plan de suscripción:\n\n"
-                            "🔹 Plan Semanal: $3.50 / 1 semana\n"
-                            "🔸 Plan Mensual: $5.00 / 1 mes\n\n"
-                            "🧑‍🏫 ¿No sabes cómo pagar? Mira el tutorial 👇"
-                        )
-                        
-                        markup = types.InlineKeyboardMarkup(row_width=2)
-                        markup.add(types.InlineKeyboardButton("🎥 Tutorial de Pagos", callback_data="tutorial"))
-                        markup.add(
-                            types.InlineKeyboardButton("🗓️ Plan Semanal", callback_data="weekly_plan"),
-                            types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan")
-                        )
-                        markup.add(types.InlineKeyboardButton("🔙 Atrás", callback_data="back_to_main"))
-                        
-                        bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            text=plans_text,
-                            reply_markup=markup
-                        )
+                        # Usar la nueva función para mostrar planes dinámicamente
+                        bot_handlers.show_plans(bot, chat_id, message_id)
                         logger.info(f"Planes mostrados a usuario {chat_id}")
                     
                     elif call.data == "tutorial":
                         # Mostrar tutorial de pagos
-                        tutorial_text = (
-                            "🎥 Tutorial de Pagos\n\n"
-                            "Para suscribirte a nuestro grupo VIP, sigue estos pasos:\n\n"
-                            "1️⃣ Selecciona el plan que deseas (Semanal o Mensual)\n\n"
-                            "2️⃣ Haz clic en 'Pagar con PayPal'\n\n"
-                            "3️⃣ Serás redirigido a la página de PayPal donde puedes pagar con:\n"
-                            "   - Cuenta de PayPal\n"
-                            "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
-                            "4️⃣ Completa el pago y regresa a Telegram\n\n"
-                            "5️⃣ Recibirás un enlace de invitación al grupo VIP\n\n"
-                            "⚠️ Importante: Tu suscripción se renovará automáticamente. Puedes cancelarla en cualquier momento desde tu cuenta de PayPal."
-                        )
-                        
-                        markup = types.InlineKeyboardMarkup()
-                        markup.add(types.InlineKeyboardButton("🔙 Volver a los Planes", callback_data="view_plans"))
-                        
-                        bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            text=tutorial_text,
-                            reply_markup=markup
-                        )
+                        bot_handlers.show_payment_tutorial(bot, chat_id, message_id)
                         logger.info(f"Tutorial mostrado a usuario {chat_id}")
-                    
-                    elif call.data == "weekly_plan" or call.data == "monthly_plan":
-                        # Mostrar detalles del plan seleccionado
-                        plan_id = call.data.split("_")[0]  # "weekly" o "monthly"
-                        
-                        plan = PLANS.get(plan_id)
-                        
-                        if plan:
-                            plan_text = (
-                                f"📦 {plan['display_name']}\n\n"
-                                f"{plan['description']}\n"
-                                f"Beneficios:\n"
-                                f"✅ Grupo VIP (Acceso)\n"
-                                f"✅ 21,000 archivos exclusivos 📁\n\n"
-                                f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
-                                f"📆 Facturación: {'semanal' if plan_id == 'weekly' else 'mensual'} (recurrente)\n\n"
-                                f"Selecciona un método de pago 👇"
-                            )
-                            
-                            markup = types.InlineKeyboardMarkup(row_width=1)
-                            markup.add(
-                                types.InlineKeyboardButton("🅿️ Pagar con PayPal", callback_data=f"payment_paypal_{plan_id}"),
-                                types.InlineKeyboardButton("🔙 Atrás", callback_data="view_plans")
-                            )
-                            
-                            bot.edit_message_text(
-                                chat_id=chat_id,
-                                message_id=message_id,
-                                text=plan_text,
-                                reply_markup=markup
-                            )
-                            logger.info(f"Detalles del plan {plan_id} mostrados a usuario {chat_id}")
-                        else:
-                            # Plan no encontrado (no debería ocurrir)
-                            bot.answer_callback_query(call.id, "Plan no disponible")
-                            logger.error(f"Plan {plan_id} no encontrado")
                         
                     elif call.data == "bot_credits":
                         # Mostrar créditos - SIN formato Markdown para evitar errores
@@ -343,12 +266,7 @@ def webhook():
                         
                     elif call.data == "back_to_main":
                         # Volver al menú principal
-                        markup = types.InlineKeyboardMarkup(row_width=1)
-                        markup.add(
-                            types.InlineKeyboardButton("📦 Ver Planes", callback_data="view_plans"),
-                            types.InlineKeyboardButton("🧠 Créditos del Bot", callback_data="bot_credits"),
-                            types.InlineKeyboardButton("📜 Términos de Uso", callback_data="terms")
-                        )
+                        markup = bot_handlers.create_main_menu_markup()
                         
                         bot.edit_message_text(
                             chat_id=chat_id,
@@ -358,9 +276,25 @@ def webhook():
                         )
                         logger.info(f"Vuelto al menú principal para usuario {chat_id}")
                     
+                    elif "_plan" in call.data:
+                        # Manejar selección de plan usando la función dinámica
+                        plan_id = bot_handlers.get_plan_from_callback(call.data)
+                        if plan_id and plan_id in PLANS:
+                            bot_handlers.show_plan_details(bot, chat_id, message_id, plan_id)
+                            logger.info(f"Detalles del plan {plan_id} mostrados a usuario {chat_id}")
+                        else:
+                            bot.answer_callback_query(call.id, "Plan no disponible")
+                            logger.error(f"Plan {plan_id} no encontrado")
+                    
                     elif call.data.startswith("payment_paypal_"):
                         # Manejar pago con PayPal
                         plan_id = call.data.split("_")[-1]  # Extraer el ID del plan
+                        
+                        # Verificar que el plan existe
+                        if plan_id not in PLANS:
+                            bot.answer_callback_query(call.id, "❌ Plan no válido")
+                            logger.error(f"Intento de pago con plan inválido: {plan_id}")
+                            return 'OK', 200
                         
                         # Mostrar animación de "procesando"
                         processing_text = "🔄 Preparando pago...\nAguarde por favor..."
@@ -385,7 +319,7 @@ def webhook():
                                 "🔗 Tu enlace de pago está listo\n\n"
                                 f"Plan: {PLANS[plan_id]['display_name']}\n"
                                 f"Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / "
-                                f"{'semana' if plan_id == 'weekly' else 'mes'}\n\n"
+                                f"{'semana' if PLANS[plan_id]['duration_days'] <= 7 else 'mes'}\n\n"
                                 "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
                                 "Una vez completado, serás redirigido de vuelta aquí."
                             )
