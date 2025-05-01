@@ -524,7 +524,7 @@ def create_plans_markup():
     markup.add(
         types.InlineKeyboardButton("🗓️ Plan Semanal", callback_data="weekly_plan"),
         types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan"),
-        types.InlineKeyboardButton("📆 Plan Prueba", callback_data="monthly_plan")
+        types.InlineKeyboardButton("📆 Plan Prueba", callback_data="PRUEBA_plan")
     )
     
     # Agregar botón de volver
