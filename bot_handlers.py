@@ -528,56 +528,32 @@ def create_plans_markup():
     
     return markup
 
-# 1. VERIFICACIÓN PERIÓDICA AUTOMÁTICA
-# Añade esta función al archivo bot_handlers.py
-def schedule_security_verification(bot):
-    def security_check_thread():
-        while True:
-            try:
-                logger.info("🕒 Iniciando verificación periódica de seguridad")
-                
-                # Verificar y obtener suscripciones expiradas
-                # Esto incluye tanto suscripciones pagadas como whitelist
-                expired_subscriptions = db.check_and_update_subscriptions()
-                
-                logger.info(f"Suscripciones expiradas encontradas: {len(expired_subscriptions)}")
-                
-                # Procesar suscripciones expiradas si hay un grupo configurado
-                if expired_subscriptions and GROUP_CHAT_ID:
-                    # Indica cuántas son whitelist (tienen paypal_sub_id NULL)
-                    whitelist_expired = sum(1 for sub in expired_subscriptions if db.is_whitelist_subscription(sub[1]))
-                    logger.info(f"Suscripciones whitelist expiradas: {whitelist_expired}")
-                    
-                    # Realizar expulsión de todos los usuarios con suscripciones expiradas
-                    perform_group_security_check(
-                        bot, 
-                        GROUP_CHAT_ID, 
-                        expired_subscriptions=expired_subscriptions
-                    )
-                
-                # Esperar antes de la próxima verificación - reducido a 15 segundos para mayor frecuencia
-                time.sleep(15)  # Verificar cada 15 segundos
-                
-            except Exception as e:
-                logger.error(f"Error en verificación periódica: {e}")
-                time.sleep(30)  # En caso de error, esperar 30 segundos
-    
-    # Iniciar hilo
-    security_thread = threading.Thread(target=security_check_thread)
-    security_thread.daemon = True
-    security_thread.start()
-    
-    logger.info("✅ Sistema de verificación periódica iniciado")
-
-
 def perform_group_security_check(
     bot, 
     group_id, 
     expired_subscriptions=None
 ):
     try:
+        start_time = datetime.datetime.now()
+        logger.info(f"Comenzando verificación de grupo a {start_time}")
+        
+        # Verificar permisos del bot primero
+        try:
+            bot_info = bot.get_chat_member(group_id, bot.get_me().id)
+            if bot_info.status not in ['administrator', 'creator']:
+                logger.error(f"⚠️ CRÍTICO: El bot no tiene permisos de administrador en el grupo {group_id}")
+                return False
+            if not bot_info.can_restrict_members:
+                logger.error(f"⚠️ CRÍTICO: El bot no tiene permisos para expulsar miembros en el grupo {group_id}")
+                return False
+            logger.info(f"Permisos del bot verificados: {bot_info.status}, puede expulsar: {bot_info.can_restrict_members}")
+        except Exception as e:
+            logger.error(f"⚠️ CRÍTICO: Error al verificar permisos del bot: {e}")
+            return False
+        
         # Si no se proporcionaron suscripciones expiradas, obtenerlas
         if expired_subscriptions is None:
+            logger.info("Obteniendo suscripciones expiradas de la base de datos...")
             expired_subscriptions = db.check_and_update_subscriptions()
         
         total_count = len(expired_subscriptions)
@@ -587,113 +563,209 @@ def perform_group_security_check(
         if not expired_subscriptions:
             logger.info("No hay suscripciones expiradas que procesar")
             return True
-            
+        
         processed_count = 0
-        whitelist_count = 0
-        paid_count = 0
+        success_count = 0
         error_count = 0
-            
+        skipped_count = 0
+        
+        # Procesar cada usuario con suscripción expirada
         for user_data in expired_subscriptions:
+            processed_count += 1
             user_id, sub_id, plan = user_data
-            
-            # Determinar si es whitelist o pago
-            is_whitelist = db.is_whitelist_subscription(sub_id)
-            
-            if is_whitelist:
-                whitelist_count += 1
-            else:
-                paid_count += 1
             
             # Omitir administradores
             if user_id in ADMIN_IDS:
                 logger.info(f"Omitiendo admin {user_id} de la verificación")
+                skipped_count += 1
                 continue
             
+            # Obtener información de suscripción
+            sub_info = db.get_subscription_info(sub_id)
+            sub_type = "Normal" if sub_info and sub_info.get('paypal_sub_id') else "Whitelist"
+            
+            logger.info(f"Procesando usuario {user_id} con suscripción {sub_id} tipo {sub_type}")
+            
             try:
-                logger.info(f"Verificando usuario {user_id} con suscripción expirada (Tipo: {'Whitelist' if is_whitelist else 'Pago'})")
-                
-                # Verificar existencia en el grupo
+                # 1. Verificar si el usuario está en el grupo
                 try:
+                    logger.info(f"Verificando si usuario {user_id} está en el grupo {group_id}")
                     chat_member = bot.get_chat_member(group_id, user_id)
-                    logger.info(f"Usuario {user_id} encontrado en el grupo. Estado: {chat_member.status}")
+                    logger.info(f"Usuario {user_id} encontrado en el grupo con estado: {chat_member.status}")
                     
-                    # Solo procesar si el usuario está en el grupo y no ha sido expulsado ya
-                    if chat_member.status not in ['left', 'kicked']:
-                        # Expulsar al usuario
-                        logger.info(f"Intentando expulsar a usuario {user_id}...")
-                        bot.ban_chat_member(
-                            chat_id=group_id,
-                            user_id=user_id
-                        )
-                        
-                        # Desbanear para permitir futuro acceso
-                        logger.info(f"Desbaneando a usuario {user_id} para permitir acceso futuro...")
-                        bot.unban_chat_member(
+                    # Si el usuario ya no está en el grupo o fue expulsado, no hacer nada
+                    if chat_member.status in ['left', 'kicked']:
+                        logger.info(f"Usuario {user_id} ya no está en el grupo (estado: {chat_member.status}). Saltando.")
+                        skipped_count += 1
+                        continue
+                    
+                    # 2. Intentar expulsar al usuario
+                    logger.info(f"⚠️ EXPULSANDO a usuario {user_id} por suscripción expirada...")
+                    
+                    # Método 1: ban_chat_member
+                    try:
+                        result = bot.ban_chat_member(
                             chat_id=group_id,
                             user_id=user_id,
-                            only_if_banned=True
+                            until_date=None,  # Expulsión permanente
+                            revoke_messages=False
                         )
+                        logger.info(f"Resultado de expulsión para {user_id}: {result}")
                         
-                        # Registrar la expulsión
-                        sub_type = "whitelist" if is_whitelist else "pago"
-                        db.record_expulsion(user_id, f"Suscripción ({sub_type}) expirada - Plan: {plan}")
-                        
-                        # Notificar al usuario
+                        # Si llegamos aquí, la expulsión fue exitosa
+                        # Desbanear para permitir que pueda volver a unirse si renueva
                         try:
-                            # Mensaje específico según si era whitelist o suscripción de pago
-                            if is_whitelist:
-                                message_text = (
-                                    f"❌ Tu acceso temporal (whitelist) de tipo {plan} ha expirado.\n\n"
+                            unban_result = bot.unban_chat_member(
+                                chat_id=group_id,
+                                user_id=user_id,
+                                only_if_banned=True
+                            )
+                            logger.info(f"Usuario {user_id} desbaneado: {unban_result}")
+                        except Exception as unban_error:
+                            logger.error(f"Error al desbanear a usuario {user_id}: {unban_error}")
+                        
+                        # Registrar la expulsión en la base de datos
+                        db.record_expulsion(user_id, f"Suscripción expirada - Plan: {plan}, Tipo: {sub_type}")
+                        
+                        # Incrementar contador de éxito
+                        success_count += 1
+                        
+                        # 3. Notificar al usuario
+                        try:
+                            logger.info(f"Enviando notificación a usuario {user_id}")
+                            bot.send_message(
+                                chat_id=user_id,
+                                text=(
+                                    f"❌ Tu suscripción ({sub_type}) ha expirado.\n\n"
                                     "Has sido expulsado del grupo VIP. Para recuperar el acceso, "
                                     "usa el comando /start para ver nuestros planes disponibles."
                                 )
-                            else:
-                                message_text = (
-                                    f"❌ Tu suscripción de tipo {plan} ha expirado.\n\n"
-                                    "Has sido expulsado del grupo VIP. Para renovar tu acceso, "
-                                    "usa el comando /start para ver nuestros planes disponibles."
-                                )
-                            
-                            logger.info(f"Enviando notificación a usuario {user_id}...")
-                            bot.send_message(
-                                chat_id=user_id,
-                                text=message_text
                             )
                             logger.info(f"Notificación enviada a usuario {user_id}")
-                        except Exception as e:
-                            logger.error(f"No se pudo notificar al usuario {user_id}: {e}")
+                        except Exception as notify_error:
+                            logger.error(f"Error al notificar al usuario {user_id}: {notify_error}")
+                            # No considerar esto como un error crítico
                         
-                        processed_count += 1
-                        logger.info(f"Usuario {user_id} expulsado por suscripción expirada")
+                    except Exception as ban_error:
+                        # Intento alternativo si el primer método falla
+                        logger.error(f"Error con ban_chat_member para {user_id}: {ban_error}")
+                        logger.info(f"Intentando método alternativo de expulsión para {user_id}...")
+                        
+                        try:
+                            # Método 2: kick_chat_member (compatibilidad con versiones anteriores)
+                            result = bot.kick_chat_member(
+                                chat_id=group_id,
+                                user_id=user_id
+                            )
+                            logger.info(f"Resultado de expulsión alternativa para {user_id}: {result}")
+                            
+                            # Si llegamos aquí, la expulsión fue exitosa
+                            # Desbanear para permitir que pueda volver a unirse si renueva
+                            bot.unban_chat_member(
+                                chat_id=group_id,
+                                user_id=user_id
+                            )
+                            
+                            # Registrar la expulsión en la base de datos
+                            db.record_expulsion(user_id, f"Suscripción expirada (método alternativo) - Plan: {plan}")
+                            
+                            # Incrementar contador de éxito
+                            success_count += 1
+                            
+                            # Notificar al usuario
+                            try:
+                                bot.send_message(
+                                    chat_id=user_id,
+                                    text=(
+                                        f"❌ Tu suscripción ha expirado.\n\n"
+                                        "Has sido expulsado del grupo VIP. Para recuperar el acceso, "
+                                        "usa el comando /start para ver nuestros planes disponibles."
+                                    )
+                                )
+                            except:
+                                pass
+                                
+                        except Exception as alternate_error:
+                            logger.error(f"Error con método alternativo para {user_id}: {alternate_error}")
+                            error_count += 1
+                    
+                except Exception as member_error:
+                    if "user not found" in str(member_error).lower():
+                        logger.info(f"Usuario {user_id} no encontrado en el grupo. Saltando.")
+                        skipped_count += 1
                     else:
-                        logger.info(f"Usuario {user_id} ya no está en el grupo o fue expulsado. No se requiere acción.")
-                except Exception as e:
-                    if "user not found" in str(e).lower():
-                        logger.info(f"Usuario {user_id} no está en el grupo. Saltando...")
-                    else:
-                        logger.error(f"Error al verificar usuario {user_id} en el grupo: {e}")
+                        logger.error(f"Error al verificar usuario {user_id} en el grupo: {member_error}")
                         error_count += 1
-                    continue
-                
-            except Exception as e:
-                logger.error(f"Error al procesar usuario {user_id}: {e}")
+            
+            except Exception as process_error:
+                logger.error(f"Error general al procesar usuario {user_id}: {process_error}")
                 error_count += 1
-                # Continuar con el siguiente usuario
         
-        # Resumen de procesamiento
+        # Resumen de la operación
+        end_time = datetime.datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        
         logger.info(f"""
-        Resumen de verificación:
-        - Total procesado: {processed_count}/{total_count}
-        - Whitelist: {whitelist_count}
-        - Pagados: {paid_count}
-        - Errores: {error_count}
+        === RESUMEN DE VERIFICACIÓN ===
+        Tiempo total: {duration:.2f} segundos
+        Total procesados: {processed_count}/{total_count}
+        Exitosos: {success_count}
+        Omitidos: {skipped_count}
+        Errores: {error_count}
+        ==========================
         """)
         
         return True
         
     except Exception as e:
-        logger.error(f"Error en verificación de expiración: {e}")
+        logger.error(f"ERROR CRÍTICO en verificación de expiración: {e}")
         return False
+    
+# 1. VERIFICACIÓN PERIÓDICA AUTOMÁTICA
+def schedule_security_verification(bot):
+    def security_check_thread():
+        logger.info("🧵 Hilo de verificación de seguridad iniciado")
+        verify_count = 0
+        
+        while True:
+            try:
+                verify_count += 1
+                current_time = datetime.datetime.now().strftime("%H:%M:%S")
+                logger.info(f"[{current_time}] 🔍 Verificación #{verify_count} iniciada")
+                
+                # Verificar y obtener suscripciones expiradas
+                expired_subscriptions = db.check_and_update_subscriptions()
+                
+                if expired_subscriptions:
+                    logger.info(f"🚨 Encontradas {len(expired_subscriptions)} suscripciones expiradas para procesar")
+                    
+                    # Realizar expulsión de usuarios con suscripciones expiradas
+                    if GROUP_CHAT_ID:
+                        result = perform_group_security_check(
+                            bot, 
+                            GROUP_CHAT_ID, 
+                            expired_subscriptions=expired_subscriptions
+                        )
+                        logger.info(f"Resultado de la verificación: {'✅ Exitoso' if result else '❌ Fallido'}")
+                    else:
+                        logger.error("⚠️ GROUP_CHAT_ID no está configurado. No se puede realizar expulsión automática.")
+                else:
+                    logger.info("✅ No se encontraron suscripciones expiradas")
+                
+                # Esperar antes de la próxima verificación - cada 15 segundos
+                time.sleep(15)
+                
+            except Exception as e:
+                logger.error(f"❌ Error en verificación periódica: {e}")
+                # En caso de error, esperar y continuar
+                time.sleep(30)
+    
+    # Iniciar hilo en modo daemon para que termine cuando el programa principal termine
+    security_thread = threading.Thread(target=security_check_thread, daemon=True)
+    security_thread.start()
+    logger.info("✅ Hilo de verificación periódica iniciado en segundo plano")
+    
+    return security_thread
     
 def handle_force_expire(message, bot):
     """
