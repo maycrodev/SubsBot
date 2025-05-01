@@ -11,12 +11,12 @@ import os
 import re
 from typing import Dict, Optional, Tuple, Any
 
-global renewal_thread_running
-renewal_thread_running = False
-
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+global security_thread_running
+security_thread_running = False
 
 # admin_states será asignado desde app.py
 admin_states = None  # Será asignado desde app.py
