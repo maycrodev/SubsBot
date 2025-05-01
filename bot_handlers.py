@@ -1887,8 +1887,8 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
         
         # Payment type text
         if is_recurring:
-            payment_type_text = f"⏳ Facturación: {duration_type} (recurrente)\n" + \
-                                "Este plan se renovará automáticamente hasta que decidas cancelarlo, (˶˃ ᵕ ˂˶)~"
+            payment_type_text = f"⏳ Facturación: {duration_type} (recurrente)\n\n" + \
+                                "_Este plan se renovará automáticamente hasta que decidas cancelarlo, (˶˃ ᵕ ˂˶)~_"
         else:
             payment_type_text = f"📅 Duración: {plan['duration_days']} días\n" + \
                                 "Este es un pago único, sin renovaciones automáticas. ¡Sin compromisos!"
@@ -1901,7 +1901,7 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
             f"{benefits_text}\n"
             f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
             f"{payment_type_text}\n\n"
-            f"Elige tu método de pago aquí abajito~ 👇"
+            f"Elige tu método de pago aquí abajo~ 👇"
         )
         
         # Create markup with payment buttons
@@ -2124,10 +2124,10 @@ def handle_payment_method(call, bot):
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        f"🔗 *Tu enlace de {payment_type.lower()} está listo, •⩊• ~*\n\n"
+                        f"🔗 *Tu enlace de {payment_type.lower()} está listo! •⩊• ~*\n\n"
                         f"📦 Plan: {plan['display_name']}\n"
                         f"💵 Precio: ${plan['price_usd']:.2f} USD / {period} {renewal_text}\n\n"
-                        f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n"
+                        f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
                         "Una vez que termines, te daré tu entrada y te dejaré entrar (˶ˆᗜˆ˵)"
                     ),
                     parse_mode='Markdown',
