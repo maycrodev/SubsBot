@@ -674,71 +674,64 @@ def cancel_subscription(subscription_id: str, reason: str = "Cancelado por el bo
         logger.error(f"Error al cancelar suscripción: {str(e)}")
         return False
 
+# En payments.py
 def process_webhook_event(event_data: Dict) -> Tuple[bool, str]:
-    """Procesa eventos de webhook de PayPal para suscripciones y pagos únicos"""
     try:
         event_type = event_data.get("event_type")
         
         # Log the event for debugging
         logger.info(f"PayPal webhook recibido: {event_type}")
-        logger.info(f"Datos del evento: {json.dumps(event_data)[:500]}...")  # Show first 500 chars
         
         # Extract the resource (can be subscription or order)
         resource = event_data.get("resource", {})
         
-        # Handle subscription events (recurring payments)
-        if event_type.startswith("BILLING.SUBSCRIPTION"):
-            # Existing subscription handling logic
-            if event_type == "BILLING.SUBSCRIPTION.CREATED":
-                return True, "Suscripción creada"
-            elif event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
-                return True, "Suscripción activada"
-            elif event_type == "BILLING.SUBSCRIPTION.UPDATED":
-                return True, "Suscripción actualizada"
-            elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
-                return True, "Suscripción cancelada"
-            elif event_type == "BILLING.SUBSCRIPTION.SUSPENDED":
-                return True, "Suscripción suspendida"
-            elif event_type == "BILLING.SUBSCRIPTION.PAYMENT.FAILED":
-                return True, "Pago fallido"
-            else:
-                logger.warning(f"Evento de suscripción no manejado: {event_type}")
-                return False, f"Evento de suscripción no manejado: {event_type}"
-        
-        # Handle payment/order events (one-time payments)
-        elif event_type.startswith("PAYMENT.") or event_type.startswith("CHECKOUT.ORDER"):
-            if event_type == "PAYMENT.CAPTURE.COMPLETED":
-                # Payment has been completed successfully
-                order_id = resource.get("supplementary_data", {}).get("related_ids", {}).get("order_id")
-                custom_id = resource.get("custom_id", "")
-                
-                logger.info(f"Pago completado para orden {order_id}, custom_id: {custom_id}")
-                
-                # Extract user_id and plan_id from custom_id (format: "user_id:plan_id")
-                if ":" in custom_id:
-                    user_id, plan_id = custom_id.split(":", 1)
-                    logger.info(f"Pago de usuario {user_id} para plan {plan_id}")
-                
-                return True, "Pago completado"
+        # CRITICAL: Manejo del evento PAYMENT.SALE.COMPLETED para renovaciones
+        if event_type == "PAYMENT.SALE.COMPLETED":
+            # Obtener la suscripción relacionada con el pago
+            billing_agreement_id = resource.get("billing_agreement_id")
             
-            elif event_type == "CHECKOUT.ORDER.APPROVED":
-                order_id = resource.get("id")
-                logger.info(f"Orden {order_id} aprobada")
-                return True, "Orden aprobada"
+            if billing_agreement_id:
+                # Obtener la suscripción de la base de datos
+                subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
                 
-            elif event_type == "CHECKOUT.ORDER.COMPLETED":
-                order_id = resource.get("id")
-                logger.info(f"Orden {order_id} completada")
-                return True, "Orden completada"
-                
-            else:
-                logger.warning(f"Evento de pago/orden no manejado: {event_type}")
-                return False, f"Evento de pago/orden no manejado: {event_type}"
+                if subscription:
+                    # Calcular nueva fecha de expiración
+                    import datetime
+                    from config import PLANS
+                    
+                    user_id = subscription['user_id']
+                    plan_id = subscription['plan']
+                    plan = PLANS.get(plan_id)
+                    
+                    if plan:
+                        # Verificar si la fecha ya expiró
+                        current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
+                        now = datetime.datetime.now()
+                        
+                        if current_end_date < now:
+                            # Ya expiró, calcular desde ahora
+                            new_end_date = now + datetime.timedelta(days=plan['duration_days'])
+                        else:
+                            # Aún activa, extender desde la fecha actual
+                            new_end_date = current_end_date + datetime.timedelta(days=plan['duration_days'])
+                        
+                        # Extender la suscripción en la base de datos
+                        db.extend_subscription(subscription['sub_id'], new_end_date)
+                        
+                        # Notificar al usuario
+                        try:
+                            bot_instance = telebot.TeleBot(BOT_TOKEN)
+                            notify_successful_renewal(bot_instance, user_id, subscription, new_end_date)
+                        except Exception as e:
+                            logger.error(f"Error al notificar renovación: {e}")
+                        
+                        logger.info(f"Renovación exitosa: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
+                        return True, "Renovación procesada correctamente"
+                    
+            logger.warning(f"No se pudo procesar renovación para PAYMENT.SALE.COMPLETED - ID: {billing_agreement_id}")
         
-        else:
-            logger.warning(f"Tipo de evento no manejado: {event_type}")
-            return False, f"Tipo de evento no manejado: {event_type}"
-            
+        # Resto del código para otros eventos...
+        
     except Exception as e:
-        logger.error(f"Error al procesar evento de webhook: {str(e)}")
-        return False, f"Error: {str(e)}"
+        logger.error(f"Error al procesar webhook: {e}")
+        return False, f"Error: {e}"
