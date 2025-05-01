@@ -110,17 +110,31 @@ def get_user(user_id: int) -> Optional[Dict]:
     return None
 
 # Funciones para manipular suscripciones
-def create_subscription(user_id: int, plan: str, price_usd: float, 
-                        start_date: datetime.datetime, end_date: datetime.datetime, 
-                        status: str = 'ACTIVE', paypal_sub_id: str = None) -> int:
-    """Crea una nueva suscripción"""
+def create_subscription(
+    user_id: int, 
+    plan: str, 
+    price_usd: float, 
+    start_date: datetime.datetime, 
+    end_date: datetime.datetime, 
+    status: str = 'ACTIVE', 
+    paypal_sub_id: str = None,
+    is_recurring: bool = None  # Añadir este parámetro opcional
+) -> int:
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Verificar si la columna is_recurring existe, si no, crearla
+    cursor.execute("PRAGMA table_info(subscriptions)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    if 'is_recurring' not in columns:
+        cursor.execute('ALTER TABLE subscriptions ADD COLUMN is_recurring BOOLEAN DEFAULT 1')
+        conn.commit()
+    
     cursor.execute('''
-    INSERT INTO subscriptions (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id))
+    INSERT INTO subscriptions (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id, is_recurring)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id, is_recurring))
     
     sub_id = cursor.lastrowid
     conn.commit()
