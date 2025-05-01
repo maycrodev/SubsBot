@@ -321,6 +321,9 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
         start_date = datetime.datetime.now()
         end_date = start_date + datetime.timedelta(days=plan['duration_days'])
         
+        # Determinar el tipo de pago
+        payment_type_name = "suscripción" if is_recurring else "pago único"
+        
         # Create subscription in database
         sub_id = db.create_subscription(
             user_id=user_id,
@@ -375,18 +378,18 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
                 except Exception as e:
                     logger.error(f"Error al notificar al admin {admin_id}: {str(e)}")
         else:
-            # Send confirmation message with the link
-            payment_type_text = "Suscripción" if is_recurring else "Pago único"
+            # Preparar nota de renovación
             renewal_note = (
-                f"⚠️ *Esta suscripción se renovará automáticamente* al final del período. " 
+                f"⚠️ *Esta {payment_type_name} se renovará automáticamente* al final del período. " 
                 f"Puedes cancelarla en cualquier momento desde PayPal."
             ) if is_recurring else (
-                f"⚠️ *Este es un pago único*. Tu acceso expirará el {end_date.strftime('%d/%m/%Y')}. " 
+                f"⚠️ *Este es un {payment_type_name}*. Tu acceso expirará el {end_date.strftime('%d/%m/%Y')}. " 
                 f"Deberás realizar un nuevo pago para renovar tu acceso."
             )
             
+            # Send confirmation message with the link
             confirmation_text = (
-                f"🎟️ *¡{payment_type_text} VIP Confirmado!*\n\n"
+                f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmado!*\n\n"
                 "Aquí tienes tu acceso exclusivo 👇\n\n"
                 f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
                 f"{renewal_note}\n\n"
@@ -403,17 +406,14 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
                 disable_web_page_preview=True
             )
         
-        # Notify administrators
+        # Notificar administradores
         username_display = user.get('username', 'Sin username')
         first_name = user.get('first_name', '')
         last_name = user.get('last_name', '')
         full_name = f"{first_name} {last_name}".strip() or "Sin nombre"
         
-        payment_type_admin = "RECURRENTE" if is_recurring else "ÚNICO"
-        renewal_admin = "Se renovará automáticamente" if is_recurring else "No renovable (pago único)"
-        
         admin_notification = (
-            f"🎉 *¡Nuevo {payment_type_admin}!*\n\n"
+            f"🎉 *¡Nuevo {payment_type_name.upper()}!*\n\n"
             "Detalles:\n"
             f"• ID pago: {payment_id}\n"
             f"• Usuario: {username_display} (@{username_display}) (id{user_id})\n"
@@ -421,8 +421,8 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
             f"• Plan: {plan['display_name']}\n"
             f"• Facturación: ${plan['price_usd']:.2f} / "
             f"{'1 semana' if plan_id == 'weekly' else '1 mes'}\n"
-            f"• Tipo: {payment_type_admin}\n"
-            f"• Renovación: {renewal_admin}\n"
+            f"• Tipo: {payment_type_name.upper()}\n"
+            f"• Renovación: {'Automática' if is_recurring else 'No renovable (pago único)'}\n"
             f"• Fecha: {start_date.strftime('%d %b %Y %I:%M %p')}\n"
             f"• Expira: {end_date.strftime('%d %b %Y')}\n"
             f"• Estado: ✅ ACTIVO\n"
@@ -439,7 +439,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
             except Exception as e:
                 logger.error(f"Error al notificar al admin {admin_id}: {str(e)}")
         
-        logger.info(f"Pago exitoso procesado para usuario {user_id}, plan {plan_id}, tipo: {payment_type_admin}")
+        logger.info(f"Pago exitoso procesado para usuario {user_id}, plan {plan_id}, tipo: {payment_type_name}")
         return True
         
     except Exception as e:

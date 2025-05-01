@@ -943,7 +943,7 @@ def download_database():
 def paypal_return():
     """Maneja el retorno desde PayPal después de un pago exitoso (suscripción o pago único)"""
     try:
-        # Get the parameters
+        # Obtener parámetros
         user_id = request.args.get('user_id')
         plan_id = request.args.get('plan_id')
         payment_type = request.args.get('payment_type', 'subscription')  # Default to subscription for backward compatibility
@@ -952,46 +952,52 @@ def paypal_return():
             return render_template('webhook_success.html', 
                                   message="Parámetros incompletos. Por favor, contacta a soporte."), 400
         
-        # Process differently based on payment type
+        # Procesar de manera diferente según el tipo de pago
         if payment_type == 'subscription':
-            # Subscription ID will be present for recurring payments
+            # Verificar información de la suscripción
             subscription_id = request.args.get('subscription_id')
             
             if not subscription_id:
                 return render_template('webhook_success.html', 
                                       message="ID de suscripción no proporcionado. Por favor, contacta a soporte."), 400
             
-            # Verify subscription with PayPal
+            # Verificar suscripción con PayPal
             subscription_details = pay.verify_subscription(subscription_id)
             if not subscription_details:
                 return render_template('webhook_success.html', 
                                       message="No se pudo verificar la suscripción. Por favor, contacta a soporte."), 400
             
-            # Process the successful subscription
+            # Determinar el tipo de pago
+            payment_type_name = "suscripción" if payment_type == 'subscription' else "pago único"
+            
+            # Procesar la suscripción exitosa
             success = bot_handlers.process_successful_subscription(
                 bot, int(user_id), plan_id, subscription_id, subscription_details, is_recurring=True
             )
             
         elif payment_type == 'order':
-            # Order ID will be present for one-time payments
-            order_id = request.args.get('token')  # PayPal puts the order ID in the 'token' query parameter
+            # ... (código existente para pagos únicos)
+            order_id = request.args.get('token')
             
             if not order_id:
                 return render_template('webhook_success.html', 
                                       message="ID de orden no proporcionado. Por favor, contacta a soporte."), 400
             
-            # Verify and capture the order
+            # Verificar y capturar la orden
             order_details = pay.verify_and_capture_order(order_id)
             if not order_details:
                 return render_template('webhook_success.html', 
                                       message="No se pudo verificar o capturar el pago. Por favor, contacta a soporte."), 400
             
-            # Check if the payment was completed
+            # Verificar si el pago fue completado
             if order_details.get('status') != 'COMPLETED':
                 return render_template('webhook_success.html', 
                                       message=f"El pago no está completo. Estado actual: {order_details.get('status')}. Por favor, contacta a soporte."), 400
             
-            # Process the successful one-time payment
+            # Determinar el tipo de pago
+            payment_type_name = "pago único"
+            
+            # Procesar el pago único exitoso
             success = bot_handlers.process_successful_subscription(
                 bot, int(user_id), plan_id, order_id, order_details, is_recurring=False
             )
@@ -1001,9 +1007,6 @@ def paypal_return():
                                   message=f"Tipo de pago no reconocido: {payment_type}. Por favor, contacta a soporte."), 400
         
         if success:
-            # Determine payment type name for success message
-            payment_type_name = "suscripción" if payment_type == 'subscription' else "pago"
-            
             return render_template('webhook_success.html', 
                                   message=f"¡{payment_type_name.capitalize()} exitoso! Puedes volver a Telegram."), 200
         else:
