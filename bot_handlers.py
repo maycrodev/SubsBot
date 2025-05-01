@@ -523,8 +523,7 @@ def create_plans_markup():
     # Agregar planes
     markup.add(
         types.InlineKeyboardButton("🗓️ Plan Semanal", callback_data="weekly_plan"),
-        types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan"),
-        types.InlineKeyboardButton("📆 Plan Prueba", callback_data="PRUEBA_plan")
+        types.InlineKeyboardButton("📆 Plan Mensual", callback_data="monthly_plan")
     )
     
     # Agregar botón de volver
@@ -1710,10 +1709,6 @@ def handle_plans_callback(call, bot):
             show_plan_details(bot, chat_id, message_id, "weekly")
             
         elif call.data == "monthly_plan":
-            # Mostrar detalles del plan mensual
-            show_plan_details(bot, chat_id, message_id, "monthly")
-
-        elif call.data == "PRUEBA_plan":
             # Mostrar detalles del plan mensual
             show_plan_details(bot, chat_id, message_id, "monthly")
             
@@ -2994,7 +2989,7 @@ def register_handlers(bot):
                                       func=lambda call: call.data in ['view_plans', 'bot_credits', 'terms'])
     
     bot.register_callback_query_handler(lambda call: handle_plans_callback(call, bot), 
-                                      func=lambda call: call.data in ['tutorial', 'weekly_plan', 'monthly_plan', 'PRUEBA_plan', 'back_to_main'])
+                                      func=lambda call: call.data in ['tutorial', 'weekly_plan', 'monthly_plan', 'back_to_main'])
     
     bot.register_callback_query_handler(lambda call: handle_payment_method(call, bot), 
                                       func=lambda call: call.data.startswith('payment_'))
