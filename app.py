@@ -768,10 +768,14 @@ def admin_panel():
             "enlaces_invitacion": db.get_table_count(conn, "invite_links")
         }
         
-        # Obtener últimas 5 suscripciones
+        # Obtener últimas 5 suscripciones con estado corregido
         cursor = conn.cursor()
         cursor.execute("""
-        SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, s.status
+        SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, 
+            CASE 
+                WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') THEN 'EXPIRED' 
+                ELSE s.status 
+            END as status
         FROM subscriptions s
         LEFT JOIN users u ON s.user_id = u.user_id
         ORDER BY s.start_date DESC

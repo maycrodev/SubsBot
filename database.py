@@ -133,9 +133,12 @@ def get_active_subscription(user_id: int) -> Optional[Dict]:
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # CORREGIDO: Asegurarse que status='ACTIVE' y fecha no ha expirado
     cursor.execute('''
     SELECT * FROM subscriptions 
-    WHERE user_id = ? AND status = 'ACTIVE' AND end_date > datetime('now')
+    WHERE user_id = ? 
+    AND status = 'ACTIVE' 
+    AND datetime(end_date) > datetime('now')
     ORDER BY end_date DESC LIMIT 1
     ''', (user_id,))
     
@@ -420,23 +423,32 @@ def check_and_update_subscriptions() -> List[Tuple[int, int, str]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Marcar suscripciones expiradas con tiempo de expiración pasado
+    # Obtener la fecha actual para logging
+    current_time = datetime.datetime.now()
+    logger.info(f"Verificación iniciada a: {current_time}")
+    
+    # PASO 1: Marcar todas las suscripciones expiradas (tanto de pago como whitelist)
     cursor.execute("""
     UPDATE subscriptions 
-    SET 
-        status = 'EXPIRED', 
-        end_date = datetime('now')
+    SET status = 'EXPIRED'
     WHERE 
         status = 'ACTIVE' AND 
-        (
-            end_date <= datetime('now') OR 
-            (paypal_sub_id IS NULL AND julianday('now') - julianday(end_date) > 0)
-        )
+        datetime(end_date) <= datetime('now')
     """)
     
-    # Obtener IDs de usuarios con suscripciones expiradas
+    # Registrar cuántas filas fueron afectadas
+    affected_rows = cursor.rowcount
+    logger.info(f"Suscripciones actualizadas a EXPIRED: {affected_rows}")
+    
+    # PASO 2: Obtener todas las suscripciones expiradas para procesamiento
     cursor.execute("""
-    SELECT user_id, sub_id, plan, end_date, start_date
+    SELECT 
+        user_id, 
+        sub_id, 
+        plan, 
+        end_date, 
+        start_date,
+        CASE WHEN paypal_sub_id IS NULL THEN 'WHITELIST' ELSE 'PAID' END as subscription_type
     FROM subscriptions 
     WHERE status = 'EXPIRED'
     """)
@@ -444,21 +456,57 @@ def check_and_update_subscriptions() -> List[Tuple[int, int, str]]:
     expired_subscriptions = cursor.fetchall()
     
     # Registro detallado de suscripciones expiradas
+    whitelist_count = 0
+    paid_count = 0
+    
     for sub in expired_subscriptions:
-        logger.info(f"""
-        Suscripción expirada:
-        - User ID: {sub[0]}
-        - Sub ID: {sub[1]}
-        - Plan: {sub[2]}
-        - Fecha de inicio: {sub[4]}
-        - Fecha de fin: {sub[3]}
-        - Tiempo transcurrido: {datetime.datetime.now() - datetime.datetime.fromisoformat(sub[3])}
-        """)
+        try:
+            end_date = datetime.datetime.fromisoformat(sub[3]) if sub[3] else None
+            start_date = datetime.datetime.fromisoformat(sub[4]) if sub[4] else None
+            sub_type = sub[5] if len(sub) > 5 else "DESCONOCIDO"
+            
+            # Contar por tipo
+            if sub_type == 'WHITELIST':
+                whitelist_count += 1
+            elif sub_type == 'PAID':
+                paid_count += 1
+                
+            time_diff = "N/A"
+            if end_date:
+                time_diff = current_time - end_date
+                
+            logger.info(f"""
+            Suscripción expirada:
+            - User ID: {sub[0]}
+            - Sub ID: {sub[1]}
+            - Plan: {sub[2]}
+            - Tipo: {sub_type}
+            - Fecha de inicio: {start_date}
+            - Fecha de fin: {end_date}
+            - Tiempo transcurrido desde expiración: {time_diff}
+            """)
+        except Exception as e:
+            logger.error(f"Error al procesar datos de suscripción expirada: {e}")
+    
+    logger.info(f"Total expiradas: {len(expired_subscriptions)} (Whitelist: {whitelist_count}, Pagadas: {paid_count})")
     
     conn.commit()
     conn.close()
     
     return [(sub[0], sub[1], sub[2]) for sub in expired_subscriptions]
+
+def is_whitelist_subscription(sub_id: int) -> bool:
+    """Verifica si una suscripción es de tipo whitelist (manual, sin pago)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT paypal_sub_id FROM subscriptions WHERE sub_id = ?', (sub_id,))
+    result = cursor.fetchone()
+    
+    conn.close()
+    
+    # Es whitelist si paypal_sub_id es NULL
+    return result is not None and result[0] is None
 
 # Inicializar la base de datos al importar el módulo
 init_db()
