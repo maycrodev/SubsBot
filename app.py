@@ -726,35 +726,7 @@ def get_telegram_user():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/admin/check-renewals', methods=['GET'])
-def admin_check_renewals():
-    """Endpoint para forzar una verificación de renovaciones pendientes"""
-    try:
-        # Verificación básica de autenticación
-        admin_id = request.args.get('admin_id')
-        if not admin_id or int(admin_id) not in ADMIN_IDS:
-            return jsonify({"error": "Acceso no autorizado"}), 401
-        
-        # Importar función desde payments
-        import payments as pay
-        
-        # Ejecutar la verificación
-        notified, errors = pay.process_subscription_renewals(bot)
-        
-        if notified >= 0:  # Consideramos éxito incluso si no hay notificaciones
-            return jsonify({
-                "success": True,
-                "message": f"Verificación de renovaciones ejecutada: {notified} notificadas, {errors} errores"
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "error": "La verificación de renovaciones falló. Revise los logs para más detalles."
-            }), 500
-        
-    except Exception as e:
-        logger.error(f"Error en endpoint de verificación de renovaciones: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+
     
 @app.route('/admin/renewal-stats', methods=['GET'])
 def admin_renewal_stats():

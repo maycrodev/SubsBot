@@ -286,6 +286,7 @@ def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_
     """
     try:
         from config import PLANS
+        import datetime
         
         plan_id = subscription.get('plan')
         plan = PLANS.get(plan_id, {})
