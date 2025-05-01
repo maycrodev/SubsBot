@@ -194,6 +194,145 @@ def create_order(plan_id: str, user_id: int) -> Optional[str]:
         logger.error(f"Error al crear orden de pago único: {str(e)}")
         return None
 
+
+def process_subscription_renewals(bot):
+    """
+    Procesa las renovaciones pendientes de suscripciones
+    
+    Args:
+        bot: Instancia del bot de Telegram
+        
+    Returns:
+        tuple: (número de notificaciones enviadas, número de errores)
+    """
+    try:
+        import database as db
+        import datetime
+        
+        logger.info("Procesando renovaciones pendientes de suscripciones...")
+        
+        # Obtener suscripciones a punto de vencer (en los próximos 60 minutos)
+        pending_renewals = db.get_pending_renewal_subscriptions(minutes_before=60)
+        logger.info(f"Encontradas {len(pending_renewals)} suscripciones pendientes de renovación")
+        
+        # Verificar si ya se han enviado notificaciones recientes para estas suscripciones
+        recently_notified = db.get_recently_notified_subscriptions(hours=24)
+        
+        notifications_sent = 0
+        errors = 0
+        
+        for subscription in pending_renewals:
+            sub_id = subscription['sub_id']
+            user_id = subscription['user_id']
+            
+            # Evitar duplicar notificaciones
+            if sub_id in recently_notified:
+                logger.info(f"Suscripción {sub_id} ya fue notificada recientemente, omitiendo")
+                continue
+            
+            try:
+                # Verificar el estado de la suscripción en PayPal
+                paypal_sub_id = subscription.get('paypal_sub_id')
+                
+                if not paypal_sub_id:
+                    logger.warning(f"Suscripción {sub_id} no tiene un ID de PayPal asociado")
+                    continue
+                
+                subscription_details = verify_subscription(paypal_sub_id)
+                
+                if not subscription_details:
+                    logger.error(f"No se pudo verificar la suscripción {paypal_sub_id} en PayPal")
+                    errors += 1
+                    continue
+                
+                status = subscription_details.get('status')
+                
+                if status not in ['ACTIVE', 'APPROVED']:
+                    logger.warning(f"La suscripción {paypal_sub_id} no está activa en PayPal. Estado: {status}")
+                    continue
+                
+                # Enviar notificación al usuario
+                notify_successful_renewal(bot, user_id, subscription, None, is_upcoming=True)
+                
+                # Registrar la notificación
+                db.record_renewal_notification(sub_id, user_id)
+                
+                notifications_sent += 1
+                
+            except Exception as e:
+                logger.error(f"Error al procesar renovación {sub_id}: {str(e)}")
+                errors += 1
+        
+        logger.info(f"Proceso de renovaciones completado: {notifications_sent} notificaciones enviadas, {errors} errores")
+        return notifications_sent, errors
+        
+    except Exception as e:
+        logger.error(f"Error general en process_subscription_renewals: {str(e)}")
+        return -1, 1
+
+def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_upcoming=False):
+    """
+    Notifica a un usuario sobre una renovación exitosa o próxima
+    
+    Args:
+        bot: Instancia del bot de Telegram
+        user_id (int): ID del usuario
+        subscription (dict): Datos de la suscripción
+        new_end_date (datetime, optional): Nueva fecha de vencimiento
+        is_upcoming (bool): Si es una renovación próxima o ya completada
+    
+    Returns:
+        bool: True si se envió la notificación, False en caso contrario
+    """
+    try:
+        from config import PLANS
+        
+        plan_id = subscription.get('plan')
+        plan = PLANS.get(plan_id, {})
+        plan_name = plan.get('display_name', plan_id)
+        
+        if is_upcoming:
+            # Formatear fecha de vencimiento actual
+            end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
+            end_date_str = end_date.strftime('%d/%m/%Y')
+            
+            # Mensaje para renovación próxima
+            message = (
+                "📅 *Recordatorio de renovación automática*\n\n"
+                f"Tu suscripción al plan {plan_name} se renovará automáticamente "
+                f"el {end_date_str}.\n\n"
+                "💳 El pago se procesará a través de PayPal usando tu método de pago registrado.\n\n"
+                "ℹ️ Si deseas cancelar la renovación automática, puedes hacerlo desde tu cuenta de PayPal antes de esa fecha."
+            )
+        else:
+            # Mensaje para renovación completada
+            if not new_end_date:
+                end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
+            else:
+                end_date = new_end_date
+                
+            end_date_str = end_date.strftime('%d/%m/%Y')
+            
+            message = (
+                "✅ *¡Renovación exitosa!*\n\n"
+                f"Tu suscripción al plan {plan_name} ha sido renovada exitosamente.\n\n"
+                f"📆 Nuevo vencimiento: {end_date_str}\n\n"
+                "Gracias por seguir siendo parte de nuestra comunidad VIP. Disfruta de todos los beneficios exclusivos."
+            )
+        
+        # Enviar mensaje
+        bot.send_message(
+            chat_id=user_id,
+            text=message,
+            parse_mode='Markdown'
+        )
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error al notificar renovación a usuario {user_id}: {str(e)}")
+        return False
+
 def verify_and_capture_order(order_id: str) -> Optional[Dict]:
     """Verifica y captura un pago único"""
     try:

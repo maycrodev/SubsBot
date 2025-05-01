@@ -102,7 +102,7 @@ PLANS = {
 
 '''
 
-RECURRING_PAYMENTS_ENABLED = False # False for one-time payments, True for recurring payments
+RECURRING_PAYMENTS_ENABLED = True # False for one-time payments, True for recurring payments
 
 PLANS = {
     'weekly': {

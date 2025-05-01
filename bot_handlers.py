@@ -24,49 +24,6 @@ admin_states = None  # Será asignado desde app.py
 # Diccionario para almacenar las animaciones de pago en curso
 payment_animations = {}
 
-def register_admin_commands(bot):
-    """Registra comandos exclusivos para administradores"""
-    from config import ADMIN_IDS
-    
-    # Handler para estadísticas del bot (solo admins)
-    bot.register_message_handler(
-        lambda message: handle_stats_command(message, bot),
-        func=lambda message: message.from_user.id in ADMIN_IDS and 
-                           (message.text == '/stats' or message.text == '/estadisticas')
-    )
-    
-    # Handler para probar la generación de enlaces de invitación (solo admins)
-    bot.register_message_handler(
-        lambda message: handle_test_invite(message, bot),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/test_invite'
-    )
-    
-    # Handler para verificar permisos del bot
-    bot.register_message_handler(
-        lambda message: check_and_fix_bot_permissions(message, bot),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_bot_permissions'
-    )
-    
-    # Handler para whitelist
-    bot.register_message_handler(
-        lambda message: handle_whitelist(message, bot),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text.startswith('/whitelist')
-    )
-    
-    # Handler para subinfo
-    bot.register_message_handler(
-        lambda message: handle_subinfo(message, bot),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text.startswith('/subinfo')
-    )
-    
-    # Comando de verificación de permisos para admins
-    bot.register_message_handler(
-        lambda message: verify_bot_permissions(bot) and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
-        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
-    )
-    
-    logger.info("Comandos de administrador registrados correctamente")
-
 # Funciones de utilidad
 def parse_duration(duration_text: str) -> Optional[float]:
     """
@@ -3341,6 +3298,96 @@ def admin_force_security_check(message, bot):
             bot.reply_to(message, f"❌ Error: {str(e)}")
         except:
             pass
+
+def handle_check_renewals(message, bot):
+    """
+    Comando de administrador para verificar manualmente las renovaciones pendientes
+    Uso: /check_renewals
+    """
+    try:
+        user_id = message.from_user.id
+        
+        # Verificar que sea un administrador
+        if user_id not in ADMIN_IDS:
+            return
+            
+        # Enviar mensaje inicial
+        status_message = bot.reply_to(
+            message,
+            "🔄 Verificando renovaciones pendientes..."
+        )
+        
+        # Importar función desde payments
+        import payments as pay
+        
+        # Ejecutar verificación
+        notified, errors = pay.process_subscription_renewals(bot)
+        
+        if notified >= 0:
+            bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=status_message.message_id,
+                text=f"✅ Verificación completada: {notified} renovaciones notificadas, {errors} errores"
+            )
+        else:
+            bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=status_message.message_id,
+                text="❌ Error al verificar renovaciones. Revise los logs para más detalles."
+            )
+            
+    except Exception as e:
+        logger.error(f"Error en handle_check_renewals: {str(e)}")
+        bot.reply_to(message, f"❌ Error: {str(e)}")
+
+def register_admin_commands(bot):
+    """Registra comandos exclusivos para administradores"""
+    from config import ADMIN_IDS
+    
+    # Handler para estadísticas del bot (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_stats_command(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and 
+                           (message.text == '/stats' or message.text == '/estadisticas')
+    )
+
+    bot.register_message_handler(
+    lambda message: handle_check_renewals(message, bot),
+    func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_renewals'
+    )
+    
+    # Handler para probar la generación de enlaces de invitación (solo admins)
+    bot.register_message_handler(
+        lambda message: handle_test_invite(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/test_invite'
+    )
+    
+    # Handler para verificar permisos del bot
+    bot.register_message_handler(
+        lambda message: check_and_fix_bot_permissions(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_bot_permissions'
+    )
+    
+    # Handler para whitelist
+    bot.register_message_handler(
+        lambda message: handle_whitelist(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text.startswith('/whitelist')
+    )
+    
+    # Handler para subinfo
+    bot.register_message_handler(
+        lambda message: handle_subinfo(message, bot),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text.startswith('/subinfo')
+    )
+    
+    # Comando de verificación de permisos para admins
+    bot.register_message_handler(
+        lambda message: verify_bot_permissions(bot) and bot.reply_to(message, "✅ Verificación de permisos del bot completada. Revisa los mensajes privados para detalles."),
+        func=lambda message: message.from_user.id in ADMIN_IDS and message.text == '/check_permissions'
+    )
+    
+    logger.info("Comandos de administrador registrados correctamente")
+
 
 def register_handlers(bot):
     """Registra todos los handlers con el bot"""
