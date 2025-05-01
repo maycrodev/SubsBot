@@ -81,11 +81,19 @@ PLANS = {
         'duration_days': 30,
         'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 𝙈𝙀𝙉𝙎𝙐𝘼𝙇',
         'description': 'Acceso: 1 mes al grupo VIP'
+    },
+
+    'PRUEBA': {
+        'name': 'Plan Trimestral',
+        'price_usd': 12.00,
+        'duration_days': 0.00138889,
+        'display_name': 'SUBSCRIPCION DE PRUEBA',
+        'description': 'Acceso: SUB SUB SUBSCRIPCION DE PRUEBA'
     }
 }
 
 logger.info(f"Planes configurados: {', '.join(PLANS.keys())}")
 
 # Configuración de invitaciones
-INVITE_LINK_EXPIRY_HOURS = 24  # Enlaces expiran en 24 horas
+INVITE_LINK_EXPIRY_HOURS = 2  # Enlaces expiran en 24 horas
 INVITE_LINK_MEMBER_LIMIT = 1  # Enlaces de un solo uso
