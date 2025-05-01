@@ -1691,7 +1691,7 @@ def handle_start(message, bot):
         
         # Enviar mensaje de bienvenida con botones
         welcome_text = (
-            "👋 ¡Ohayou~! ヾ(๑╹◡╹)ﾉ Soy la portera del grupo VIP, un placer conocerte ♪\n\n"
+            "👋 *¡Ohayou~! ヾ(๑╹◡╹)ﾉ Soy la portera del grupo VIP*\n\n"
             "Este grupo es un espacio exclusivo con contenido premium y acceso limitado.\n\n"
             "Estoy aquí para ayudarte a ingresar correctamente al grupo 💫\n\n"
             "Por favor, elige una opción para continuar 👇"
@@ -1941,11 +1941,11 @@ def show_payment_tutorial(bot, chat_id, message_id):
     try:
         payment_type = "suscripciones" if RECURRING_PAYMENTS_ENABLED else "pagos"
         renewal_text = (
-            "⚠️ *Importante*: Tu suscripción se renovará automáticamente, (づ ᴗ _ᴗ)づ♡ \n"
+            "⚠️ *Importante: Tu suscripción se renovará automáticamente, (づ ᴗ _ᴗ)づ* "
             "Puedes cancelarla cuando quieras desde tu cuenta de PayPal, así que no te preocupes, ¿ok?"
         ) if RECURRING_PAYMENTS_ENABLED else (
-            "⚠️ *Importante*: Este es un pago único.\n"
-            "Cuando finalice tu período, tendrás que hacer un nuevo pago si deseas seguir en el grupo VIP~"
+            "⚠️ Importante: Este es un pago único. "
+            "Cuando finalice tu período, tendrás que hacer un nuevo pago si deseas seguir en el grupo VIP"
         )
         
         tutorial_text = (
