@@ -314,13 +314,15 @@ def start_processing_animation(bot, chat_id, message_id):
         # Registrar la animación
         payment_animations[chat_id] = {
             'active': True,
-            'message_id': message_id
+            'message_id': message_id,
+            'current_frame': 0  # Añadimos un contador para saber qué frame estamos mostrando
         }
         
-        # Mostrar cada mensaje por más tiempo (2.5 segundos)
-        for message in animation_messages:
-            # Verificar si la animación sigue activa
+        # Este bucle muestra cada mensaje una vez, garantizando la secuencia completa
+        for i, message in enumerate(animation_messages):
+            # Verificar si la animación debe detenerse
             if chat_id not in payment_animations or not payment_animations[chat_id]['active']:
+                logger.info(f"Animación detenida para chat {chat_id}")
                 break
                 
             try:
@@ -330,33 +332,39 @@ def start_processing_animation(bot, chat_id, message_id):
                     text=message
                 )
                 
-                # Esperar más tiempo para que cada mensaje sea visible
-                time.sleep(2.5)
+                # Actualizar el frame actual
+                if chat_id in payment_animations:
+                    payment_animations[chat_id]['current_frame'] = i
+                
+                # Esperar más tiempo para que cada mensaje sea visible (3 segundos)
+                time.sleep(3)
             except Exception as e:
                 logger.error(f"Error al mostrar mensaje de animación: {str(e)}")
                 break
         
-        # Si la animación sigue activa después de mostrar todos los mensajes, reiniciar
+        # Si la animación sigue activa después de mostrar todos los mensajes, 
+        # continuar mostrando mensajes hasta que se desactive
         while chat_id in payment_animations and payment_animations[chat_id]['active']:
-            for message in animation_messages:
-                if chat_id not in payment_animations or not payment_animations[chat_id]['active']:
-                    break
-                    
-                try:
-                    bot.edit_message_text(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        text=message
-                    )
-                    
-                    # Esperar antes de la siguiente actualización
-                    time.sleep(2.5)
-                except Exception as e:
-                    logger.error(f"Error en ciclo de animación: {str(e)}")
-                    break
+            frame = payment_animations[chat_id].get('current_frame', 0)
+            next_frame = (frame + 1) % len(animation_messages)
+            
+            try:
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=animation_messages[next_frame]
+                )
+                
+                # Actualizar el frame actual
+                payment_animations[chat_id]['current_frame'] = next_frame
+                
+                # Esperar antes de la siguiente actualización
+                time.sleep(3)
+            except Exception as e:
+                logger.error(f"Error en ciclo de animación: {str(e)}")
+                break
     except Exception as e:
         logger.error(f"Error en start_processing_animation: {str(e)}")
-
 def generate_invite_link(bot, user_id, sub_id):
     """Genera un enlace de invitación para el grupo VIP"""
     try:
@@ -2094,8 +2102,8 @@ def handle_payment_method(call, bot):
                 text="✨ Preparando algo especial para ti... ✨",
                 reply_markup=None
             )
-
-            # Start processing animation in a separate thread
+            
+            # Start processing animation in a separate thread with proper daemon flag
             animation_thread = threading.Thread(
                 target=start_processing_animation,
                 args=(bot, chat_id, processing_message.message_id)
@@ -2104,7 +2112,7 @@ def handle_payment_method(call, bot):
             animation_thread.start()
 
             # Pequeña pausa para asegurar que el hilo de animación comience
-            time.sleep(0.5)
+            time.sleep(1)
             
             # Create payment link (will handle both one-time and recurring)
             from payments import create_payment_link
@@ -2112,9 +2120,10 @@ def handle_payment_method(call, bot):
             
             # Stop the animation
             if chat_id in payment_animations:
+                logger.info(f"Desactivando animación para chat {chat_id}")
                 payment_animations[chat_id]['active'] = False
                 # Dar tiempo para que se detenga la animación
-                time.sleep(0.5)
+                time.sleep(1)
             
             if payment_url:
                 # Create markup with pay button

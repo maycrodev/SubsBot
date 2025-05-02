@@ -322,8 +322,11 @@ def webhook():
                                 "💰 Oh casi lo olvido, falta el pago... 💰"
                             ]
                             
-                            # Mostrar cada mensaje una vez
-                            for message in messages:
+                            # Variable para rastrear el frame actual
+                            current_frame = 0
+                            
+                            # Primera fase: mostrar cada mensaje una vez
+                            for i, message_text in enumerate(messages):
                                 if not animation_active:
                                     break
                                     
@@ -331,43 +334,45 @@ def webhook():
                                     bot.edit_message_text(
                                         chat_id=chat_id,
                                         message_id=message_id,
-                                        text=message
+                                        text=message_text
                                     )
-                                    # Tiempo extendido para cada mensaje
-                                    time.sleep(2.5)
+                                    current_frame = i
+                                    # Tiempo más largo entre mensajes (3 segundos)
+                                    time.sleep(3)
                                 except Exception as e:
-                                    logger.error(f"Error en animación: {e}")
+                                    logger.error(f"Error en animación fase 1: {e}")
                                     break
                             
-                            # Si la animación sigue activa, repetir los mensajes
+                            # Segunda fase: continuar ciclo hasta que se desactive
                             while animation_active:
-                                for message in messages:
-                                    if not animation_active:
-                                        break
-                                        
-                                    try:
-                                        bot.edit_message_text(
-                                            chat_id=chat_id,
-                                            message_id=message_id,
-                                            text=message
-                                        )
-                                        time.sleep(2.5)
-                                    except Exception as e:
-                                        logger.error(f"Error en ciclo de animación: {e}")
-                                        break
+                                next_frame = (current_frame + 1) % len(messages)
+                                try:
+                                    bot.edit_message_text(
+                                        chat_id=chat_id,
+                                        message_id=message_id,
+                                        text=messages[next_frame]
+                                    )
+                                    current_frame = next_frame
+                                    time.sleep(3)
+                                except Exception as e:
+                                    logger.error(f"Error en ciclo de animación fase 2: {e}")
+                                    break
                         
                         # Iniciar hilo de animación
                         animation_thread = threading.Thread(target=animate_kawaii_messages)
                         animation_thread.daemon = True
                         animation_thread.start()
                         
+                        # Pausa para asegurar que el hilo de animación inicie correctamente
+                        time.sleep(1)
+                        
                         try:
                             # Crear enlace de suscripción de PayPal
                             subscription_url = pay.create_subscription_link(plan_id, chat_id)
                             
-                            # Detener animación
+                            # Detener animación y dar tiempo para finalizar
                             animation_active = False
-                            time.sleep(0.5)  # Dar tiempo para que se detenga
+                            time.sleep(1.5)  # Tiempo suficiente para que termine su ciclo actual
                             
                             if subscription_url:
                                 # Crear markup con botón para pagar
@@ -392,12 +397,12 @@ def webhook():
                                 
                                 renewal_text = "(renovación automática)" if is_recurring else "(sin renovación automática)"
                                 
-                                # Mensaje kawaii para el enlace de pago listo
+                                # Mensaje kawaii para el enlace de pago listo - sin caracteres especiales problemáticos
                                 payment_text = (
                                     f"💌 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
-                                    f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}_\n"
-                                    f"💰 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
-                                    f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
+                                    f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}\n"
+                                    f"💰 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】/ {period} {renewal_text}\n\n"
+                                    f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type} con PayPal.\n\n"
                                     "Una vez que termines, te daré tu entrada y te dejaré entrar 💌 (˶ˆᗜˆ˵)"
                                 )
                                 
@@ -426,7 +431,7 @@ def webhook():
                         except Exception as e:
                             # Asegurar que se detenga la animación en caso de error
                             animation_active = False
-                            time.sleep(0.5)
+                            time.sleep(1)
                             
                             # Mostrar mensaje de error con estilo kawaii
                             markup = types.InlineKeyboardMarkup()
