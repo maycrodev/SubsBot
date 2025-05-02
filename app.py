@@ -272,7 +272,7 @@ def webhook():
                             chat_id=chat_id,
                             message_id=message_id,
                             text = (
-                                "👋 *¡Ohayou~! ヾ(๑╹◡╹)ﾉ Soy la portera del grupo VIP*\n\n"
+                                "👋 ¡𝗢𝗵𝗮𝘆𝗼𝘂~! ヾ(๑╹◡╹)ﾉ 𝗦𝗼𝘆 𝗹𝗮 𝗽𝗼𝗿𝘁𝗲𝗿𝗮 𝗱𝗲𝗹 𝗴𝗿𝘂𝗽𝗼 𝗩𝗜𝗣\n\n"
                                 "Este grupo es un espacio exclusivo con contenido premium y acceso limitado.\n\n"
                                 "Estoy aquí para ayudarte a ingresar correctamente al grupo 💫\n\n"
                                 "Por favor, elige una opción para continuar 👇"
