@@ -377,10 +377,10 @@ def webhook():
                                 
                                 payment_text = (
                                     f"🔗 *Tu enlace de {payment_type.lower()} está listo!* ✨\n\n"
-                                    f"📦 Plan: {PLANS[plan_id]['display_name']}\n"
-                                    f"💵 Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / {period}\n\n"
+                                    f"📦 _Plan: {PLANS[plan_id]['display_name']}_\n"
+                                    f"💵 _Precio: *${PLANS[plan_id]['price_usd']:.2f} USD / {period}*_\n\n"
                                     f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
-                                    "Una vez que termines, te daré tu entrada y te dejaré entrar (˶ˆᗜˆ˵)"
+                                    "Una vez que termines, te daré tu entrada y te dejaré entrar 💌 (˶ˆᗜˆ˵)"
                                 )
                                 
                                 bot.edit_message_text(
