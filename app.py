@@ -309,16 +309,10 @@ def webhook():
 
                             frames = [
                                 "🌸 Preparando tu entrada VIP... 🌸",
-                                "🌸 Preparando tu entrada VIP... 🌸",
-                                "📝 Anotando tu nombre en mi lista secreta~",
                                 "📝 Anotando tu nombre en mi lista secreta~",
                                 "✨ Qué nombre tan lindo... jeje~ ✨",
-                                "✨ Qué nombre tan lindo... jeje~ ✨",
-                                "🎀 Abriendo las puertas del club VIP~",
                                 "🎀 Abriendo las puertas del club VIP~",
                                 "🌟 Un momento más... ¡Todo listo! 🌟",
-                                "🌟 Un momento más... ¡Todo listo! 🌟",
-                                "💰 Oh casi lo olvido, falta el pago... 💰",
                                 "💰 Oh casi lo olvido, falta el pago... 💰"
                             ]
 
@@ -329,7 +323,6 @@ def webhook():
                                 try:
                                     animation_text = (
                                         f"{frames[i % len(frames)]}\n\n"
-                                        "💳 Generando enlace seguro...\n"
                                         "⌛ Por favor, espera un momento..."
                                     )
                                     
@@ -339,7 +332,7 @@ def webhook():
                                         text=animation_text
                                     )
                                     i += 1
-                                    time.sleep(0.3)
+                                    time.sleep(0.8)
                                 except Exception as e:
                                     logger.error(f"Error en animación: {e}")
                                     break

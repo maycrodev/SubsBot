@@ -304,16 +304,10 @@ def start_processing_animation(bot, chat_id, message_id):
         # Iconos para una animación más atractiva
         animation_frames = [
             "🌸 Preparando tu entrada VIP... 🌸",
-            "🌸 Preparando tu entrada VIP... 🌸",
-            "📝 Anotando tu nombre en mi lista secreta~",
             "📝 Anotando tu nombre en mi lista secreta~",
             "✨ Qué nombre tan lindo... jeje~ ✨",
-            "✨ Qué nombre tan lindo... jeje~ ✨",
-            "🎀 Abriendo las puertas del club VIP~",
             "🎀 Abriendo las puertas del club VIP~",
             "🌟 Un momento más... ¡Todo listo! 🌟",
-            "🌟 Un momento más... ¡Todo listo! 🌟",
-            "💰 Oh casi lo olvido, falta el pago... 💰",
             "💰 Oh casi lo olvido, falta el pago... 💰"
         ]        
         current_index = 0
@@ -484,7 +478,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
                 f"{renewal_note}\n\n"
                 f"📆 Tu acceso actual expirará el: {end_date.strftime('%d/%m/%Y')}\n\n"
                 f"🍉 *Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.*\n\n"
-                "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ puedes usar el comando /recover para que te dé una nueva entrada* 💌"
+                "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ Usa el comando /recover y te daré otra entrada~ 💌*"
             )
             
             bot.edit_message_text(
@@ -2243,7 +2237,7 @@ def handle_recover_access(message, bot):
         # Enviar mensaje informativo mientras se genera el enlace
         status_message = bot.send_message(
             chat_id=chat_id,
-            text="🔄 Te estoy preparando una nueva entrada... Por favor, espera un momento. ᵔ ᵕ ᵔ"
+            text="🔄 Te haré otra entrada, esperame un momento ( • ᴗ - ) ✧"
         )
         
         # Generar un nuevo enlace
@@ -2253,9 +2247,9 @@ def handle_recover_access(message, bot):
             # Enlace generado correctamente
             new_link_text = (
                 "🎟️ *Nueva entrada al Grupo VIP ( • ᴗ - )*\n\n"
-                "Ok, aquí está tu nueva entrada al grupo:\n\n"
+                "*Ok, aquí está tu nueva entrada al grupo:*\n\n"
                 f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
-                f"⚠️ No olvides que este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o después de un solo uso."
+                f"⚠️ *No olvides que este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o después de un solo uso.*"
             )
             
             # Actualizar el mensaje de estado con el nuevo enlace
@@ -2476,20 +2470,20 @@ def handle_whitelist_duration(message, bot):
         
         # Notificar al usuario
         try:
-            # Saludo personalizado
-            greeting = f"Hola {first_name}" if first_name else "Hola"
-            
+            # Saludo personalizado con ternura
+            greeting = f"Hola {first_name}~" if first_name else "Hola~"
+
             user_notification = (
-                f"🎟️ *¡{greeting}! Has sido agregado al grupo VIP*\n\n"
-                f"Un administrador te ha concedido acceso por {duration_display}.\n\n"
+                f"🎟️ *¡{greeting} Has sido agregad@ al grupo VIP!* 💖\n\n"
+                f"Un administrador especial te ha concedido acceso por {duration_display}~ (•̀ᴗ•́ )و✨\n\n"
             )
-            
+
             if invite_link:
                 user_notification += (
-                    f"Aquí tienes tu enlace de invitación único:\n"
-                    f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
-                    f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n"
-                    "Si sales del grupo por accidente, usa el comando /recover para solicitar un nuevo enlace."
+                    f"Aquí tienes entrada exclusiva al grupo VIP:\n"
+                    f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
+                    f"⚠️ Este enlace es única, personal e instransferible ~ Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n"
+                    "Si por accidente sales del grupo y el enlace ya expiró, no te preocupes~ Usa el comando /recover y te daré otra entrada~ 💌"
                 )
             else:
                 user_notification += "Usa el comando /recover para solicitar tu enlace de invitación."
