@@ -481,8 +481,8 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
             
             # Send confirmation message with the link
             confirmation_text = (
-                f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmada! (ᵔ ᵕ ᵔ)*\n\n"
-                "Yay~ Aquí tienes tu entrada especial al grupo VIP (˶ᵔ ᵕ ᵔ˶)\n\n"
+                f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmada! (˶ᵔ ᵕ ᵔ˶)*\n\n"
+                "Yay~ Aquí tienes tu entrada especial al grupo VIP ₍^. .^₎⟆\n\n"
                 f"💌 [​ENTRADA AL GRUPO VIP]({invite_link})\n\n"
                 f"{renewal_note}\n\n"
                 f"📆 Tu acceso actual expirará el: {end_date.strftime('%d/%m/%Y')}\n\n"
@@ -2039,9 +2039,10 @@ def handle_plans_callback(call, bot):
         elif call.data == "back_to_main":
             # Volver al menú principal
             welcome_text = (
-                "👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\n"
-                "Este es un grupo exclusivo con contenido premium y acceso limitado.\n\n"
-                "Selecciona una opción 👇"
+                "👋 *¡Ohayou~! ヾ(๑╹◡╹)ﾉ Soy la portera del grupo VIP*\n\n"
+                "Este grupo es un espacio exclusivo con contenido premium y acceso limitado.\n\n"
+                "Estoy aquí para ayudarte a ingresar correctamente al grupo 💫\n\n"
+                "Por favor, elige una opción para continuar 👇"
             )
             
             # Usar create_main_menu_markup() que debe existir en el código original
@@ -2706,7 +2707,7 @@ def handle_whitelist_duration(message, bot):
             
             if invite_link:
                 user_notification += (
-                    f"Aquí tienes tu entrada especial al grupo VIP (˶ᵔ ᵕ ᵔ˶)\n\n"
+                    f"Aquí tienes tu entrada especial al grupo VIP ₍^. .^₎⟆\n\n"
                     f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
                     f"⚠️ *Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.*\n\n"
                     "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ Usa el comando /recover y te daré otra entrada~ 💌*"

@@ -271,7 +271,12 @@ def webhook():
                         bot.edit_message_text(
                             chat_id=chat_id,
                             message_id=message_id,
-                            text="👋 ¡Bienvenido al Bot de Suscripciones VIP!\n\nEste es un grupo exclusivo con contenido premium y acceso limitado.\n\nSelecciona una opción 👇",
+                            text = (
+                                "👋 *¡Ohayou~! ヾ(๑╹◡╹)ﾉ Soy la portera del grupo VIP*\n\n"
+                                "Este grupo es un espacio exclusivo con contenido premium y acceso limitado.\n\n"
+                                "Estoy aquí para ayudarte a ingresar correctamente al grupo 💫\n\n"
+                                "Por favor, elige una opción para continuar 👇"
+                            ),
                             reply_markup=markup
                         )
                         logger.info(f"Vuelto al menú principal para usuario {chat_id}")
