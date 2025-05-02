@@ -305,6 +305,8 @@ def webhook():
                         
                         # Iniciar hilo de animación
                         def animate_loading():
+
+
                             frames = [
                                 "🌸 Preparando tu entrada VIP... 🌸",
                                 "🌸 Preparando tu entrada VIP... 🌸",
@@ -319,6 +321,7 @@ def webhook():
                                 "💰 Oh casi lo olvido, falta el pago... 💰",
                                 "💰 Oh casi lo olvido, falta el pago... 💰"
                             ]
+
                             is_active = True
                             i = 0
                             

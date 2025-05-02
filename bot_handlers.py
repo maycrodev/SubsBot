@@ -303,15 +303,19 @@ def start_processing_animation(bot, chat_id, message_id):
     try:
         # Iconos para una animación más atractiva
         animation_frames = [
-            "⣾ Preparando pago ⣾", 
-            "⣽ Preparando pago ⣽", 
-            "⣻ Preparando pago ⣻", 
-            "⢿ Preparando pago ⢿",
-            "⡿ Preparando pago ⡿", 
-            "⣟ Preparando pago ⣟", 
-            "⣯ Preparando pago ⣯", 
-            "⣷ Preparando pago ⣷"
-        ]
+            "🌸 Preparando tu entrada VIP... 🌸",
+            "🌸 Preparando tu entrada VIP... 🌸",
+            "📝 Anotando tu nombre en mi lista secreta~",
+            "📝 Anotando tu nombre en mi lista secreta~",
+            "✨ Qué nombre tan lindo... jeje~ ✨",
+            "✨ Qué nombre tan lindo... jeje~ ✨",
+            "🎀 Abriendo las puertas del club VIP~",
+            "🎀 Abriendo las puertas del club VIP~",
+            "🌟 Un momento más... ¡Todo listo! 🌟",
+            "🌟 Un momento más... ¡Todo listo! 🌟",
+            "💰 Oh casi lo olvido, falta el pago... 💰",
+            "💰 Oh casi lo olvido, falta el pago... 💰"
+        ]        
         current_index = 0
         
         # Registrar la animación
