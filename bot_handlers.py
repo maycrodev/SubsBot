@@ -273,7 +273,7 @@ def generate_plans_text():
     
     # Encabezado con un toque cálido
     payment_type = "Suscripciones" if RECURRING_PAYMENTS_ENABLED else "Planes"
-    plans_text = f"💸 Aquí tienes las {payment_type.lower()} disponibles ദ്ദി(ᵔᗜᵔ)\n\n"
+    plans_text = f"💸 *Aquí tienes las {payment_type.lower()} disponibles ദ്ദി(ᵔᗜᵔ)*\n\n"
     
     # Agrega cada plan
     for plan_id, plan in sorted_plans:
