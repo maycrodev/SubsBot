@@ -486,7 +486,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
                 f"💌 [​ENTRADA AL GRUPO VIP]({invite_link})\n\n"
                 f"{renewal_note}\n\n"
                 f"📆 Tu acceso actual expirará el: {end_date.strftime('%d/%m/%Y')}\n\n"
-                f"🍉 *Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.*\n\n"
+                f"⚠️ *Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.*\n\n"
                 "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ Usa el comando /recover y te daré otra entrada~ 💌*"
             )
             
@@ -2700,16 +2700,16 @@ def handle_whitelist_duration(message, bot):
             greeting = f"Hola {first_name}" if first_name else "Hola"
             
             user_notification = (
-                f"🎟️ *¡{greeting}! Has sido agregado al grupo VIP*\n\n"
-                f"Un administrador te ha concedido acceso por {duration_display}.\n\n"
+                f"🎟️ *¡{greeting}! Has sido agregado al grupo VIP (˶ᵔ ᵕ ᵔ˶) 💖*\n\n"
+                f"Un administrador especial te ha concedido acceso por {duration_display} ~✨ \n\n"
             )
             
             if invite_link:
                 user_notification += (
-                    f"Aquí tienes tu enlace de invitación único:\n"
-                    f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
-                    f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n"
-                    "Si sales del grupo por accidente, usa el comando /recover para solicitar un nuevo enlace."
+                    f"Aquí tienes tu entrada al Grupo VIP:\n"
+                    f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
+                    f"⚠️ Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
+                    "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ Usa el comando /recover y te daré otra entrada~ 💌*"
                 )
             else:
                 user_notification += "Usa el comando /recover para solicitar tu enlace de invitación."
