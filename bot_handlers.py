@@ -2706,9 +2706,9 @@ def handle_whitelist_duration(message, bot):
             
             if invite_link:
                 user_notification += (
-                    f"Aquí tienes tu entrada al Grupo VIP:\n"
+                    f"Aquí tienes tu entrada especial al grupo VIP (˶ᵔ ᵕ ᵔ˶)\n\n"
                     f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
-                    f"⚠️ Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
+                    f"⚠️ *Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.*\n\n"
                     "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ Usa el comando /recover y te daré otra entrada~ 💌*"
                 )
             else:
