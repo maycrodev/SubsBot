@@ -419,10 +419,10 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
             bot.edit_message_text(
                 chat_id=user_id,
                 message_id=provisional_message.message_id,
-                text=(
-                    "⚠️ *Suscripción activada, pero hay un problema con el enlace*\n\n"
-                    "Tu suscripción se ha registrado correctamente, pero no pudimos generar el enlace de invitación.\n"
-                    "Por favor, usa el comando /recover para solicitar un nuevo enlace o contacta con soporte."
+                text = (
+                    "⚠️ *Suscripción activada, pero hubo un pequeño problemita con... la entrada (ó﹏ò｡)~*\n\n"
+                    "Tu suscripción está registrada correctamente, ¡yay! 🎉 Pero no pudimos generar el enlace de invitación esta vez.\n\n"
+                    "Por favor, usa el comando /recover para solicitar uno nuevo o contacta con soporte si necesitas ayuda. Estaré esperando para asistirte~ 💌"
                 ),
                 parse_mode='Markdown'
             )
@@ -448,22 +448,22 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
         else:
             # Preparar nota de renovación
             renewal_note = (
-                f"⚠️ *Esta {payment_type_name} se renovará automáticamente* al final del período. " 
-                f"Puedes cancelarla en cualquier momento desde PayPal."
+                f"⚠️ *Esta {payment_type_name} se renovará automáticamente* al final del período ◝(ᵔᵕᵔ)◜\n"
+                f"Puedes cancelarla en cualquier momento desde tu cuenta de PayPal, así que relájate 🍵"
             ) if is_recurring else (
-                f"⚠️ *Este es un {payment_type_name}*. Tu acceso expirará el {end_date.strftime('%d/%m/%Y')}. " 
-                f"Deberás realizar un nuevo pago para renovar tu acceso."
+                f"⚠️ *Este es un {payment_type_name}.* Tu acceso estará activo hasta el {end_date.strftime('%d/%m/%Y')}~\n"
+                f"Cuando termine, deberás hacer un nuevo pago si quieres seguir disfrutando del grupo VIP ♪"
             )
             
             # Send confirmation message with the link
             confirmation_text = (
-                f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmado!*\n\n"
-                "Aquí tienes tu acceso exclusivo 👇\n\n"
-                f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
+                f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmada! (ᵔ ᵕ ᵔ)*\n\n"
+                "Yay~ Aquí tienes tu entrada especial al grupo VIP (˶ᵔ ᵕ ᵔ˶)\n\n"
+                f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
                 f"{renewal_note}\n\n"
-                f"📆 Tu acceso expira el: {end_date.strftime('%d/%m/%Y')}\n\n"
-                f"ℹ️ Nota: Este enlace es único, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
-                "Si sales del grupo por accidente y necesitas un nuevo enlace, puedes usar el comando /recover"
+                f"📆 Tu acceso actual expirará el: {end_date.strftime('%d/%m/%Y')}\n\n"
+                f"🍉 Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
+                "Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ puedes usar el comando /recover para que te dé una nueva entrada 💌"
             )
             
             bot.edit_message_text(
