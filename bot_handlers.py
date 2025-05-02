@@ -299,18 +299,17 @@ def generate_plans_text():
 
 
 def start_processing_animation(bot, chat_id, message_id):
-    """Inicia una animación de procesamiento en el mensaje"""
+    """Inicia una animación de procesamiento con mensajes kawaii en el mensaje"""
     try:
-        # Iconos para una animación más atractiva
-        animation_frames = [
+        # Mensajes kawaii más entretenidos y personalizados
+        animation_messages = [
             "🌸 Preparando tu entrada VIP... 🌸",
             "📝 Anotando tu nombre en mi lista secreta~",
             "✨ Qué nombre tan lindo... jeje~ ✨",
             "🎀 Abriendo las puertas del club VIP~",
             "🌟 Un momento más... ¡Todo listo! 🌟",
             "💰 Oh casi lo olvido, falta el pago... 💰"
-        ]        
-        current_index = 0
+        ]
         
         # Registrar la animación
         payment_animations[chat_id] = {
@@ -318,33 +317,43 @@ def start_processing_animation(bot, chat_id, message_id):
             'message_id': message_id
         }
         
-        while chat_id in payment_animations and payment_animations[chat_id]['active']:
+        # Mostrar cada mensaje por más tiempo (2.5 segundos)
+        for message in animation_messages:
+            # Verificar si la animación sigue activa
+            if chat_id not in payment_animations or not payment_animations[chat_id]['active']:
+                break
+                
             try:
-                # Construir el mensaje de animación
-                current_frame = animation_frames[current_index]
-                
-                animation_text = (
-                    f"🔄 *{current_frame}*\n\n"
-                    "⚡ Generando enlace seguro de PayPal...\n"
-                    "⏳ Por favor, espera un momento...\n\n"
-                    "💳 Estamos preparando todo para ti..."
-                )
-                
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=message_id,
-                    text=animation_text,
-                    parse_mode='Markdown'
+                    text=message
                 )
                 
-                # Actualizar índice de animación
-                current_index = (current_index + 1) % len(animation_frames)
-                
-                # Esperar antes de la siguiente actualización
-                time.sleep(0.3)  # Velocidad ligeramente mayor para que sea más fluido
+                # Esperar más tiempo para que cada mensaje sea visible
+                time.sleep(2.5)
             except Exception as e:
-                logger.error(f"Error en animación: {str(e)}")
+                logger.error(f"Error al mostrar mensaje de animación: {str(e)}")
                 break
+        
+        # Si la animación sigue activa después de mostrar todos los mensajes, reiniciar
+        while chat_id in payment_animations and payment_animations[chat_id]['active']:
+            for message in animation_messages:
+                if chat_id not in payment_animations or not payment_animations[chat_id]['active']:
+                    break
+                    
+                try:
+                    bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=message
+                    )
+                    
+                    # Esperar antes de la siguiente actualización
+                    time.sleep(2.5)
+                except Exception as e:
+                    logger.error(f"Error en ciclo de animación: {str(e)}")
+                    break
     except Exception as e:
         logger.error(f"Error en start_processing_animation: {str(e)}")
 
@@ -2081,8 +2090,7 @@ def handle_payment_method(call, bot):
             processing_message = bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=message_id,
-                text="🔄 *Iniciando proceso de pago...*\nPreparando tu experiencia...",
-                parse_mode='Markdown',
+                text="✨ Preparando algo especial para ti... ✨",
                 reply_markup=None
             )
 

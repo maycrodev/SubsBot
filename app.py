@@ -296,18 +296,19 @@ def webhook():
                             logger.error(f"Intento de pago con plan inválido: {plan_id}")
                             return 'OK', 200
                         
-                        # Mostrar animación de "procesando"
+                        # Mostrar mensaje inicial kawaii
                         processing_message = bot.edit_message_text(
                             chat_id=chat_id,
                             message_id=message_id,
-                            text="🔄 Preparando pago...\nPor favor espera..."
+                            text="✨ Preparando algo especial para ti... ✨"
                         )
                         
+                        # Variable para controlar la animación
+                        animation_active = True
+                        
                         # Iniciar hilo de animación
-                        def animate_loading():
-
-
-                            frames = [
+                        def animate_kawaii_messages():
+                            messages = [
                                 "🌸 Preparando tu entrada VIP... 🌸",
                                 "📝 Anotando tu nombre en mi lista secreta~",
                                 "✨ Qué nombre tan lindo... jeje~ ✨",
@@ -315,43 +316,52 @@ def webhook():
                                 "🌟 Un momento más... ¡Todo listo! 🌟",
                                 "💰 Oh casi lo olvido, falta el pago... 💰"
                             ]
-
-                            is_active = True
-                            i = 0
                             
-                            while is_active:
-                                try:
-                                    animation_text = (
-                                        f"{frames[i % len(frames)]}\n\n"
-                                        "⌛ Por favor, espera un momento..."
-                                    )
+                            # Mostrar cada mensaje una vez
+                            for message in messages:
+                                if not animation_active:
+                                    break
                                     
+                                try:
                                     bot.edit_message_text(
                                         chat_id=chat_id,
                                         message_id=message_id,
-                                        text=animation_text
+                                        text=message
                                     )
-                                    i += 1
-                                    time.sleep(0.8)
+                                    # Tiempo extendido para cada mensaje
+                                    time.sleep(2.5)
                                 except Exception as e:
                                     logger.error(f"Error en animación: {e}")
                                     break
-                                
-                                # Verificar si debemos detener la animación
-                                if threading.current_thread().getName() == "StopAnimation":
-                                    is_active = False
-                                    
+                            
+                            # Si la animación sigue activa, repetir los mensajes
+                            while animation_active:
+                                for message in messages:
+                                    if not animation_active:
+                                        break
+                                        
+                                    try:
+                                        bot.edit_message_text(
+                                            chat_id=chat_id,
+                                            message_id=message_id,
+                                            text=message
+                                        )
+                                        time.sleep(2.5)
+                                    except Exception as e:
+                                        logger.error(f"Error en ciclo de animación: {e}")
+                                        break
+                        
                         # Iniciar hilo de animación
-                        animation_thread = threading.Thread(target=animate_loading)
+                        animation_thread = threading.Thread(target=animate_kawaii_messages)
                         animation_thread.daemon = True
                         animation_thread.start()
                         
                         try:
-                            # Crear enlace de suscripción de PayPal (procesar en segundo plano para mostrar animación)
+                            # Crear enlace de suscripción de PayPal
                             subscription_url = pay.create_subscription_link(plan_id, chat_id)
                             
                             # Detener animación
-                            animation_thread.setName("StopAnimation")
+                            animation_active = False
                             time.sleep(0.5)  # Dar tiempo para que se detenga
                             
                             if subscription_url:
@@ -362,25 +372,28 @@ def webhook():
                                     types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
                                 )
                                 
-                                # Determinar el tipo de plan
+                                # Determinar tipo de plan
                                 is_recurring = RECURRING_PAYMENTS_ENABLED
                                 if 'recurring' in PLANS[plan_id]:
                                     is_recurring = PLANS[plan_id]['recurring']
                                 
                                 payment_type = "suscripción" if is_recurring else "pago único"
                                 
-                                # Determinar período
+                                # Determinar período basado en la duración
                                 if PLANS[plan_id]['duration_days'] <= 7:
                                     period = 'semana'
                                 else:
                                     period = 'mes'
                                 
+                                renewal_text = "(renovación automática)" if is_recurring else "(sin renovación automática)"
+                                
+                                # Mensaje kawaii para el enlace de pago listo
                                 payment_text = (
-                                    f"💌 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
-                                    f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}_\n"
-                                    f"💵 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
-                                    f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
-                                    "Una vez que termines, te daré tu entrada y te dejaré entrar 💌 (˶ˆᗜˆ˵)"
+                                    f"🎀 ¡Tu enlace de {payment_type} está listo! 🎀\n\n"
+                                    f"📦 Plan: {PLANS[plan_id]['display_name']}\n"
+                                    f"💵 Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / {period} {renewal_text}\n\n"
+                                    f"Haz clic en el botón de abajo para completar tu {payment_type} con PayPal.\n"
+                                    "¡Te estaré esperando con tu entrada VIP! (ᵔᗜᵔ)♡"
                                 )
                                 
                                 bot.edit_message_text(
@@ -399,8 +412,7 @@ def webhook():
                                     chat_id=chat_id,
                                     message_id=message_id,
                                     text=(
-                                        "❌ Error al crear enlace de pago\n\n"
-                                        "Lo sentimos, no pudimos procesar tu solicitud en este momento.\n"
+                                        "❌ Lo siento mucho, no pude crear el enlace de pago (ᵒ̴̶̷́ㅿᵒ̴̶̷̀)\n\n"
                                         "Por favor, intenta nuevamente más tarde o contacta a soporte."
                                     ),
                                     reply_markup=markup
@@ -408,17 +420,17 @@ def webhook():
                                 logger.error(f"Error al crear enlace de pago PayPal para usuario {chat_id}")
                         except Exception as e:
                             # Asegurar que se detenga la animación en caso de error
-                            animation_thread.setName("StopAnimation")
+                            animation_active = False
                             time.sleep(0.5)
                             
-                            # Mostrar mensaje de error
+                            # Mostrar mensaje de error con estilo kawaii
                             markup = types.InlineKeyboardMarkup()
                             markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
                             
                             bot.edit_message_text(
                                 chat_id=chat_id,
                                 message_id=message_id,
-                                text=f"❌ Error: {str(e)}\n\nPor favor, intenta nuevamente más tarde.",
+                                text=f"❌ Ocurrió un error inesperado (。•́︿•̀。)\n\nPor favor, intenta nuevamente más tarde.",
                                 reply_markup=markup
                             )
                             logger.error(f"Excepción en proceso de pago: {e}")
