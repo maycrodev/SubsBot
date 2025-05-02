@@ -2152,7 +2152,7 @@ def handle_payment_method(call, bot):
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        f"💌 𝗣𝗲𝗿𝗳𝗲𝗰𝘁𝗼! 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
+                        f"💌 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
                         f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}_\n"
                         f"💵 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
                         f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
