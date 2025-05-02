@@ -465,7 +465,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
         else:
             # Preparar nota de renovación
             renewal_note = (
-                f"⚠️ *Esta {payment_type_name} se renovará automáticamente* al final del período ◝(ᵔᵕᵔ)◜\n"
+                f"⚠️ *Esta {payment_type_name} se renovará automáticamente* ◝(ᵔᵕᵔ)◜\n"
                 f"Puedes cancelarla en cualquier momento desde tu cuenta de PayPal, así que relájate 🍵"
             ) if is_recurring else (
                 f"⚠️ *Este es un {payment_type_name}.* Tu acceso estará activo hasta el {end_date.strftime('%d/%m/%Y')}~\n"
@@ -476,11 +476,11 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
             confirmation_text = (
                 f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmada! (ᵔ ᵕ ᵔ)*\n\n"
                 "Yay~ Aquí tienes tu entrada especial al grupo VIP (˶ᵔ ᵕ ᵔ˶)\n\n"
-                f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
+                f"💌 [​🇪​​🇳​​🇹​​🇷​​🇦​​🇩​​🇦​ ​🇦​​🇱​ ​🇬​​🇷​​🇺​​🇵​​🇴​ ​🇻​​🇮​​🇵​]({invite_link})\n\n"
                 f"{renewal_note}\n\n"
                 f"📆 Tu acceso actual expirará el: {end_date.strftime('%d/%m/%Y')}\n\n"
-                f"🍉 Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.\n\n"
-                "Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ puedes usar el comando /recover para que te dé una nueva entrada 💌"
+                f"🍉 *Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.*\n\n"
+                "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ puedes usar el comando /recover para que te dé una nueva entrada* 💌"
             )
             
             bot.edit_message_text(
