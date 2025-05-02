@@ -1923,7 +1923,7 @@ def show_plan_details(bot, chat_id, message_id, plan_id):
             f"{plan['description']}\n"
             f"✨ Beneficios incluidos:\n"
             f"{benefits_text}\n"
-            f"💵 Precio: ${plan['price_usd']:.2f} USD\n"
+            f"💰 Precio: ${plan['price_usd']:.2f} USD\n"
             f"{payment_type_text}\n\n"
             f"Elige tu método de pago aquí abajo~ 👇"
         )
@@ -2156,7 +2156,7 @@ def handle_payment_method(call, bot):
                     text=(
                         f"💌 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
                         f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}_\n"
-                        f"💵 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
+                        f"💰 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
                         f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
                         "Una vez que termines, te daré tu entrada y te dejaré entrar 💌 (˶ˆᗜˆ˵)"
                     ),

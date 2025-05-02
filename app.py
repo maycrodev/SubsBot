@@ -389,11 +389,11 @@ def webhook():
                                 
                                 # Mensaje kawaii para el enlace de pago listo
                                 payment_text = (
-                                    f"🎀 ¡Tu enlace de {payment_type} está listo! 🎀\n\n"
-                                    f"📦 Plan: {PLANS[plan_id]['display_name']}\n"
-                                    f"💵 Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / {period} {renewal_text}\n\n"
-                                    f"Haz clic en el botón de abajo para completar tu {payment_type} con PayPal.\n"
-                                    "¡Te estaré esperando con tu entrada VIP! (ᵔᗜᵔ)♡"
+                                    f"💌 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
+                                    f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}_\n"
+                                    f"💰 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
+                                    f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
+                                    "Una vez que termines, te daré tu entrada y te dejaré entrar 💌 (˶ˆᗜˆ˵)"
                                 )
                                 
                                 bot.edit_message_text(
