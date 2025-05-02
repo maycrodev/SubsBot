@@ -301,7 +301,17 @@ def generate_plans_text():
 def start_processing_animation(bot, chat_id, message_id):
     """Inicia una animación de procesamiento en el mensaje"""
     try:
-        animation_markers = ['/', '-', '|', '\\']
+        # Iconos para una animación más atractiva
+        animation_frames = [
+            "⣾ Preparando pago ⣾", 
+            "⣽ Preparando pago ⣽", 
+            "⣻ Preparando pago ⣻", 
+            "⢿ Preparando pago ⢿",
+            "⡿ Preparando pago ⡿", 
+            "⣟ Preparando pago ⣟", 
+            "⣯ Preparando pago ⣯", 
+            "⣷ Preparando pago ⣷"
+        ]
         current_index = 0
         
         # Registrar la animación
@@ -312,21 +322,28 @@ def start_processing_animation(bot, chat_id, message_id):
         
         while chat_id in payment_animations and payment_animations[chat_id]['active']:
             try:
+                # Construir el mensaje de animación
+                current_frame = animation_frames[current_index]
+                
+                animation_text = (
+                    f"🔄 *{current_frame}*\n\n"
+                    "⚡ Generando enlace seguro de PayPal...\n"
+                    "⏳ Por favor, espera un momento...\n\n"
+                    "💳 Estamos preparando todo para ti..."
+                )
+                
                 bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=message_id,
-                    text=(
-                        "🔄 Confirmando Pago\n"
-                        f"      {animation_markers[current_index]}      \n"
-                        "Aguarde por favor..."
-                    )
+                    text=animation_text,
+                    parse_mode='Markdown'
                 )
                 
                 # Actualizar índice de animación
-                current_index = (current_index + 1) % len(animation_markers)
+                current_index = (current_index + 1) % len(animation_frames)
                 
                 # Esperar antes de la siguiente actualización
-                time.sleep(0.5)
+                time.sleep(0.3)  # Velocidad ligeramente mayor para que sea más fluido
             except Exception as e:
                 logger.error(f"Error en animación: {str(e)}")
                 break
@@ -2062,20 +2079,25 @@ def handle_payment_method(call, bot):
         
         if method == "paypal":
             # Show processing animation
+            # Show initial processing message
             processing_message = bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=message_id,
-                text="🔄 Preparando pago...\nAguarde por favor...",
+                text="🔄 *Iniciando proceso de pago...*\nPreparando tu experiencia...",
+                parse_mode='Markdown',
                 reply_markup=None
             )
-            
-            # Start processing animation
+
+            # Start processing animation in a separate thread
             animation_thread = threading.Thread(
                 target=start_processing_animation,
                 args=(bot, chat_id, processing_message.message_id)
             )
             animation_thread.daemon = True
             animation_thread.start()
+
+            # Pequeña pausa para asegurar que el hilo de animación comience
+            time.sleep(0.5)
             
             # Create payment link (will handle both one-time and recurring)
             from payments import create_payment_link
@@ -2084,6 +2106,8 @@ def handle_payment_method(call, bot):
             # Stop the animation
             if chat_id in payment_animations:
                 payment_animations[chat_id]['active'] = False
+                # Dar tiempo para que se detenga la animación
+                time.sleep(0.5)
             
             if payment_url:
                 # Create markup with pay button
@@ -2124,9 +2148,9 @@ def handle_payment_method(call, bot):
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        f"🔗 *Tu enlace de {payment_type.lower()} está listo! •⩊• ~*\n\n"
-                        f"📦 Plan: {plan['display_name']}\n"
-                        f"💵 Precio: ${plan['price_usd']:.2f} USD / {period} {renewal_text}\n\n"
+                        f"🔗 *Tu enlace de {payment_type.lower()} está listo!* ✨\n\n"
+                        f"📦 *Plan:* {plan['display_name']}\n"
+                        f"💵 *Precio:* ${plan['price_usd']:.2f} USD / {period} {renewal_text}\n\n"
                         f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
                         "Una vez que termines, te daré tu entrada y te dejaré entrar (˶ˆᗜˆ˵)"
                     ),
