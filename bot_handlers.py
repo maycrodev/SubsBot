@@ -1973,8 +1973,8 @@ def show_payment_tutorial(bot, chat_id, message_id):
     try:
         payment_type = "suscripciones" if RECURRING_PAYMENTS_ENABLED else "pagos"
         renewal_text = (
-            "⚠️ *Importante: Tu suscripción se renovará automáticamente, (づ ᴗ _ᴗ)づ* "
-            "Puedes cancelarla cuando quieras desde tu cuenta de PayPal, así que no te preocupes, ¿ok?"
+            "⚠️ *Importante: Tu suscripción se renovará automáticamente, (づ ᴗ _ᴗ)づ*\n\n "
+            "_Puedes cancelarla cuando quieras desde tu cuenta de PayPal, así que no te preocupes_ (•̀ᴗ•́ )و✨"
         ) if RECURRING_PAYMENTS_ENABLED else (
             "⚠️ Importante: Este es un pago único. "
             "Cuando finalice tu período, tendrás que hacer un nuevo pago si deseas seguir en el grupo VIP"
@@ -1982,14 +1982,14 @@ def show_payment_tutorial(bot, chat_id, message_id):
         
         tutorial_text = (
             f"🎥 *Tutorial de {payment_type.capitalize()}*\n\n"
-            f"Para acceder a nuestro grupo VIP, sigue estos pasos:\n\n"
-            "1️⃣ Selecciona el plan que deseas (Semanal o Mensual)\n\n"
-            "2️⃣ Haz clic en el botón de pago\n\n"
-            "3️⃣ Serás redirigido a la página de PayPal donde puedes pagar con:\n"
-            "   - Cuenta de PayPal\n"
-            "   - Tarjeta de crédito/débito (sin necesidad de cuenta)\n\n"
-            "4️⃣ Completa el pago y regresa a Telegram\n\n"
-            "5️⃣ Recibirás una entrada al grupo VIP ◝(ᵔᵕᵔ)◜\n\n"
+            "Te voy a ayudar a entrar al grupo VIP, ¡es muy fácil! 🌟\n\n"
+            "❶ Elige el plan que más te guste (Ejemplo: Semanal o Mensual)\n\n"
+            "❷ Toca el botoncito de pago 💖\n\n"
+            "❸ Serás redirigid@ a PayPal, donde puedes pagar con:\n"
+            "   • Cuenta de PayPal\n"
+            "   • Tarjeta de crédito o débito (sin cuenta también está bien~)\n\n"
+            "❹ Completa el pago y vuelve aquí a Telegram 🏃‍♀️\n\n"
+            "❺ Recibirás tu entrada brillante y nueva al grupo VIP ◝(ᵔᵕᵔ)◜✨\n\n"
             f"{renewal_text}"
         )
         
@@ -2710,8 +2710,8 @@ def handle_whitelist_duration(message, bot):
             greeting = f"Hola {first_name}" if first_name else "Hola"
             
             user_notification = (
-                f"🎟️ *¡{greeting}! Has sido agregado al grupo VIP (˶ᵔ ᵕ ᵔ˶) 💖*\n\n"
-                f"Un administrador especial te ha concedido acceso por {duration_display} ~✨ \n\n"
+                f"🎟️ *¡{greeting}! Has sido agregad@ al grupo VIP (˶ᵔ ᵕ ᵔ˶) 💖*\n\n"
+                f"Un administrador especial te ha concedido acceso por: {duration_display} ~✨ \n\n"
             )
             
             if invite_link:
