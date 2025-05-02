@@ -297,56 +297,131 @@ def webhook():
                             return 'OK', 200
                         
                         # Mostrar animación de "procesando"
-                        processing_text = "🔄 Preparando pago...\nAguarde por favor..."
-                        bot.edit_message_text(
+                        processing_message = bot.edit_message_text(
                             chat_id=chat_id,
                             message_id=message_id,
-                            text=processing_text
+                            text="🔄 Preparando pago...\nPor favor espera..."
                         )
                         
-                        # Crear enlace de suscripción de PayPal
-                        subscription_url = pay.create_subscription_link(plan_id, chat_id)
+                        # Iniciar hilo de animación
+                        def animate_loading():
+                            frames = [
+                                "⠋ Procesando ⠋", 
+                                "⠙ Procesando ⠙", 
+                                "⠹ Procesando ⠹", 
+                                "⠸ Procesando ⠸",
+                                "⠼ Procesando ⠼", 
+                                "⠴ Procesando ⠴", 
+                                "⠦ Procesando ⠦", 
+                                "⠧ Procesando ⠧"
+                            ]
+                            is_active = True
+                            i = 0
+                            
+                            while is_active:
+                                try:
+                                    animation_text = (
+                                        f"{frames[i % len(frames)]}\n\n"
+                                        "💳 Generando enlace seguro...\n"
+                                        "⌛ Por favor, espera un momento..."
+                                    )
+                                    
+                                    bot.edit_message_text(
+                                        chat_id=chat_id,
+                                        message_id=message_id,
+                                        text=animation_text
+                                    )
+                                    i += 1
+                                    time.sleep(0.3)
+                                except Exception as e:
+                                    logger.error(f"Error en animación: {e}")
+                                    break
+                                
+                                # Verificar si debemos detener la animación
+                                if threading.current_thread().getName() == "StopAnimation":
+                                    is_active = False
+                                    
+                        # Iniciar hilo de animación
+                        animation_thread = threading.Thread(target=animate_loading)
+                        animation_thread.daemon = True
+                        animation_thread.start()
                         
-                        if subscription_url:
-                            # Crear markup con botón para pagar
-                            markup = types.InlineKeyboardMarkup()
-                            markup.add(
-                                types.InlineKeyboardButton("💳 Ir a pagar", url=subscription_url),
-                                types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
-                            )
+                        try:
+                            # Crear enlace de suscripción de PayPal (procesar en segundo plano para mostrar animación)
+                            subscription_url = pay.create_subscription_link(plan_id, chat_id)
                             
-                            payment_text = (
-                                "🔗 Tu enlace de pago está listo\n\n"
-                                f"Plan: {PLANS[plan_id]['display_name']}\n"
-                                f"Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / "
-                                f"{'semana' if PLANS[plan_id]['duration_days'] <= 7 else 'mes'}\n\n"
-                                "Por favor, haz clic en el botón de abajo para completar tu pago con PayPal.\n"
-                                "Una vez completado, serás redirigido de vuelta aquí."
-                            )
+                            # Detener animación
+                            animation_thread.setName("StopAnimation")
+                            time.sleep(0.5)  # Dar tiempo para que se detenga
                             
-                            bot.edit_message_text(
-                                chat_id=chat_id,
-                                message_id=message_id,
-                                text=payment_text,
-                                reply_markup=markup
-                            )
-                            logger.info(f"Enlace de pago PayPal creado para usuario {chat_id}, plan {plan_id}")
-                        else:
-                            # Error al crear enlace de pago
+                            if subscription_url:
+                                # Crear markup con botón para pagar
+                                markup = types.InlineKeyboardMarkup()
+                                markup.add(
+                                    types.InlineKeyboardButton("💳 Ir a pagar", url=subscription_url),
+                                    types.InlineKeyboardButton("🔙 Cancelar", callback_data="view_plans")
+                                )
+                                
+                                # Determinar el tipo de plan
+                                is_recurring = RECURRING_PAYMENTS_ENABLED
+                                if 'recurring' in PLANS[plan_id]:
+                                    is_recurring = PLANS[plan_id]['recurring']
+                                
+                                payment_type = "suscripción" if is_recurring else "pago único"
+                                
+                                # Determinar período
+                                if PLANS[plan_id]['duration_days'] <= 7:
+                                    period = 'semana'
+                                else:
+                                    period = 'mes'
+                                
+                                payment_text = (
+                                    f"🔗 *Tu enlace de {payment_type.lower()} está listo!* ✨\n\n"
+                                    f"📦 Plan: {PLANS[plan_id]['display_name']}\n"
+                                    f"💵 Precio: ${PLANS[plan_id]['price_usd']:.2f} USD / {period}\n\n"
+                                    f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
+                                    "Una vez que termines, te daré tu entrada y te dejaré entrar (˶ˆᗜˆ˵)"
+                                )
+                                
+                                bot.edit_message_text(
+                                    chat_id=chat_id,
+                                    message_id=message_id,
+                                    text=payment_text,
+                                    reply_markup=markup
+                                )
+                                logger.info(f"Enlace de pago PayPal creado para usuario {chat_id}, plan {plan_id}")
+                            else:
+                                # Error al crear enlace de pago
+                                markup = types.InlineKeyboardMarkup()
+                                markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
+                                
+                                bot.edit_message_text(
+                                    chat_id=chat_id,
+                                    message_id=message_id,
+                                    text=(
+                                        "❌ Error al crear enlace de pago\n\n"
+                                        "Lo sentimos, no pudimos procesar tu solicitud en este momento.\n"
+                                        "Por favor, intenta nuevamente más tarde o contacta a soporte."
+                                    ),
+                                    reply_markup=markup
+                                )
+                                logger.error(f"Error al crear enlace de pago PayPal para usuario {chat_id}")
+                        except Exception as e:
+                            # Asegurar que se detenga la animación en caso de error
+                            animation_thread.setName("StopAnimation")
+                            time.sleep(0.5)
+                            
+                            # Mostrar mensaje de error
                             markup = types.InlineKeyboardMarkup()
                             markup.add(types.InlineKeyboardButton("🔙 Volver", callback_data="view_plans"))
                             
                             bot.edit_message_text(
                                 chat_id=chat_id,
                                 message_id=message_id,
-                                text=(
-                                    "❌ Error al crear enlace de pago\n\n"
-                                    "Lo sentimos, no pudimos procesar tu solicitud en este momento.\n"
-                                    "Por favor, intenta nuevamente más tarde o contacta a soporte."
-                                ),
+                                text=f"❌ Error: {str(e)}\n\nPor favor, intenta nuevamente más tarde.",
                                 reply_markup=markup
                             )
-                            logger.error(f"Error al crear enlace de pago PayPal para usuario {chat_id}")
+                            logger.error(f"Excepción en proceso de pago: {e}")
                     
                     # Responder al callback para quitar el "reloj de espera" en el cliente
                     bot.answer_callback_query(call.id)
