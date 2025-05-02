@@ -306,14 +306,18 @@ def webhook():
                         # Iniciar hilo de animación
                         def animate_loading():
                             frames = [
-                                "⠋ Procesando ⠋", 
-                                "⠙ Procesando ⠙", 
-                                "⠹ Procesando ⠹", 
-                                "⠸ Procesando ⠸",
-                                "⠼ Procesando ⠼", 
-                                "⠴ Procesando ⠴", 
-                                "⠦ Procesando ⠦", 
-                                "⠧ Procesando ⠧"
+                                "🌸 Preparando tu entrada VIP... 🌸",
+                                "🌸 Preparando tu entrada VIP... 🌸",
+                                "📝 Anotando tu nombre en mi lista secreta~",
+                                "📝 Anotando tu nombre en mi lista secreta~",
+                                "✨ Qué nombre tan lindo... jeje~ ✨",
+                                "✨ Qué nombre tan lindo... jeje~ ✨",
+                                "🎀 Abriendo las puertas del club VIP~",
+                                "🎀 Abriendo las puertas del club VIP~",
+                                "🌟 Un momento más... ¡Todo listo! 🌟",
+                                "🌟 Un momento más... ¡Todo listo! 🌟",
+                                "💰 Oh casi lo olvido, falta el pago... 💰",
+                                "💰 Oh casi lo olvido, falta el pago... 💰"
                             ]
                             is_active = True
                             i = 0
@@ -376,7 +380,7 @@ def webhook():
                                     period = 'mes'
                                 
                                 payment_text = (
-                                    f"💌 𝗣𝗲𝗿𝗳𝗲𝗰𝘁𝗼! 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮! (˶ᵔ ᵕ ᵔ˶)\n\n"
+                                    f"💌 𝗣𝗲𝗿𝗳𝗲𝗰𝘁𝗼! 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
                                     f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}_\n"
                                     f"💵 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
                                     f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"

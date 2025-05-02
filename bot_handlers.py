@@ -476,7 +476,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
             confirmation_text = (
                 f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmada! (ᵔ ᵕ ᵔ)*\n\n"
                 "Yay~ Aquí tienes tu entrada especial al grupo VIP (˶ᵔ ᵕ ᵔ˶)\n\n"
-                f"💌 [​🇪​​🇳​​🇹​​🇷​​🇦​​🇩​​🇦​ ​🇦​​🇱​ ​🇬​​🇷​​🇺​​🇵​​🇴​ ​🇻​​🇮​​🇵​]({invite_link})\n\n"
+                f"💌 [​ENTRADA AL GRUPO VIP]({invite_link})\n\n"
                 f"{renewal_note}\n\n"
                 f"📆 Tu acceso actual expirará el: {end_date.strftime('%d/%m/%Y')}\n\n"
                 f"🍉 *Nota: Esta entrada es única, personal e intransferible. Expira en {INVITE_LINK_EXPIRY_HOURS} horas o tras un solo uso.*\n\n"
@@ -2148,11 +2148,11 @@ def handle_payment_method(call, bot):
                     chat_id=chat_id,
                     message_id=processing_message.message_id,
                     text=(
-                        f"🔗 *Tu enlace de {payment_type.lower()} está listo!* ✨\n\n"
-                        f"📦 *Plan:* {plan['display_name']}\n"
-                        f"💵 *Precio:* ${plan['price_usd']:.2f} USD / {period} {renewal_text}\n\n"
+                        f"💌 𝗣𝗲𝗿𝗳𝗲𝗰𝘁𝗼! 𝗧𝘂 𝗲𝗻𝘁𝗿𝗮𝗱𝗮 𝗲𝘀𝘁á 𝗰𝗮𝘀𝗶 𝗹𝗶𝘀𝘁𝗮 ദ്ദി ˉ꒳ˉ )\n\n"
+                        f"📦 𝗣𝗹𝗮𝗻: {PLANS[plan_id]['display_name']}_\n"
+                        f"💵 𝗣𝗿𝗲𝗰𝗶𝗼:【＄{PLANS[plan_id]['price_usd']:.2f} USD 】 / {period}\n\n"
                         f"Por favor, haz clic en el botón de aquí abajo para completar tu {payment_type.lower()} con PayPal.\n\n"
-                        "Una vez que termines, te daré tu entrada y te dejaré entrar (˶ˆᗜˆ˵)"
+                        "Una vez que termines, te daré tu entrada y te dejaré entrar 💌 (˶ˆᗜˆ˵)"
                     ),
                     parse_mode='Markdown',
                     reply_markup=markup
@@ -2239,7 +2239,7 @@ def handle_recover_access(message, bot):
         # Enviar mensaje informativo mientras se genera el enlace
         status_message = bot.send_message(
             chat_id=chat_id,
-            text="🔄 Generando nuevo enlace de invitación... Por favor, espera un momento."
+            text="🔄 Te estoy preparando una nueva entrada... Por favor, espera un momento. ᵔ ᵕ ᵔ"
         )
         
         # Generar un nuevo enlace
@@ -2248,10 +2248,10 @@ def handle_recover_access(message, bot):
         if invite_link:
             # Enlace generado correctamente
             new_link_text = (
-                "🎟️ *Nuevo Acceso VIP Generado*\n\n"
-                "Hemos creado un nuevo enlace de invitación para ti:\n"
-                f"🔗 [Únete al Grupo VIP]({invite_link})\n\n"
-                f"⚠️ Este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o después de un solo uso."
+                "🎟️ *Nueva entrada al Grupo VIP ( • ᴗ - )*\n\n"
+                "Ok, aquí está tu nueva entrada al grupo:\n\n"
+                f"💌 [ENTRADA AL GRUPO VIP]({invite_link})\n\n"
+                f"⚠️ No olvides que este enlace expira en {INVITE_LINK_EXPIRY_HOURS} horas o después de un solo uso."
             )
             
             # Actualizar el mensaje de estado con el nuevo enlace
