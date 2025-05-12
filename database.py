@@ -965,21 +965,12 @@ def record_failed_expulsion(user_id: int, reason: str, error_message: str) -> in
         conn.close()
 
 def has_valid_subscription(user_id: int) -> bool:
-    """
-    Verifica si un usuario tiene alguna suscripción válida actualmente
-    
-    Args:
-        user_id: ID del usuario a verificar
-        
-    Returns:
-        bool: True si tiene al menos una suscripción válida, False en caso contrario
-    """
+    """Verifica si un usuario tiene alguna suscripción válida actualmente"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
-        # Cambio importante: usar solo estado ACTIVE y comparación de fechas
-        # La consulta anterior podría fallar por cómo se manejan los timestamps
+        # Primero verificar suscripciones activas
         cursor.execute("""
         SELECT COUNT(*) FROM subscriptions 
         WHERE user_id = ? 
@@ -989,22 +980,30 @@ def has_valid_subscription(user_id: int) -> bool:
         
         count = cursor.fetchone()[0]
         
-        # Registro adicional para diagnóstico
-        if count == 0:
-            # Si no hay suscripciones activas, verificar si hay alguna suscripción y su estado
-            cursor.execute("""
-            SELECT sub_id, status, end_date FROM subscriptions 
-            WHERE user_id = ? 
-            ORDER BY end_date DESC LIMIT 1
-            """, (user_id,))
+        if count > 0:
+            return True
             
-            sub = cursor.fetchone()
-            if sub:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.info(f"Usuario {user_id} tiene suscripción {sub[0]} en estado {sub[1]} que vence en {sub[2]}")
+        # Si no hay activas, verificar si hay alguna pendiente de renovación
+        # Esto es una mejora para planes de corta duración
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions 
+        WHERE user_id = ? 
+        AND status = 'ACTIVE'
+        AND is_recurring = 1
+        AND datetime(end_date) BETWEEN datetime('now', '-1 hour') AND datetime('now')
+        """, (user_id,))
         
-        return count > 0
+        pending_count = cursor.fetchone()[0]
+        
+        if pending_count > 0:
+            # Si hay alguna suscripción que expiró hace menos de 1 hora
+            # y es recurrente, considerarla válida para dar tiempo al procesamiento
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Usuario {user_id} tiene suscripción recurrente recientemente expirada, considerando válida para renovación")
+            return True
+        
+        return False
         
     except Exception as e:
         import logging

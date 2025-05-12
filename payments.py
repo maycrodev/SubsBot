@@ -692,6 +692,7 @@ def process_webhook_event(event_data: Dict) -> Tuple[bool, str]:
             
             if billing_agreement_id:
                 # Obtener la suscripción de la base de datos
+                import database as db
                 subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
                 
                 if subscription:
@@ -718,17 +719,19 @@ def process_webhook_event(event_data: Dict) -> Tuple[bool, str]:
                         # Extender la suscripción en la base de datos
                         db.extend_subscription(subscription['sub_id'], new_end_date)
                         
-                        # Notificar al usuario
-                        try:
-                            bot_instance = telebot.TeleBot(BOT_TOKEN)
-                            notify_successful_renewal(bot_instance, user_id, subscription, new_end_date)
-                        except Exception as e:
-                            logger.error(f"Error al notificar renovación: {e}")
+                        # No intentamos notificar aquí, lo dejamos para bot_handlers
                         
                         logger.info(f"Renovación exitosa: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                         return True, "Renovación procesada correctamente"
                     
             logger.warning(f"No se pudo procesar renovación para PAYMENT.SALE.COMPLETED - ID: {billing_agreement_id}")
+        
+        # Resto del código para otros eventos...
+        return True, "Evento procesado"
+        
+    except Exception as e:
+        logger.error(f"Error al procesar webhook: {e}")
+        return False, f"Error: {e}"
         
         # Resto del código para otros eventos...
         

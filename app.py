@@ -914,13 +914,10 @@ def paypal_webhook():
         event_data = request.json
         logger.info(f"PayPal webhook recibido: {event_data.get('event_type', 'DESCONOCIDO')}")
         
-        # Procesar el evento PayPal
-        success, message = pay.process_webhook_event(event_data)
+        # Solo procesar con un método para evitar conflictos
+        success = bot_handlers.update_subscription_from_webhook(bot, event_data)
         
-        # Actualizar la suscripción en la base de datos según el evento
-        bot_handlers.update_subscription_from_webhook(bot, event_data)
-        
-        return jsonify({"status": "success", "message": message}), 200
+        return jsonify({"status": "success", "message": "Webhook procesado correctamente"}), 200
     except Exception as e:
         logger.error(f"Error al procesar webhook de PayPal: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
