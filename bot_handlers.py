@@ -1756,8 +1756,8 @@ def handle_new_chat_members(message, bot):
                         bot.send_message(
                             chat_id=user_id,
                             text = (
-                                "❌ *Has sido expulsado del grupito VIP* (っ- ‸ – ς)\n\n"
-                                "Parece que no tienes una suscripción activa… ¡te vamos a extrañar mucho! 🥺💔\n\n"
+                                "❌ Has sido expulsado del grupito VIP (っ- ‸ – ς)\n\n"
+                                "Parece que no tienes una suscripción activa…\n\n"
                                 "Para volver a unirte, puedes adquirir una suscripción en @VelvetSub_Bot usando el comando /start ✨🎀\n"
                             )
                         )
