@@ -517,7 +517,7 @@ def webhook():
                                     try:
                                         bot.send_message(
                                             chat_id=user_id,
-                                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
+                                            text=f"SEGURIDAD! 🚨"
                                         )
                                     except Exception as e:
                                         logger.error(f"No se pudo enviar mensaje privado a {user_id}: {e}")
