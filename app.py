@@ -935,6 +935,11 @@ def paypal_webhook():
             if subscription:
                 logger.info(f"Suscripción encontrada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
                 
+                # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
+                start_date = datetime.datetime.fromisoformat(subscription['start_date'])
+                now = datetime.datetime.now()
+                time_difference = (now - start_date).total_seconds()
+                
                 # Procesar la renovación directamente (redundancia intencional)
                 try:
                     # Calcular nueva fecha de expiración
@@ -961,12 +966,16 @@ def paypal_webhook():
                         db.extend_subscription(subscription['sub_id'], new_end_date)
                         logger.info(f"RENOVACIÓN PROCESADA DIRECTAMENTE: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                         
-                        # Notificar al usuario (intentar, pero no es crítico)
-                        try:
-                            import payments as pay
-                            pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
-                        except Exception as e:
-                            logger.error(f"Error al notificar renovación: {e}")
+                        # Notificar al usuario SOLO si no es una suscripción nueva
+                        if time_difference > 300:  # 5 minutos en segundos
+                            try:
+                                import payments as pay
+                                pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
+                                logger.info(f"Mensaje de renovación enviado a usuario {user_id}")
+                            except Exception as e:
+                                logger.error(f"Error al notificar renovación: {e}")
+                        else:
+                            logger.info(f"Nueva suscripción detectada para usuario {user_id}, omitiendo notificación de renovación")
                 except Exception as e:
                     logger.error(f"Error al procesar renovación directamente: {e}")
             else:
@@ -974,6 +983,8 @@ def paypal_webhook():
         
         # También procesar con el método estándar (cinturón y tirantes)
         try:
+            # Pasamos el event_data al manejador, que también debe ser modificado para evitar
+            # la doble notificación de renovación en suscripciones nuevas
             bot_handlers.update_subscription_from_webhook(bot, event_data)
         except Exception as e:
             logger.error(f"Error en update_subscription_from_webhook: {e}")
@@ -982,7 +993,7 @@ def paypal_webhook():
     except Exception as e:
         logger.error(f"Error al procesar webhook de PayPal: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
-    
+        
 @app.route('/admin/panel')
 def admin_panel():
     """Renderiza el panel de administración"""

@@ -682,12 +682,15 @@ def update_subscription_from_webhook(bot, event_data):
                 logger.error(f"Plan no encontrado para suscripción {sub_id}")
                 return False
             
+            # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
+            start_date = datetime.datetime.fromisoformat(subscription['start_date'])
+            now = datetime.datetime.now()
+            time_difference = (now - start_date).total_seconds()
+            
             # Calcular nueva fecha de expiración
             current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
             
             # MODIFICACIÓN: Verificar si la suscripción ya ha vencido
-            now = datetime.datetime.now()
-            
             if current_end_date < now:
                 # La suscripción ya venció, calcular desde hoy
                 logger.info(f"Suscripción {sub_id} ya venció. Calculando nueva fecha desde hoy.")
@@ -719,16 +722,19 @@ def update_subscription_from_webhook(bot, event_data):
             except Exception as e:
                 logger.error(f"Error al registrar renovación en historial: {e}")
             
-            # Notificar al usuario
-            try:
-                # Importar función para notificar renovación exitosa
-                import payments as pay
-                
-                # Notificar al usuario
-                pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
-                
-            except Exception as e:
-                logger.error(f"Error al notificar renovación al usuario {user_id}: {str(e)}")
+            # Notificar al usuario SOLO si no es una suscripción nueva
+            if time_difference > 300:  # 5 minutos en segundos
+                try:
+                    # Importar función para notificar renovación exitosa
+                    import payments as pay
+                    
+                    # Notificar al usuario
+                    pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
+                    
+                except Exception as e:
+                    logger.error(f"Error al notificar renovación al usuario {user_id}: {str(e)}")
+            else:
+                logger.info(f"Nueva suscripción detectada para usuario {user_id}, omitiendo notificación de renovación")
             
             logger.info(f"Suscripción {sub_id} renovada hasta {new_end_date}")
             
@@ -739,20 +745,23 @@ def update_subscription_from_webhook(bot, event_data):
                     user_info = db.get_user(user_id)
                     username = user_info.get('username', 'Sin username') if user_info else 'Desconocido'
                     
+                    # Determinar si es renovación o nueva suscripción para el mensaje al admin
+                    message_type = "Renovación automática" if time_difference > 300 else "Nueva suscripción"
+                    
                     bot.send_message(
                         chat_id=admin_id,
                         text=(
-                            "💰 *Renovación automática exitosa*\n\n"
+                            f"💰 *{message_type} exitosa*\n\n"
                             f"Usuario: {username} (ID: {user_id})\n"
                             f"Plan: {plan.get('display_name', plan_id)}\n"
                             f"Monto: ${float(amount) if 'amount' in locals() else plan['price_usd']:.2f} USD\n"
-                            f"Nueva fecha de expiración: {new_end_date.strftime('%d/%m/%Y')}"
+                            f"{'Nueva fecha de expiración' if time_difference > 300 else 'Fecha de expiración'}: {new_end_date.strftime('%d/%m/%Y')}"
                         ),
                         parse_mode='Markdown'
                     )
                 except Exception as e:
-                    logger.error(f"Error al notificar renovación a admin {admin_id}: {str(e)}")
-        
+                    logger.error(f"Error al notificar {'renovación' if time_difference > 300 else 'suscripción'} a admin {admin_id}: {str(e)}")
+                
         return True
         
     except Exception as e:
