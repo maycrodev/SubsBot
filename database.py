@@ -970,7 +970,7 @@ def has_valid_subscription(user_id: int) -> bool:
     cursor = conn.cursor()
     
     try:
-        # Primero verificar suscripciones activas
+        # Verificar suscripciones activas que no han expirado
         cursor.execute("""
         SELECT COUNT(*) FROM subscriptions 
         WHERE user_id = ? 
@@ -982,27 +982,92 @@ def has_valid_subscription(user_id: int) -> bool:
         
         if count > 0:
             return True
-            
-        # Si no hay activas, verificar si hay alguna pendiente de renovación
-        # Esto es una mejora para planes de corta duración
+        
+        # NUEVO: Verificar si hay suscripciones recurrentes recientemente expiradas
+        # Esto da un "período de gracia" de hasta 3 horas para procesar renovaciones
         cursor.execute("""
-        SELECT COUNT(*) FROM subscriptions 
-        WHERE user_id = ? 
-        AND status = 'ACTIVE'
-        AND is_recurring = 1
-        AND datetime(end_date) BETWEEN datetime('now', '-1 hour') AND datetime('now')
+        SELECT s.sub_id, s.plan, s.end_date, s.paypal_sub_id 
+        FROM subscriptions s
+        WHERE s.user_id = ? 
+        AND s.status = 'ACTIVE'
+        AND s.is_recurring = 1
+        AND s.paypal_sub_id IS NOT NULL
+        AND datetime(s.end_date) BETWEEN datetime('now', '-3 hour') AND datetime('now')
+        ORDER BY s.end_date DESC
+        LIMIT 1
         """, (user_id,))
         
-        pending_count = cursor.fetchone()[0]
+        recent_expired = cursor.fetchone()
         
-        if pending_count > 0:
-            # Si hay alguna suscripción que expiró hace menos de 1 hora
-            # y es recurrente, considerarla válida para dar tiempo al procesamiento
+        if recent_expired:
+            sub_id = recent_expired[0]
+            plan = recent_expired[1]
+            end_date = recent_expired[2]
+            paypal_id = recent_expired[3]
+            
+            # Registrar para diagnóstico
             import logging
             logger = logging.getLogger(__name__)
-            logger.info(f"Usuario {user_id} tiene suscripción recurrente recientemente expirada, considerando válida para renovación")
+            logger.info(f"PERÍODO DE GRACIA: Usuario {user_id} tiene suscripción recurrente {sub_id} (plan {plan}) "
+                        f"recientemente expirada ({end_date}), considerando válida para renovación")
+            
+            # Verificar en la tabla de renovaciones si ya hubo algún intento reciente
+            cursor.execute("""
+            SELECT COUNT(*) FROM subscription_renewals
+            WHERE sub_id = ? AND renewal_date > datetime('now', '-1 day')
+            """, (sub_id,))
+            
+            recent_renewals = cursor.fetchone()[0]
+            
+            if recent_renewals > 0:
+                logger.info(f"Encontradas {recent_renewals} renovaciones recientes para suscripción {sub_id}")
+                # Ya se procesó una renovación, pero la suscripción sigue expirada, algo está mal
+                # Extender automáticamente por precaución
+                try:
+                    from config import PLANS
+                    import datetime
+                    
+                    plan_details = PLANS.get(plan)
+                    if plan_details:
+                        # Calcular nueva fecha de expiración
+                        now = datetime.datetime.now()
+                        new_end_date = now + datetime.timedelta(days=plan_details['duration_days'])
+                        
+                        # Actualizar suscripción
+                        cursor.execute("""
+                        UPDATE subscriptions 
+                        SET end_date = ?, status = 'ACTIVE' 
+                        WHERE sub_id = ?
+                        """, (new_end_date.isoformat(), sub_id))
+                        
+                        conn.commit()
+                        
+                        logger.warning(f"RECUPERACIÓN AUTOMÁTICA: Extendida suscripción {sub_id} hasta {new_end_date}")
+                        
+                        # Notificar a administradores
+                        try:
+                            from config import ADMIN_IDS
+                            for admin_id in ADMIN_IDS:
+                                try:
+                                    import telebot
+                                    from config import BOT_TOKEN
+                                    bot = telebot.TeleBot(BOT_TOKEN)
+                                    bot.send_message(
+                                        chat_id=admin_id,
+                                        text=f"🔄 Suscripción {sub_id} recuperada automáticamente para usuario {user_id}\n\n"
+                                             f"Estaba expirada pero tenía un pago reciente. Extendida hasta {new_end_date}."
+                                    )
+                                except:
+                                    pass
+                        except:
+                            pass
+                except Exception as e:
+                    logger.error(f"Error en recuperación automática: {e}")
+            
+            # En cualquier caso, consideramos la suscripción válida durante este período de gracia
             return True
         
+        # Si llegamos aquí, no hay suscripción válida ni en período de gracia
         return False
         
     except Exception as e:

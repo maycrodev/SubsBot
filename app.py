@@ -912,12 +912,67 @@ def paypal_webhook():
     """Maneja los webhooks de PayPal"""
     try:
         event_data = request.json
-        logger.info(f"PayPal webhook recibido: {event_data.get('event_type', 'DESCONOCIDO')}")
+        event_type = event_data.get("event_type", "DESCONOCIDO")
         
-        # Solo procesar con un método para evitar conflictos
-        success = bot_handlers.update_subscription_from_webhook(bot, event_data)
+        # Log detallado para diagnóstico
+        logger.info(f"PayPal webhook recibido: {event_type}")
         
-        return jsonify({"status": "success", "message": "Webhook procesado correctamente"}), 200
+        # Si es un evento de pago completado, registrarlo con más detalle
+        if event_type == "PAYMENT.SALE.COMPLETED":
+            resource = event_data.get("resource", {})
+            billing_agreement_id = resource.get("billing_agreement_id")
+            amount = resource.get("amount", {}).get("total", "desconocido")
+            logger.info(f"RENOVACIÓN DETECTADA - Billing ID: {billing_agreement_id}, Monto: {amount}")
+            
+            # Verificar la suscripción asociada para diagnóstico
+            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+            if subscription:
+                logger.info(f"Suscripción encontrada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
+                
+                # Procesar la renovación directamente (redundancia intencional)
+                try:
+                    # Calcular nueva fecha de expiración
+                    import datetime
+                    from config import PLANS
+                    
+                    user_id = subscription['user_id']
+                    plan_id = subscription['plan']
+                    plan = PLANS.get(plan_id)
+                    
+                    if plan:
+                        # Verificar si la fecha ya expiró
+                        current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
+                        now = datetime.datetime.now()
+                        
+                        if current_end_date < now:
+                            # Ya expiró, calcular desde ahora
+                            new_end_date = now + datetime.timedelta(days=plan['duration_days'])
+                        else:
+                            # Aún activa, extender desde la fecha actual
+                            new_end_date = current_end_date + datetime.timedelta(days=plan['duration_days'])
+                        
+                        # Extender la suscripción en la base de datos
+                        db.extend_subscription(subscription['sub_id'], new_end_date)
+                        logger.info(f"RENOVACIÓN PROCESADA DIRECTAMENTE: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
+                        
+                        # Notificar al usuario (intentar, pero no es crítico)
+                        try:
+                            import payments as pay
+                            pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
+                        except Exception as e:
+                            logger.error(f"Error al notificar renovación: {e}")
+                except Exception as e:
+                    logger.error(f"Error al procesar renovación directamente: {e}")
+            else:
+                logger.error(f"No se encontró suscripción para billing_id {billing_agreement_id}")
+        
+        # También procesar con el método estándar (cinturón y tirantes)
+        try:
+            bot_handlers.update_subscription_from_webhook(bot, event_data)
+        except Exception as e:
+            logger.error(f"Error en update_subscription_from_webhook: {e}")
+        
+        return jsonify({"status": "success"}), 200
     except Exception as e:
         logger.error(f"Error al procesar webhook de PayPal: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
