@@ -917,6 +917,8 @@ def admin_renewal_stats():
 def paypal_webhook():
     """Maneja los webhooks de PayPal"""
     try:
+        import datetime  # Añadir esta importación
+        
         event_data = request.json
         event_type = event_data.get("event_type", "DESCONOCIDO")
         

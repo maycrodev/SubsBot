@@ -511,15 +511,13 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
                     chat_id=user_id,
                     photo=open('image1.jpeg', 'rb'),
                     caption=confirmation_text,
-                    parse_mode='Markdown',
-                    disable_web_page_preview=True
+                    parse_mode='Markdown'
                 )
             except Exception as img_error:
                 logger.error(f"Error al enviar imagen: {str(img_error)}")
-                # Si hay error al enviar la imagen, enviar solo el texto como respaldo
-                bot.edit_message_text(
+                # Si hay error al enviar la imagen, enviar un NUEVO mensaje en lugar de editar el borrado
+                bot.send_message(
                     chat_id=user_id,
-                    message_id=provisional_message.message_id,
                     text=confirmation_text,
                     parse_mode='Markdown',
                     disable_web_page_preview=True
