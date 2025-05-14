@@ -623,14 +623,50 @@ def update_subscription_from_webhook(bot, event_data):
                 bot.send_message(
                     chat_id=user_id,
                     text=(
-                        "❌ *Tu suscripción ha sido cancelada*\n\n"
-                        "Has sido expulsado del grupo VIP. Si deseas volver a suscribirte, "
-                        "utiliza el comando /start para ver nuestros planes disponibles."
+                        "💔 *¡Oh no! Tu suscripción ha sido cancelada* (｡•́︿•̀｡)\n\n"
+                        "Has sido removido del grupito VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
+                        "Si quieres regresar y ser parte otra vez del Grupo VIP, "
+                        "usa el comando /start para ver los planes disponibles ✨💌\n"
                     ),
                     parse_mode='Markdown'
                 )
             except Exception as e:
                 logger.error(f"Error al notificar cancelación al usuario {user_id}: {str(e)}")
+            
+            # AÑADIR ESTE BLOQUE: Expulsar al usuario del grupo inmediatamente
+            try:
+                from config import GROUP_CHAT_ID
+                if GROUP_CHAT_ID:
+                    # Intentar expulsar al usuario (con reintentos)
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            logger.info(f"Expulsando a usuario {user_id} por cancelación de suscripción (intento {attempt+1}/{max_retries})")
+                            
+                            # Expulsar al usuario
+                            bot.ban_chat_member(
+                                chat_id=GROUP_CHAT_ID,
+                                user_id=user_id,
+                                revoke_messages=False
+                            )
+                            
+                            # Desbanear inmediatamente para permitir reingreso futuro
+                            bot.unban_chat_member(
+                                chat_id=GROUP_CHAT_ID,
+                                user_id=user_id,
+                                only_if_banned=True
+                            )
+                            
+                            # Registrar la expulsión
+                            db.record_expulsion(user_id, "Cancelación de suscripción")
+                            logger.info(f"Usuario {user_id} expulsado exitosamente por cancelación")
+                            break
+                        except Exception as exp_error:
+                            logger.error(f"Error al expulsar usuario {user_id} (intento {attempt+1}): {exp_error}")
+                            if attempt < max_retries - 1:
+                                time.sleep(2)  # Esperar antes de reintentar
+            except Exception as e:
+                logger.error(f"Error general al intentar expulsar al usuario {user_id}: {str(e)}")
             
             logger.info(f"Suscripción {sub_id} cancelada")
             

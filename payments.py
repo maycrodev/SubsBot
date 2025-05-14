@@ -315,10 +315,11 @@ def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_
             end_date_str = end_date.strftime('%d/%m/%Y')
             
             message = (
-                "✅ *¡Renovación exitosa!*\n\n"
-                f"Tu suscripción al plan {plan_name} ha sido renovada exitosamente.\n\n"
-                f"📆 Nuevo vencimiento: {end_date_str}\n\n"
-                "Gracias por seguir siendo parte de nuestra comunidad VIP. Disfruta de todos los beneficios exclusivos."
+                "🌸 *¡Renovación exitosa!* 🌸\n\n"
+                f"˖° ୨୧ Tu suscripción al plan *{plan_name}* ha sido renovada con éxito (๑˃ᴗ˂)ﻭ\n\n"
+                f"📅 *Nuevo vencimiento:* {end_date_str} 🎀\n\n"
+                "Si quieres que prepare una nueva entradita para ti, usa el comando /recover ✧\(>o<)/✧\n\n"
+                "｡･ﾟﾟ･ Gracias por seguir con nosotrxs ✨ ¡Disfruta de todos los beneficios exclusivos ~! 💕\n"
             )
         
         # Enviar mensaje
