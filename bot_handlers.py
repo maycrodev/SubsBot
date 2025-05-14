@@ -487,7 +487,7 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
                 f"Cuando termine, deberás hacer un nuevo pago si quieres seguir disfrutando del grupo VIP ♪"
             )
             
-            # Send confirmation message with the link
+            # Confirmation message text with the link
             confirmation_text = (
                 f"🎟️ *¡{payment_type_name.capitalize()} VIP Confirmada! (˶ᵔ ᵕ ᵔ˶)*\n\n"
                 "Yay~ Aquí tienes tu entrada especial al grupo VIP ₍^. .^₎⟆\n\n"
@@ -498,13 +498,32 @@ def process_successful_subscription(bot, user_id: int, plan_id: str, payment_id:
                 "*Si sales del grupo por accidente y el enlace ya expiró, no te preocupes~ Usa el comando /recover y te daré otra entrada~ 💌*"
             )
             
-            bot.edit_message_text(
-                chat_id=user_id,
-                message_id=provisional_message.message_id,
-                text=confirmation_text,
-                parse_mode='Markdown',
-                disable_web_page_preview=True
-            )
+            # Modificación: Enviar la imagen junto con el mensaje
+            try:
+                # Primero borrar el mensaje provisional
+                bot.delete_message(
+                    chat_id=user_id,
+                    message_id=provisional_message.message_id
+                )
+                
+                # Enviar la imagen con el texto de confirmación
+                bot.send_photo(
+                    chat_id=user_id,
+                    photo=open('image1.jpeg', 'rb'),
+                    caption=confirmation_text,
+                    parse_mode='Markdown',
+                    disable_web_page_preview=True
+                )
+            except Exception as img_error:
+                logger.error(f"Error al enviar imagen: {str(img_error)}")
+                # Si hay error al enviar la imagen, enviar solo el texto como respaldo
+                bot.edit_message_text(
+                    chat_id=user_id,
+                    message_id=provisional_message.message_id,
+                    text=confirmation_text,
+                    parse_mode='Markdown',
+                    disable_web_page_preview=True
+                )
         
         # Notificar administradores
         username_display = user.get('username', 'Sin username')
