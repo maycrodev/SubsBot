@@ -227,8 +227,8 @@ def webhook():
                         credits_text = (
                             "🧠 Créditos del Bot\n\n"
                             "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
+                            "Si deseas realizar tu propio bot de suscripciones contactate con @NuryOwO.\n\n"
                             "© 2025 Todos los derechos reservados.\n\n"
-                            "Para contacto o soporte: @admin_support"
                         )
                         
                         markup = types.InlineKeyboardMarkup()
