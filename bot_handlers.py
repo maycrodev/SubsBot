@@ -624,7 +624,7 @@ def update_subscription_from_webhook(bot, event_data):
                     chat_id=user_id,
                     text=(
                         "💔 *¡Oh no! Tu suscripción ha sido cancelada* (｡•́︿•̀｡)\n\n"
-                        "Has sido removido del grupito VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
+                        "Has sido removido del Grupo VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
                         "Si quieres regresar y ser parte otra vez del Grupo VIP, "
                         "usa el comando /start para ver los planes disponibles ✨💌\n"
                     ),
@@ -1755,7 +1755,11 @@ def handle_new_chat_members(message, bot):
                     try:
                         bot.send_message(
                             chat_id=user_id,
-                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara unirte, adquiere una suscripción en @VelvetSub_Bot con el comando /start."
+                            text = (
+                                "❌ *Has sido expulsado del grupito VIP* (っ- ‸ – ς)\n\n"
+                                "Parece que no tienes una suscripción activa… ¡te vamos a extrañar mucho! 🥺💔\n\n"
+                                "Para volver a unirte, puedes adquirir una suscripción en @VelvetSub_Bot usando el comando /start ✨🎀\n"
+                            )
                         )
                     except Exception as e:
                         logger.error(f"No se pudo enviar mensaje privado a {user_id}: {e}")
