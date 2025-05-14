@@ -30,7 +30,7 @@ Al suscribirte a nuestro servicio, aceptas los siguientes términos y condicione
 6. *LIMITACIÓN DE RESPONSABILIDAD*
    - El servicio se proporciona "tal cual" sin garantías de ningún tipo.
    - No nos hacemos responsables por la disponibilidad continua del servicio.
-   - Nos reservamos el derecho de modificar o discontinuar el servicio.
+   - Nos reservamos el derecho de modificar el servicio.
 
 7. *PRIVACIDAD*
    - Tus datos personales serán tratados según nuestra política de privacidad.
@@ -41,6 +41,6 @@ Al suscribirte a nuestro servicio, aceptas los siguientes términos y condicione
    - Los cambios entrarán en vigor inmediatamente después de su publicación.
    - Es tu responsabilidad revisar periódicamente los términos.
 
-Para cualquier consulta o reclamación, contacta a @admin_support.
+Para cualquier consulta o reclamación, contacta a @NuryOwO
 
 Última actualización: Abril 2025

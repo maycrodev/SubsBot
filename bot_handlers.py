@@ -1693,7 +1693,7 @@ def handle_new_chat_members(message, bot):
                     try:
                         bot.send_message(
                             chat_id=user_id,
-                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara unirte, adquiere una suscripción en @VIPSubscriptionBot con el comando /start."
+                            text=f"❌ Has sido expulsado del grupo VIP porque no tienes una suscripción activa.\n\nPara unirte, adquiere una suscripción en @VelvetSub_Bot con el comando /start."
                         )
                     except Exception as e:
                         logger.error(f"No se pudo enviar mensaje privado a {user_id}: {e}")
@@ -1786,7 +1786,7 @@ def handle_main_menu_callback(call, bot):
                 "🧠 *Créditos del Bot*\n\n"
                 "Este bot fue desarrollado por el equipo de desarrollo VIP.\n\n"
                 "© 2025 Todos los derechos reservados.\n\n"
-                "Para contacto o soporte: @admin_support"
+                "Para contacto o soporte: @NuryOwO"
             )
             
             markup = types.InlineKeyboardMarkup()
