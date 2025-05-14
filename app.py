@@ -83,6 +83,12 @@ import bot_handlers
 
 bot_handlers.admin_states = admin_states
 
+@app.route('/webhook/paypal', methods=['POST'])
+def legacy_paypal_webhook():
+    """Redirige webhooks antiguos a la ruta correcta"""
+    logger.info("Webhook de PayPal recibido en ruta antigua /webhook/paypal - redirigiendo")
+    return paypal_webhook()  # Llama a la función del endpoint correcto
+
 @app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
 def webhook():
     """Recibe las actualizaciones de Telegram a través de webhook"""
