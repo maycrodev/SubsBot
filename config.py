@@ -144,7 +144,7 @@ PLANS = {
     },
     'prueba': {
         'name': 'Plan prueba',
-        'price_usd': 0.30,
+        'price_usd': 0.10,
         'duration_days': 1,
         'display_name': '𝙎𝙐𝙎𝘾𝙍𝙄𝙋𝘾𝙄Ó𝙉 prueba',
         'description': 'Acceso: 1 DÍA al grupo VIP con descuento',
