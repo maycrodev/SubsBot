@@ -48,37 +48,24 @@ def get_access_token() -> Optional[str]:
 def create_product_if_not_exists() -> Optional[str]:
     """Crea un producto en PayPal si no existe aún y devuelve su ID"""
     try:
-        # Para fines de desarrollo, podemos usar un ID de producto estático
-        # Esta es una solución temporal hasta implementar una gestión de productos adecuada
-        # En un entorno de producción real, deberías almacenar y reutilizar el ID del producto
+        # VERIFICAR MODO ACTUAL
+        logger.info(f"Modo PayPal actual: {PAYPAL_MODE}")
         
-        # Verificamos si existe un archivo con el ID del producto
-        product_id_file = os.path.join(os.path.dirname(DB_PATH), 'paypal_product_id.txt')
-        
-        # Si el archivo existe, leemos el ID del producto
-        if os.path.exists(product_id_file):
-            with open(product_id_file, 'r') as f:
-                product_id = f.read().strip()
-                if product_id:
-                    logger.info(f"Usando producto existente con ID: {product_id}")
-                    return product_id
-        
-        # Si no tenemos un ID guardado, creamos un nuevo producto
+        # Obtener token de acceso
         token = get_access_token()
         if not token:
-            logger.error("No se pudo obtener el token de acceso")
+            logger.error("No se pudo obtener token para crear producto")
             return None
         
+        # CREAR UN NUEVO PRODUCTO (no buscar uno existente)
         product_name = "Grupo VIP"
         
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "PayPal-Request-Id": f"create-product-{datetime.datetime.now().timestamp()}"  # ID único para evitar duplicados
+            "PayPal-Request-Id": f"create-product-{datetime.datetime.now().timestamp()}"
         }
         
-        # CAMBIO: Eliminamos el campo "category" y usamos solo el tipo
-        # La API de PayPal Sandbox no acepta DIGITAL_GOODS como valor válido para category
         data = {
             "name": product_name,
             "description": "Acceso exclusivo a contenido premium",
@@ -88,27 +75,26 @@ def create_product_if_not_exists() -> Optional[str]:
         logger.info(f"Creando producto en PayPal: {product_name}")
         response = requests.post(f"{BASE_URL}/v1/catalogs/products", headers=headers, json=data)
         
-        # Registrar respuesta para depuración
+        # Log detallado de la respuesta
+        logger.info(f"Respuesta de creación de producto: Status={response.status_code}")
+        logger.info(f"Contenido de respuesta: {response.text}")
+        
         if response.status_code != 201:
             logger.error(f"Error al crear producto: Status code {response.status_code}")
             logger.error(f"Respuesta: {response.text}")
-            
-            # Si el error es 401, podría ser un problema con el token
-            if response.status_code == 401:
-                logger.error("Error de autenticación. Verificar credenciales de PayPal.")
-                
             return None
             
-        response.raise_for_status()
         product_data = response.json()
         product_id = product_data.get("id")
         
-        # Guardar el ID del producto para futuras referencias
         if product_id:
+            logger.info(f"Producto creado correctamente con ID: {product_id}")
+            
+            # Guardar el ID para futuros usos
+            product_id_file = os.path.join('/opt/render/project/data', 'paypal_product_id.txt')
             os.makedirs(os.path.dirname(product_id_file), exist_ok=True)
             with open(product_id_file, 'w') as f:
                 f.write(product_id)
-            logger.info(f"Producto creado correctamente con ID: {product_id}")
         
         return product_id
     except Exception as e:
