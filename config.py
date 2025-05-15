@@ -59,8 +59,8 @@ if not WEBHOOK_URL:
 else:
     logger.info(f"Webhook URL: {WEBHOOK_URL}")
 
-# Ruta de la base de datos SQLite
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'vip_bot.db')
+# Ruta de la base de datos
+DB_PATH = os.path.join('/opt/render/project/data', 'vip_bot.db')
 
 # Asegurar que el directorio de datos existe
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
