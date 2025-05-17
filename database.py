@@ -992,7 +992,7 @@ def has_valid_subscription(user_id: int) -> bool:
         AND s.status = 'ACTIVE'
         AND s.is_recurring = 1
         AND s.paypal_sub_id IS NOT NULL
-        AND datetime(s.end_date) BETWEEN datetime('now', '-3 hour') AND datetime('now')
+        AND datetime(s.end_date) BETWEEN datetime('now', '-6 hour') AND datetime('now')
         ORDER BY s.end_date DESC
         LIMIT 1
         """, (user_id,))
