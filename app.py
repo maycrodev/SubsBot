@@ -914,7 +914,6 @@ def admin_renewal_stats():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/paypal/webhook', methods=['POST'])
-@app.route('/paypal/webhook', methods=['POST'])
 def paypal_webhook():
     """Maneja los webhooks de PayPal"""
     try:
