@@ -930,7 +930,6 @@ def paypal_webhook():
         billing_agreement_id = resource.get("billing_agreement_id")
         
         # Check if subscription already exists and was recently created
-        # Modificar ESTE BLOQUE dentro de la función paypal_webhook
         if billing_agreement_id:
             # Obtener la suscripción de la base de datos
             import database as db
@@ -948,7 +947,17 @@ def paypal_webhook():
                 if plan:
                     # Verificar si la fecha ya expiró
                     current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
-                    now = datetime.datetime.now()  # Modificado: sin zona horaria
+                    # Usar now sin zona horaria para coincidir con current_end_date
+                    now = datetime.datetime.now()
+                    
+                    # SOLUCIÓN: Asegurar que ambas fechas sean del mismo tipo
+                    # Si una tiene zona horaria y la otra no, hacer que ambas sean del mismo tipo
+                    if hasattr(current_end_date, 'tzinfo') and current_end_date.tzinfo is not None:
+                        # current_end_date tiene zona horaria, así que now también debería tenerla
+                        now = now.replace(tzinfo=current_end_date.tzinfo)
+                    elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
+                        # now tiene zona horaria pero current_end_date no, eliminamos la zona de now
+                        now = now.replace(tzinfo=None)
                     
                     if current_end_date < now:
                         # Ya expiró, calcular desde ahora
@@ -1003,7 +1012,14 @@ def paypal_webhook():
                     if plan:
                         # Verificar si la fecha ya expiró
                         current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
-                        now = datetime.datetime.now(datetime.timezone.utc)
+                        # Solución: Usar now sin zona horaria para mantener consistencia
+                        now = datetime.datetime.now()
+                        
+                        # CORRECCIÓN: Asegurar que ambas fechas sean del mismo tipo
+                        if hasattr(current_end_date, 'tzinfo') and current_end_date.tzinfo is not None:
+                            now = now.replace(tzinfo=current_end_date.tzinfo)
+                        elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
+                            now = now.replace(tzinfo=None)
                         
                         if current_end_date < now:
                             # Ya expiró, calcular desde ahora

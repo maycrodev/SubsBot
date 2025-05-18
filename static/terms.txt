@@ -6,6 +6,7 @@ Al suscribirte a nuestro servicio, aceptas los siguientes términos y condicione
    - El acceso al grupo VIP está condicionado al pago de la suscripción.
    - La suscripción se renovará automáticamente hasta que la canceles.
    - Los precios están sujetos a cambios con previo aviso.
+   - Al momento de cancelar la suscripción se cancela el acceso al grupo VIP.
 
 2. *ACCESO*
    - Los enlaces de invitación son personales y no transferibles.
