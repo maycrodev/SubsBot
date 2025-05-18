@@ -998,6 +998,13 @@ def paypal_webhook():
                 # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
                 start_date = datetime.datetime.fromisoformat(subscription['start_date'])
                 now = datetime.datetime.now()
+                
+                # CORRECCIÓN: Asegurar que ambas fechas sean del mismo tipo antes de la resta
+                if hasattr(start_date, 'tzinfo') and start_date.tzinfo is not None:
+                    now = now.replace(tzinfo=start_date.tzinfo)
+                elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
+                    start_date = start_date.replace(tzinfo=now.tzinfo)
+                    
                 time_difference = (now - start_date).total_seconds()
                 
                 # Procesar la renovación directamente (redundancia intencional)
@@ -1019,7 +1026,7 @@ def paypal_webhook():
                         if hasattr(current_end_date, 'tzinfo') and current_end_date.tzinfo is not None:
                             now = now.replace(tzinfo=current_end_date.tzinfo)
                         elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
-                            now = now.replace(tzinfo=None)
+                            current_end_date = current_end_date.replace(tzinfo=now.tzinfo)
                         
                         if current_end_date < now:
                             # Ya expiró, calcular desde ahora
