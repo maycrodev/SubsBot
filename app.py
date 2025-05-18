@@ -89,7 +89,106 @@ bot_handlers.admin_states = admin_states
 def legacy_paypal_webhook():
     """Redirige webhooks antiguos a la ruta correcta"""
     logger.info("Webhook de PayPal recibido en ruta antigua /webhook/paypal - redirigiendo")
-    return paypal_webhook()  # Llama a la función del endpoint correcto
+    
+    # En lugar de solo llamar a paypal_webhook(), debemos procesarlo directamente aquí
+    # ya que la redirección no está funcionando correctamente
+    try:
+        import datetime
+        
+        event_data = request.json
+        event_type = event_data.get("event_type", "DESCONOCIDO")
+        
+        # Log detallado para diagnóstico
+        logger.info(f"Procesando webhook de PayPal directamente: {event_type}")
+        
+        # Extraer IDs relevantes
+        resource = event_data.get("resource", {})
+        billing_agreement_id = resource.get("id")  # Cambio importante: extraer ID directamente
+        
+        # Si es CANCELLED, procesar directamente
+        if event_type == "BILLING.SUBSCRIPTION.CANCELLED" and billing_agreement_id:
+            # Obtener la suscripción
+            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+            
+            if subscription:
+                logger.info(f"Suscripción encontrada para cancelar: {subscription['sub_id']}, Usuario: {subscription['user_id']}")
+                
+                # 1. Actualizar estado en BD
+                db.update_subscription_status(subscription['sub_id'], "CANCELLED")
+                logger.info(f"Estado de suscripción actualizado a CANCELLED")
+                
+                # 2. Expulsar usuario directamente
+                user_id = subscription['user_id']
+                try:
+                    from config import GROUP_CHAT_ID
+                    
+                    if GROUP_CHAT_ID:
+                        # Expulsar usuario
+                        bot.ban_chat_member(
+                            chat_id=GROUP_CHAT_ID,
+                            user_id=user_id,
+                            revoke_messages=False
+                        )
+                        
+                        # Desbanear para permitir reingreso futuro
+                        bot.unban_chat_member(
+                            chat_id=GROUP_CHAT_ID,
+                            user_id=user_id,
+                            only_if_banned=True
+                        )
+                        
+                        # Registrar expulsión
+                        db.record_expulsion(user_id, "Cancelación de suscripción (webhook directo)")
+                        logger.info(f"Usuario {user_id} expulsado del grupo por cancelación")
+                        
+                except Exception as e:
+                    logger.error(f"Error al expulsar usuario {user_id}: {e}")
+                
+                # 3. Notificar al usuario
+                try:
+                    bot.send_message(
+                        chat_id=user_id,
+                        text=(
+                            "💔 *¡Oh no! Tu suscripción ha sido cancelada* (｡•́︿•̀｡)\n\n"
+                            "Has sido removido del Grupo VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
+                            "Si quieres regresar y ser parte otra vez del Grupo VIP, "
+                            "usa el comando /start para ver los planes disponibles ✨💌\n"
+                        ),
+                        parse_mode='Markdown'
+                    )
+                    logger.info(f"Notificación de cancelación enviada a usuario {user_id}")
+                except Exception as e:
+                    logger.error(f"Error al notificar cancelación a usuario {user_id}: {e}")
+                
+                # 4. Notificar administradores
+                for admin_id in ADMIN_IDS:
+                    try:
+                        bot.send_message(
+                            chat_id=admin_id,
+                            text=f"🚫 Suscripción cancelada y usuario {user_id} expulsado (procesado directamente desde webhook)"
+                        )
+                    except Exception as e:
+                        logger.error(f"Error al notificar admin {admin_id}: {e}")
+                
+                # 5. Forzar verificación de seguridad (por si acaso)
+                try:
+                    import bot_handlers
+                    logger.info("Forzando verificación de seguridad después de cancelación")
+                    bot_handlers.force_security_check(bot)
+                except Exception as e:
+                    logger.error(f"Error al forzar verificación: {e}")
+                
+                return jsonify({"status": "success", "message": "Cancelación procesada exitosamente"}), 200
+            else:
+                logger.error(f"No se encontró suscripción para ID: {billing_agreement_id}")
+        
+        # Si llegamos aquí, usar la función normal
+        return paypal_webhook()
+        
+    except Exception as e:
+        logger.error(f"Error en procesamiento directo del webhook: {e}")
+        # Intentar con la función normal en caso de error
+        return paypal_webhook()
 
 @app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
 def webhook():
