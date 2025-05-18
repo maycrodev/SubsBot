@@ -779,8 +779,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
         logger.info(f"Suscripciones actualizadas a EXPIRED: {affected_rows}")
         
         # PASO 2: Obtener todas las suscripciones expiradas o canceladas para procesamiento
-        # MODIFICADO: Si force=True, incluir también las que no tengan estado EXPIRED pero han expirado
-        # CAMBIO PRINCIPAL: Añadir OR status = 'CANCELLED' en ambas consultas
+        # MODIFICADO: Incluir explícitamente suscripciones CANCELLED
         if force:
             expired_query = """
             SELECT 
@@ -1005,10 +1004,12 @@ def has_valid_subscription(user_id: int) -> bool:
     
     try:
         # Verificar suscripciones activas que no han expirado
+        # CORREGIDO: Añadir condición para excluir suscripciones canceladas
         cursor.execute("""
         SELECT COUNT(*) FROM subscriptions 
         WHERE user_id = ? 
         AND status = 'ACTIVE' 
+        AND status != 'CANCELLED'
         AND datetime(end_date) > datetime('now')
         """, (user_id,))
         
@@ -1018,12 +1019,13 @@ def has_valid_subscription(user_id: int) -> bool:
             return True
         
         # PERÍODO DE GRACIA: Verificar suscripciones recurrentes en período de 24 horas
-        # antes o después de la fecha de expiración
+        # CORREGIDO: Añadir condición para excluir suscripciones canceladas
         cursor.execute("""
         SELECT s.sub_id, s.plan, s.end_date, s.paypal_sub_id 
         FROM subscriptions s
         WHERE s.user_id = ? 
         AND s.status = 'ACTIVE'
+        AND s.status != 'CANCELLED'
         AND s.is_recurring = 1
         AND s.paypal_sub_id IS NOT NULL
         AND datetime(s.end_date) BETWEEN datetime('now', '-24 hour') AND datetime('now', '+24 hour')
@@ -1046,10 +1048,15 @@ def has_valid_subscription(user_id: int) -> bool:
             return True
             
         # También verificar si hay renovaciones recientes en las últimas 36 horas
+        # CORREGIDO: Excluir suscripciones canceladas
         cursor.execute("""
         SELECT COUNT(*) FROM subscription_renewals
         WHERE user_id = ? AND renewal_date > datetime('now', '-36 hour')
-        """, (user_id,))
+        AND NOT EXISTS (
+            SELECT 1 FROM subscriptions 
+            WHERE user_id = ? AND status = 'CANCELLED'
+        )
+        """, (user_id, user_id))
         
         recent_renewals = cursor.fetchone()[0]
         

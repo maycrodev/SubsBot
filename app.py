@@ -926,6 +926,7 @@ def paypal_webhook():
         
         # Log detallado para diagnóstico
         logger.info(f"PayPal webhook recibido: {event_type}")
+        logger.info(f"Contenido del webhook: {json.dumps(event_data, indent=2)}")
         
         # Extraer IDs relevantes para deduplicación
         resource = event_data.get("resource", {})
@@ -1003,6 +1004,15 @@ def paypal_webhook():
                             
                             if not success:
                                 logger.error(f"No se pudo expulsar al usuario {user_id} después de {max_retries} intentos")
+                                
+                            # NUEVO: Forzar verificación de seguridad inmediata
+                            try:
+                                import bot_handlers
+                                logger.info(f"Forzando verificación de seguridad para usuario {user_id} por cancelación")
+                                bot_handlers.force_security_check(bot)
+                            except Exception as security_error:
+                                logger.error(f"Error al forzar verificación de seguridad: {security_error}")
+                                
                     except Exception as e:
                         logger.error(f"Error al procesar expulsión para usuario {user_id}: {e}")
                     
