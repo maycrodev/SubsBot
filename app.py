@@ -973,7 +973,14 @@ def paypal_webhook():
                         
                     time_difference = (now - start_date).total_seconds()
                     
-                    # Procesar la renovación una sola vez
+                    # PUNTO CLAVE DE LA SOLUCIÓN:
+                    # No procesar pagos que ocurran inmediatamente después de crear la suscripción
+                    # (usualmente dentro de los primeros 5 minutos)
+                    if time_difference < 60:  # 5 minutos en segundos
+                        logger.info(f"Ignorando evento de pago inicial para suscripción recién creada (hace {time_difference:.1f} segundos)")
+                        return jsonify({"status": "success", "message": "Pago inicial ignorado para evitar extensión incorrecta"}), 200
+                    
+                    # Si llegamos aquí, es una renovación genuina
                     user_id = subscription['user_id']
                     plan_id = subscription['plan']
                     plan = PLANS.get(plan_id)
@@ -1013,21 +1020,15 @@ def paypal_webhook():
                         db.extend_subscription(subscription['sub_id'], new_end_date)
                         logger.info(f"RENOVACIÓN PROCESADA: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                         
-                        # Notificar al usuario SOLO si no es una suscripción nueva
-                        if time_difference > 300:  # 5 minutos en segundos
-                            try:
-                                import payments as pay
-                                pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
-                                logger.info(f"Mensaje de renovación enviado a usuario {user_id}")
-                            except Exception as e:
-                                logger.error(f"Error al notificar renovación: {e}")
-                        else:
-                            logger.info(f"Nueva suscripción detectada para usuario {user_id}, omitiendo notificación de renovación")
+                        # Notificar al usuario sobre la renovación
+                        try:
+                            import payments as pay
+                            pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
+                            logger.info(f"Mensaje de renovación enviado a usuario {user_id}")
+                        except Exception as e:
+                            logger.error(f"Error al notificar renovación: {e}")
                 else:
                     logger.error(f"No se encontró suscripción para billing_id {billing_agreement_id}")
-        
-        # Ya no llamamos a bot_handlers.update_subscription_from_webhook para evitar
-        # el procesamiento duplicado dentro del mismo evento
         
         return jsonify({"status": "success"}), 200
     except Exception as e:
