@@ -945,93 +945,35 @@ def paypal_webhook():
             processed_payment_ids.add(event_unique_id)
             logger.info(f"Registrando evento como procesado: {event_unique_id}")
         
-        # Extract subscription ID
-        resource = event_data.get("resource", {})
-        billing_agreement_id = resource.get("billing_agreement_id")
+        # Manejar diferentes tipos de eventos
+        if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
+            # Activar la suscripción
+            if billing_agreement_id:
+                subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+                if subscription:
+                    db.update_subscription_status(subscription['sub_id'], "ACTIVE")
+                    logger.info(f"Suscripción {subscription['sub_id']} activada")
         
-        # Check if subscription already exists and was recently created
-        if billing_agreement_id:
-            # Obtener la suscripción de la base de datos
-            import database as db
-            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
-            
-            if subscription:
-                # Calcular nueva fecha de expiración
-                import datetime
-                from config import PLANS
-                
-                user_id = subscription['user_id']
-                plan_id = subscription['plan']
-                plan = PLANS.get(plan_id)
-                
-                if plan:
-                    # Verificar si la fecha ya expiró
-                    current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
-                    # Usar now sin zona horaria para coincidir con current_end_date
+        elif event_type == "PAYMENT.SALE.COMPLETED":
+            # Procesar renovación de suscripción
+            if billing_agreement_id:
+                subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+                if subscription:
+                    logger.info(f"Suscripción encontrada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
+                    
+                    # Verificar si es una suscripción nueva o una renovación
+                    start_date = datetime.datetime.fromisoformat(subscription.get('start_date'))
                     now = datetime.datetime.now()
                     
-                    # SOLUCIÓN: Asegurar que ambas fechas sean del mismo tipo
-                    # Si una tiene zona horaria y la otra no, hacer que ambas sean del mismo tipo
-                    if hasattr(current_end_date, 'tzinfo') and current_end_date.tzinfo is not None:
-                        # current_end_date tiene zona horaria, así que now también debería tenerla
-                        now = now.replace(tzinfo=current_end_date.tzinfo)
+                    # Asegurar que ambas fechas sean del mismo tipo antes de la resta
+                    if hasattr(start_date, 'tzinfo') and start_date.tzinfo is not None:
+                        now = now.replace(tzinfo=start_date.tzinfo)
                     elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
-                        # now tiene zona horaria pero current_end_date no, eliminamos la zona de now
-                        now = now.replace(tzinfo=None)
-                    
-                    if current_end_date < now:
-                        # Ya expiró, calcular desde ahora
-                        # Ensure duration is exactly as specified (fix for 1-day plans)
-                        days = plan['duration_days']
-                        hours = int(days * 24)
+                        start_date = start_date.replace(tzinfo=now.tzinfo)
                         
-                        # Calculate new end date based on hours
-                        new_end_date = now + datetime.timedelta(hours=hours)
-                        
-                        logger.info(f"Renovación (ya expirada): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
-                    else:
-                        # Aún activa, extender desde la fecha actual
-                        # Ensure duration is exactly as specified (fix for 1-day plans)
-                        days = plan['duration_days']
-                        hours = int(days * 24)
-                        
-                        # Calculate new end date based on hours
-                        new_end_date = current_end_date + datetime.timedelta(hours=hours)
-                        
-                        logger.info(f"Renovación (activa): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
+                    time_difference = (now - start_date).total_seconds()
                     
-                    # Extender la suscripción en la base de datos
-                    db.extend_subscription(subscription['sub_id'], new_end_date)
-        
-        # Si es un evento de pago completado, registrarlo con más detalle
-        if event_type == "PAYMENT.SALE.COMPLETED":
-            resource = event_data.get("resource", {})
-            billing_agreement_id = resource.get("billing_agreement_id")
-            amount = resource.get("amount", {}).get("total", "desconocido")
-            logger.info(f"RENOVACIÓN DETECTADA - Billing ID: {billing_agreement_id}, Monto: {amount}")
-            
-            # Verificar la suscripción asociada para diagnóstico
-            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
-            if subscription:
-                logger.info(f"Suscripción encontrada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
-                
-                # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
-                start_date = datetime.datetime.fromisoformat(subscription.get('start_date'))
-                now = datetime.datetime.now()
-                
-                # CORRECCIÓN: Asegurar que ambas fechas sean del mismo tipo antes de la resta
-                if hasattr(start_date, 'tzinfo') and start_date.tzinfo is not None:
-                    now = now.replace(tzinfo=start_date.tzinfo)
-                elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
-                    start_date = start_date.replace(tzinfo=now.tzinfo)
-                    
-                time_difference = (now - start_date).total_seconds()
-                
-                # Procesar la renovación directamente (redundancia intencional)
-                try:
-                    # Calcular nueva fecha de expiración
-                    from config import PLANS
-                    
+                    # Procesar la renovación una sola vez
                     user_id = subscription['user_id']
                     plan_id = subscription['plan']
                     plan = PLANS.get(plan_id)
@@ -1042,7 +984,7 @@ def paypal_webhook():
                         # Solución: Usar now sin zona horaria para mantener consistencia
                         now = datetime.datetime.now()
                         
-                        # CORRECCIÓN: Asegurar que ambas fechas sean del mismo tipo
+                        # Asegurar que ambas fechas sean del mismo tipo
                         if hasattr(current_end_date, 'tzinfo') and current_end_date.tzinfo is not None:
                             now = now.replace(tzinfo=current_end_date.tzinfo)
                         elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
@@ -1050,28 +992,26 @@ def paypal_webhook():
                         
                         if current_end_date < now:
                             # Ya expiró, calcular desde ahora
-                            # Ensure duration is exactly as specified (fix for 1-day plans)
                             days = plan['duration_days']
                             hours = int(days * 24)
                             
-                            # Calculate new end date based on hours
+                            # Calcular nueva fecha de fin
                             new_end_date = now + datetime.timedelta(hours=hours)
                             
                             logger.info(f"Renovación (ya expirada): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
                         else:
                             # Aún activa, extender desde la fecha actual
-                            # Ensure duration is exactly as specified (fix for 1-day plans)
                             days = plan['duration_days']
                             hours = int(days * 24)
                             
-                            # Calculate new end date based on hours
+                            # Calcular nueva fecha de fin
                             new_end_date = current_end_date + datetime.timedelta(hours=hours)
                             
                             logger.info(f"Renovación (activa): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
                         
-                        # Extender la suscripción en la base de datos
+                        # Extender la suscripción UNA SOLA VEZ en la base de datos
                         db.extend_subscription(subscription['sub_id'], new_end_date)
-                        logger.info(f"RENOVACIÓN PROCESADA DIRECTAMENTE: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
+                        logger.info(f"RENOVACIÓN PROCESADA: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                         
                         # Notificar al usuario SOLO si no es una suscripción nueva
                         if time_difference > 300:  # 5 minutos en segundos
@@ -1083,18 +1023,11 @@ def paypal_webhook():
                                 logger.error(f"Error al notificar renovación: {e}")
                         else:
                             logger.info(f"Nueva suscripción detectada para usuario {user_id}, omitiendo notificación de renovación")
-                except Exception as e:
-                    logger.error(f"Error al procesar renovación directamente: {e}")
-            else:
-                logger.error(f"No se encontró suscripción para billing_id {billing_agreement_id}")
+                else:
+                    logger.error(f"No se encontró suscripción para billing_id {billing_agreement_id}")
         
-        # También procesar con el método estándar (cinturón y tirantes)
-        try:
-            # Pasamos el event_data al manejador, que también debe ser modificado para evitar
-            # la doble notificación de renovación en suscripciones nuevas
-            bot_handlers.update_subscription_from_webhook(bot, event_data)
-        except Exception as e:
-            logger.error(f"Error en update_subscription_from_webhook: {e}")
+        # Ya no llamamos a bot_handlers.update_subscription_from_webhook para evitar
+        # el procesamiento duplicado dentro del mismo evento
         
         return jsonify({"status": "success"}), 200
     except Exception as e:
