@@ -940,8 +940,8 @@ def paypal_webhook():
             logger.info(f"Evento ya procesado anteriormente, omitiendo: {event_unique_id}")
             return jsonify({"status": "success", "message": "Evento ya procesado"}), 200
         
-        # Si es un evento de pago, añadir a la lista de procesados
-        if event_type == "PAYMENT.SALE.COMPLETED":
+        # Si es un evento de pago o de cancelación, añadir a la lista de procesados
+        if event_type in ["PAYMENT.SALE.COMPLETED", "BILLING.SUBSCRIPTION.CANCELLED"]:
             processed_payment_ids.add(event_unique_id)
             logger.info(f"Registrando evento como procesado: {event_unique_id}")
         
@@ -953,6 +953,72 @@ def paypal_webhook():
                 if subscription:
                     db.update_subscription_status(subscription['sub_id'], "ACTIVE")
                     logger.info(f"Suscripción {subscription['sub_id']} activada")
+                    
+        elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
+            # Procesar cancelación de suscripción
+            if billing_agreement_id:
+                subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+                if subscription:
+                    user_id = subscription['user_id']
+                    sub_id = subscription['sub_id']
+                    
+                    # 1. Marcar la suscripción como cancelada
+                    db.update_subscription_status(sub_id, "CANCELLED")
+                    logger.info(f"Suscripción {sub_id} marcada como CANCELLED")
+                    
+                    # 2. Expulsar al usuario del grupo
+                    try:
+                        from config import GROUP_CHAT_ID
+                        
+                        if GROUP_CHAT_ID:
+                            # Intentar expulsar al usuario (con reintentos)
+                            max_retries = 3
+                            for attempt in range(max_retries):
+                                try:
+                                    logger.info(f"Expulsando a usuario {user_id} por cancelación de suscripción (intento {attempt+1}/{max_retries})")
+                                    
+                                    # Expulsar al usuario
+                                    bot.ban_chat_member(
+                                        chat_id=GROUP_CHAT_ID,
+                                        user_id=user_id,
+                                        revoke_messages=False
+                                    )
+                                    
+                                    # Desbanear inmediatamente para permitir reingreso futuro
+                                    bot.unban_chat_member(
+                                        chat_id=GROUP_CHAT_ID,
+                                        user_id=user_id,
+                                        only_if_banned=True
+                                    )
+                                    
+                                    # Registrar la expulsión
+                                    db.record_expulsion(user_id, "Cancelación de suscripción")
+                                    logger.info(f"Usuario {user_id} expulsado exitosamente por cancelación")
+                                    break
+                                except Exception as exp_error:
+                                    logger.error(f"Error al expulsar usuario {user_id} (intento {attempt+1}): {exp_error}")
+                                    if attempt < max_retries - 1:
+                                        time.sleep(2)  # Esperar antes de reintentar
+                        else:
+                            logger.error("No se puede expulsar al usuario: GROUP_CHAT_ID no está configurado")
+                    except Exception as e:
+                        logger.error(f"Error general al intentar expulsar al usuario {user_id}: {str(e)}")
+                    
+                    # 3. Notificar al usuario
+                    try:
+                        bot.send_message(
+                            chat_id=user_id,
+                            text=(
+                                "💔 *¡Oh no! Tu suscripción ha sido cancelada* (｡•́︿•̀｡)\n\n"
+                                "Has sido removido del Grupo VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
+                                "Si quieres regresar y ser parte otra vez del Grupo VIP, "
+                                "usa el comando /start para ver los planes disponibles ✨💌\n"
+                            ),
+                            parse_mode='Markdown'
+                        )
+                        logger.info(f"Mensaje de cancelación enviado a usuario {user_id}")
+                    except Exception as e:
+                        logger.error(f"Error al notificar cancelación al usuario {user_id}: {str(e)}")
         
         elif event_type == "PAYMENT.SALE.COMPLETED":
             # Procesar renovación de suscripción
@@ -973,10 +1039,8 @@ def paypal_webhook():
                         
                     time_difference = (now - start_date).total_seconds()
                     
-                    # PUNTO CLAVE DE LA SOLUCIÓN:
-                    # No procesar pagos que ocurran inmediatamente después de crear la suscripción
-                    # (usualmente dentro de los primeros 5 minutos)
-                    if time_difference < 60:  # 5 minutos en segundos
+                    # REDUCIDO A 30 SEGUNDOS para facilitar pruebas
+                    if time_difference < 30:  # Reducido de 300 a 30 segundos
                         logger.info(f"Ignorando evento de pago inicial para suscripción recién creada (hace {time_difference:.1f} segundos)")
                         return jsonify({"status": "success", "message": "Pago inicial ignorado para evitar extensión incorrecta"}), 200
                     
