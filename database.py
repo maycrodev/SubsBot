@@ -778,8 +778,9 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
         affected_rows = cursor.rowcount
         logger.info(f"Suscripciones actualizadas a EXPIRED: {affected_rows}")
         
-        # PASO 2: Obtener todas las suscripciones expiradas para procesamiento
+        # PASO 2: Obtener todas las suscripciones expiradas o canceladas para procesamiento
         # MODIFICADO: Si force=True, incluir también las que no tengan estado EXPIRED pero han expirado
+        # CAMBIO PRINCIPAL: Añadir OR status = 'CANCELLED' en ambas consultas
         if force:
             expired_query = """
             SELECT 
@@ -792,8 +793,8 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 CASE WHEN paypal_sub_id IS NULL THEN 'WHITELIST' ELSE 'PAID' END as subscription_type
             FROM subscriptions 
             WHERE 
-                (status = 'EXPIRED' OR 
-                (datetime(end_date) <= datetime('now') AND status != 'CANCELLED'))
+                (status = 'EXPIRED' OR status = 'CANCELLED' OR 
+                (datetime(end_date) <= datetime('now')))
                 AND (is_recurring = 0 OR paypal_sub_id IS NULL OR 
                      datetime(end_date) < datetime('now', '-24 hour'))
             """
@@ -808,7 +809,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 status,
                 CASE WHEN paypal_sub_id IS NULL THEN 'WHITELIST' ELSE 'PAID' END as subscription_type
             FROM subscriptions 
-            WHERE status = 'EXPIRED'
+            WHERE status = 'EXPIRED' OR status = 'CANCELLED'
             """
         
         cursor.execute(expired_query)
