@@ -24,6 +24,8 @@ bot_handlers.admin_states = admin_states
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+processed_payment_ids = set()
+
 def log_webhook_data(update):
     """Registra información detallada sobre una actualización de Telegram para diagnóstico"""
     try:
@@ -913,7 +915,7 @@ def admin_renewal_stats():
         logger.error(f"Error al obtener estadísticas de renovaciones: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/paypal/webhook', methods=['POST'])
+@app.route('/webhook/paypal', methods=['POST'])
 def paypal_webhook():
     """Maneja los webhooks de PayPal"""
     try:
@@ -924,6 +926,24 @@ def paypal_webhook():
         
         # Log detallado para diagnóstico
         logger.info(f"PayPal webhook recibido: {event_type}")
+        
+        # Extraer IDs relevantes para deduplicación
+        resource = event_data.get("resource", {})
+        billing_agreement_id = resource.get("billing_agreement_id")
+        payment_id = resource.get("id")
+        
+        # Crear un ID único para este evento
+        event_unique_id = f"{event_type}_{billing_agreement_id or payment_id}"
+        
+        # Verificar si este evento ya fue procesado
+        if event_unique_id in processed_payment_ids:
+            logger.info(f"Evento ya procesado anteriormente, omitiendo: {event_unique_id}")
+            return jsonify({"status": "success", "message": "Evento ya procesado"}), 200
+        
+        # Si es un evento de pago, añadir a la lista de procesados
+        if event_type == "PAYMENT.SALE.COMPLETED":
+            processed_payment_ids.add(event_unique_id)
+            logger.info(f"Registrando evento como procesado: {event_unique_id}")
         
         # Extract subscription ID
         resource = event_data.get("resource", {})
@@ -996,7 +1016,7 @@ def paypal_webhook():
                 logger.info(f"Suscripción encontrada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
                 
                 # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
-                start_date = datetime.datetime.fromisoformat(subscription['start_date'])
+                start_date = datetime.datetime.fromisoformat(subscription.get('start_date'))
                 now = datetime.datetime.now()
                 
                 # CORRECCIÓN: Asegurar que ambas fechas sean del mismo tipo antes de la resta
@@ -1018,7 +1038,7 @@ def paypal_webhook():
                     
                     if plan:
                         # Verificar si la fecha ya expiró
-                        current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
+                        current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
                         # Solución: Usar now sin zona horaria para mantener consistencia
                         now = datetime.datetime.now()
                         
