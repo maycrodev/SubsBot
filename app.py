@@ -930,17 +930,49 @@ def paypal_webhook():
         billing_agreement_id = resource.get("billing_agreement_id")
         
         # Check if subscription already exists and was recently created
+        # Modificar ESTE BLOQUE dentro de la función paypal_webhook
         if billing_agreement_id:
+            # Obtener la suscripción de la base de datos
+            import database as db
             subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+            
             if subscription:
-                # Check if this is a new subscription (created in last 5 minutes)
-                start_date = datetime.datetime.fromisoformat(subscription['start_date'])
-                now = datetime.datetime.now()
-                time_difference = (now - start_date).total_seconds()
+                # Calcular nueva fecha de expiración
+                import datetime
+                from config import PLANS
                 
-                if time_difference < 300:  # 5 minutes in seconds
-                    logger.info(f"Skipping duplicate processing of new subscription {subscription['sub_id']}")
-                    return jsonify({"status": "success", "message": "Already processed"}), 200
+                user_id = subscription['user_id']
+                plan_id = subscription['plan']
+                plan = PLANS.get(plan_id)
+                
+                if plan:
+                    # Verificar si la fecha ya expiró
+                    current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
+                    now = datetime.datetime.now()  # Modificado: sin zona horaria
+                    
+                    if current_end_date < now:
+                        # Ya expiró, calcular desde ahora
+                        # Ensure duration is exactly as specified (fix for 1-day plans)
+                        days = plan['duration_days']
+                        hours = int(days * 24)
+                        
+                        # Calculate new end date based on hours
+                        new_end_date = now + datetime.timedelta(hours=hours)
+                        
+                        logger.info(f"Renovación (ya expirada): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
+                    else:
+                        # Aún activa, extender desde la fecha actual
+                        # Ensure duration is exactly as specified (fix for 1-day plans)
+                        days = plan['duration_days']
+                        hours = int(days * 24)
+                        
+                        # Calculate new end date based on hours
+                        new_end_date = current_end_date + datetime.timedelta(hours=hours)
+                        
+                        logger.info(f"Renovación (activa): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
+                    
+                    # Extender la suscripción en la base de datos
+                    db.extend_subscription(subscription['sub_id'], new_end_date)
         
         # Si es un evento de pago completado, registrarlo con más detalle
         if event_type == "PAYMENT.SALE.COMPLETED":
