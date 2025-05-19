@@ -723,7 +723,21 @@ function checkSubscriptions() {
         s.end_date, 
         s.status,
         s.paypal_sub_id,
+        s.is_recurring,
+        -- Buscar renovaciones recientes para esta suscripción
+        (SELECT COUNT(*) FROM subscription_renewals sr 
+        WHERE sr.sub_id = s.sub_id AND sr.renewal_date >= datetime('now', '-36 hour')) as renovaciones_recientes,
         CASE 
+            -- Periodo de gracia para suscripciones ACTIVE recurrentes con PayPal ID
+            WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') 
+                AND s.is_recurring = 1 AND s.paypal_sub_id IS NOT NULL
+                AND datetime(s.end_date) >= datetime('now', '-24 hour') THEN 'CORRECTO: Dentro del periodo de gracia'
+            -- Si hay renovaciones recientes, es correcto que esté activa
+            WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now')
+                AND (SELECT COUNT(*) FROM subscription_renewals sr 
+                    WHERE sr.sub_id = s.sub_id AND sr.renewal_date >= datetime('now', '-36 hour')) > 0 
+                THEN 'CORRECTO: Renovada recientemente'
+            -- Si no cumple ninguna condición especial, aplicar reglas normales
             WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') THEN 'INCORRECTO: Debería ser EXPIRED' 
             WHEN s.status = 'EXPIRED' AND datetime(s.end_date) > datetime('now') THEN 'INCORRECTO: Debería ser ACTIVE'
             ELSE 'CORRECTO'
@@ -737,7 +751,8 @@ function checkSubscriptions() {
     WHERE (s.status = 'ACTIVE' OR s.status = 'EXPIRED')
     ORDER BY 
         CASE 
-            WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') THEN 1
+            WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') 
+                AND s.is_recurring = 0 AND s.paypal_sub_id IS NULL THEN 1
             WHEN s.status = 'EXPIRED' AND datetime(s.end_date) > datetime('now') THEN 2
             ELSE 3
         END,
@@ -800,12 +815,12 @@ function checkSubscriptions() {
         
         // Añadir filas solo para suscripciones con problemas
         results.forEach(sub => {
-            // Solo mostrar las que tienen problemas
-            if (sub.estado_verificado !== 'CORRECTO') {
+            // Solo mostrar las que tienen ERRORES REALES (contienen la palabra "INCORRECTO")
+            if (sub.estado_verificado.includes('INCORRECTO')) {
                 errorCount++;
                 
                 // Determinar clases de estilo
-                const rowClass = sub.estado_verificado.includes('INCORRECTO') ? 'style="background-color: rgba(255, 99, 71, 0.1);"' : '';
+                const rowClass = 'style="background-color: rgba(255, 99, 71, 0.1);"';
                 const statusClass = sub.status === 'ACTIVE' ? 'badge-active' : 'badge-cancelled';
                 
                 // Acción recomendada según el problema
@@ -827,6 +842,25 @@ function checkSubscriptions() {
                         <td>${sub.tipo_subscripcion}</td>
                         <td>${accionRecomendada}</td>
                     </tr>`;
+            } 
+
+            else if (sub.estado_verificado.includes('CORRECTO: ')) {
+
+                const rowClass = 'style="background-color: rgba(75, 181, 67, 0.1);"';
+                const statusClass = sub.status === 'ACTIVE' ? 'badge-active' : 'badge-cancelled';
+                
+                tableHTML += `
+                    <tr ${rowClass}>
+                        <td>${sub.sub_id}</td>
+                        <td>${sub.username || 'Sin username'} <small>(${sub.user_id})</small></td>
+                        <td>${sub.plan}</td>
+                        <td>${new Date(sub.end_date).toLocaleString()}</td>
+                        <td><span class="badge ${statusClass}">${sub.status}</span></td>
+                        <td><strong>${sub.estado_verificado}</strong></td>
+                        <td>${sub.tipo_subscripcion}</td>
+                        <td><i class="fas fa-check-circle" style="color: green;"></i> OK</td>
+                    </tr>`;
+
             }
         });
         
