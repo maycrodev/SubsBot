@@ -525,7 +525,7 @@
                                 {% elif sub.status == 'CANCELLED' %}
                                     <span class="badge badge-cancelled"><i class="fas fa-times-circle"></i> Cancelado</span>
                                 {% elif sub.status == 'EXPIRED' and sub.paypal_sub_id and sub.is_recurring == 1 and 
-                                    ((now - end_date).total_seconds() <= 86400) %}
+                                    ((now - end_date).total_seconds() <= 36000) %}
                                     <span class="badge badge-active"><i class="fas fa-sync"></i> Renovado</span>
                                 {% else %}
                                     <span class="badge badge-{{sub.status|lower}}">{{ sub.status }}</span>
@@ -734,7 +734,7 @@ function checkSubscriptions() {
             -- Periodo de gracia para suscripciones ACTIVE recurrentes con PayPal ID
             WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') 
                 AND s.is_recurring = 1 AND s.paypal_sub_id IS NOT NULL
-                AND datetime(s.end_date) >= datetime('now', '-24 hour') THEN 'CORRECTO: Dentro del periodo de gracia'
+                AND datetime(s.end_date) >= datetime('now', '-10 hour') THEN 'CORRECTO: Dentro del periodo de gracia'
             -- Si hay renovaciones recientes, es correcto que esté activa
             WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now')
                 AND (SELECT COUNT(*) FROM subscription_renewals sr 

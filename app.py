@@ -1036,7 +1036,7 @@ def paypal_webhook():
         event_unique_id = f"{event_type}_{billing_agreement_id or payment_id}"
         
         # Verificar si este evento ya fue procesado
-        if event_unique_id in processed_payment_ids:
+        if event_unique_id in processed_payment_ids and event_type != "PAYMENT.SALE.COMPLETED":
             logger.info(f"Evento ya procesado anteriormente, omitiendo: {event_unique_id}")
             return jsonify({"status": "success", "message": "Evento ya procesado"}), 200
         
