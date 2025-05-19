@@ -1254,10 +1254,9 @@ def admin_panel():
         cursor = conn.cursor()
         cursor.execute("""
         SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, 
-            CASE 
-                WHEN s.status = 'ACTIVE' AND datetime(s.end_date) <= datetime('now') THEN 'EXPIRED' 
-                ELSE s.status 
-            END as status
+            s.status, s.is_recurring, s.paypal_sub_id,
+            (SELECT COUNT(*) FROM subscription_renewals sr 
+            WHERE sr.sub_id = s.sub_id AND sr.renewal_date >= datetime('now', '-36 hour')) as renovaciones_recientes
         FROM subscriptions s
         LEFT JOIN users u ON s.user_id = u.user_id
         ORDER BY s.start_date DESC
@@ -1276,12 +1275,16 @@ def admin_panel():
         
         conn.close()
         
+        import datetime
+        now = datetime.datetime.now()
+
         # Renderizar el template con los datos
         return render_template('admin_panel.html', 
                                admin_id=admin_id,
                                stats=stats,
                                recent_subscriptions=recent_subscriptions,
-                               recent_users=recent_users)
+                               recent_users=recent_users,
+                               now=now) 
         
     except Exception as e:
         logger.error(f"Error en admin_panel: {str(e)}")

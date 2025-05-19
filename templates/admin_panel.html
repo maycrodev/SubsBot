@@ -286,15 +286,17 @@
             background-color: var(--status-active-bg);
             color: var(--status-active);
         }
-
         .badge-cancelled {
             background-color: var(--status-cancelled-bg);
             color: var(--status-cancelled);
         }
-
-        .badge-suspended {
+        .badge-expired {
             background-color: var(--status-suspended-bg);
             color: var(--status-suspended);
+        }
+        .badge-renewed {
+            background-color: rgba(75, 192, 192, 0.2);
+            color: #4bc0c0;
         }
 
         .sql-container {
@@ -522,10 +524,11 @@
                                     <span class="badge badge-active"><i class="fas fa-check-circle"></i> Activo</span>
                                 {% elif sub.status == 'CANCELLED' %}
                                     <span class="badge badge-cancelled"><i class="fas fa-times-circle"></i> Cancelado</span>
-                                {% elif sub.status == 'SUSPENDED' %}
-                                    <span class="badge badge-suspended"><i class="fas fa-pause-circle"></i> Suspendido</span>
+                                {% elif sub.status == 'EXPIRED' and sub.paypal_sub_id and sub.is_recurring == 1 and 
+                                    ((now - end_date).total_seconds() <= 86400) %}
+                                    <span class="badge badge-active"><i class="fas fa-sync"></i> Renovado</span>
                                 {% else %}
-                                    {{ sub.status }}
+                                    <span class="badge badge-{{sub.status|lower}}">{{ sub.status }}</span>
                                 {% endif %}
                             </td>
                         </tr>
