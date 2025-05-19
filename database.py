@@ -671,14 +671,27 @@ def get_total_users_count(conn=None):
     return count
 
 def get_active_subscriptions_count(conn=None):
-    """Obtiene el número de suscripciones activas"""
+    """Obtiene el número de suscripciones activas incluyendo las del periodo de gracia"""
     close_conn = False
     if conn is None:
         conn = get_db_connection()
         close_conn = True
     
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM subscriptions WHERE status = 'ACTIVE' AND end_date > datetime('now')")
+    cursor.execute("""
+    SELECT COUNT(*) FROM subscriptions 
+    WHERE 
+        -- Suscripciones ACTIVE normales
+        (status = 'ACTIVE' AND end_date > datetime('now'))
+        OR
+        -- Suscripciones en periodo de gracia con renovaciones recientes
+        (status = 'ACTIVE' AND is_recurring = 1 AND paypal_sub_id IS NOT NULL 
+         AND datetime(end_date) BETWEEN datetime('now', '-10 hour') AND datetime('now'))
+        OR
+        -- Suscripciones con renovaciones recientes (detectadas por la tabla de renovaciones)
+        (sub_id IN (SELECT sub_id FROM subscription_renewals 
+                   WHERE renewal_date >= datetime('now', '-36 hour')))
+    """)
     count = cursor.fetchone()[0]
     
     if close_conn:
