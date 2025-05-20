@@ -668,21 +668,41 @@ def process_webhook_event(event_data: Dict) -> Tuple[bool, str]:
         
         # Log the event for debugging
         logger.info(f"PayPal webhook recibido: {event_type}")
+        logger.info(f"Contenido del webhook: {json.dumps(event_data, indent=2)}")
         
         # Extract the resource (can be subscription or order)
         resource = event_data.get("resource", {})
         
+        # Extraer IDs de forma consistente para todos los tipos de eventos
+        payment_id = resource.get("id", "")
+        billing_agreement_id = resource.get("billing_agreement_id", "")
+        
+        # Si es BILLING.SUBSCRIPTION.ACTIVATED, usar el ID de resource directamente
+        if not billing_agreement_id and event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
+            billing_agreement_id = resource.get("id", "")
+        
+        # Usar billing_agreement_id como payment_id si existe, sino usar el ID del recurso
+        payment_id = billing_agreement_id or payment_id
+        
+        if not payment_id:
+            logger.error(f"No se pudo extraer un ID válido del evento {event_type}")
+            return False, "ID de pago no encontrado"
+        
+        # Verificar si este evento ya fue procesado
+        import database as db
+        if db.is_payment_processed(payment_id, event_type):
+            logger.info(f"Evento ya procesado anteriormente, omitiendo: {payment_id} ({event_type})")
+            return True, "Evento ya procesado"
+        
         # CRITICAL: Manejo del evento PAYMENT.SALE.COMPLETED para renovaciones
         if event_type == "PAYMENT.SALE.COMPLETED":
             # Obtener la suscripción relacionada con el pago
-            billing_agreement_id = resource.get("billing_agreement_id")
-            
             if billing_agreement_id:
-                # Obtener la suscripción de la base de datos
-                import database as db
                 subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
                 
                 if subscription:
+                    logger.info(f"Procesando renovación: Suscripción {subscription['sub_id']}, Usuario {subscription['user_id']}")
+                    
                     # Calcular nueva fecha de expiración
                     import datetime
                     from config import PLANS
@@ -693,34 +713,89 @@ def process_webhook_event(event_data: Dict) -> Tuple[bool, str]:
                     
                     if plan:
                         # Verificar si la fecha ya expiró
-                        current_end_date = datetime.datetime.fromisoformat(subscription['end_date'])
+                        current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
                         now = datetime.datetime.now()
                         
                         if current_end_date < now:
                             # Ya expiró, calcular desde ahora
-                            new_end_date = now + datetime.timedelta(days=plan['duration_days'])
+                            days = plan['duration_days']
+                            hours = int(days * 24)
+                            new_end_date = now + datetime.timedelta(hours=hours)
+                            logger.info(f"Suscripción expirada: Calculando desde ahora, días={days}, horas={hours}")
                         else:
                             # Aún activa, extender desde la fecha actual
-                            new_end_date = current_end_date + datetime.timedelta(days=plan['duration_days'])
+                            days = plan['duration_days']
+                            hours = int(days * 24)
+                            new_end_date = current_end_date + datetime.timedelta(hours=hours)
+                            logger.info(f"Suscripción activa: Extendiendo desde fecha actual, días={days}, horas={hours}")
                         
-                        # Extender la suscripción en la base de datos
+                        # Extender la suscripción
                         db.extend_subscription(subscription['sub_id'], new_end_date)
+                        logger.info(f"Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                         
-                        # No intentamos notificar aquí, lo dejamos para bot_handlers
+                        # Intentar notificar al usuario sobre la renovación
+                        try:
+                            import sys
+                            # Verificar si esta función está siendo llamada desde app.py
+                            from_app = any('app.py' in arg for arg in sys.argv)
+                            
+                            # Si es llamada desde app.py, usar el bot directamente
+                            if from_app and 'bot' in globals():
+                                bot = globals()['bot']
+                                notify_successful_renewal(bot, user_id, subscription, new_end_date)
+                            else:
+                                # Si no, solo registrar la renovación
+                                logger.info(f"No se pudo notificar renovación a usuario {user_id} (bot no disponible)")
+                        except Exception as notify_error:
+                            logger.error(f"Error al notificar renovación: {notify_error}")
                         
-                        logger.info(f"Renovación exitosa: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
-                        return True, "Renovación procesada correctamente"
+                        # Registrar renovación en historial
+                        try:
+                            payment_amount = float(resource.get("amount", {}).get("total", plan['price_usd']))
+                            db.record_subscription_renewal(
+                                subscription['sub_id'], 
+                                subscription['user_id'],
+                                plan_id,
+                                payment_amount,
+                                current_end_date,
+                                new_end_date,
+                                payment_id,
+                                "COMPLETED"
+                            )
+                        except Exception as record_error:
+                            logger.error(f"Error al registrar renovación en historial: {record_error}")
+                        
+                        # Marcar evento como procesado
+                        db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
+                        
+                        return True, "Renovación procesada exitosamente"
+                    else:
+                        logger.error(f"Plan no encontrado: {plan_id}")
+                else:
+                    logger.warning(f"No se encontró suscripción para ID: {billing_agreement_id}")
+            
+        # Evento BILLING.SUBSCRIPTION.CANCELLED
+        elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
+            if billing_agreement_id:
+                subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+                
+                if subscription:
+                    logger.info(f"Procesando cancelación: Suscripción {subscription['sub_id']}, Usuario {subscription['user_id']}")
                     
-            logger.warning(f"No se pudo procesar renovación para PAYMENT.SALE.COMPLETED - ID: {billing_agreement_id}")
+                    # Actualizar estado en BD
+                    db.update_subscription_status(subscription['sub_id'], "CANCELLED")
+                    
+                    # Marcar evento como procesado
+                    db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
+                    
+                    return True, "Cancelación procesada exitosamente"
+                else:
+                    logger.warning(f"No se encontró suscripción para ID: {billing_agreement_id}")
         
-        # Resto del código para otros eventos...
-        return True, "Evento procesado"
+        # Marcar el evento como procesado de todas formas para evitar procesamiento duplicado
+        db.mark_payment_processed(payment_id, event_type)
         
-    except Exception as e:
-        logger.error(f"Error al procesar webhook: {e}")
-        return False, f"Error: {e}"
-        
-        # Resto del código para otros eventos...
+        return True, f"Evento {event_type} registrado"
         
     except Exception as e:
         logger.error(f"Error al procesar webhook: {e}")

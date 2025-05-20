@@ -102,6 +102,8 @@ def init_db():
     )
     ''')
     
+    create_processed_payments_table()
+
     conn.commit()
     conn.close()
 
@@ -350,6 +352,54 @@ def add_renewals_table():
     conn.commit()
     conn.close()
 
+# Añadir estas nuevas funciones en database.py
+
+def create_processed_payments_table():
+    """Crea la tabla para registrar eventos de pago ya procesados"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS processed_payments (
+        payment_id TEXT,
+        event_type TEXT,
+        subscription_id INTEGER,
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (payment_id, event_type)
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def is_payment_processed(payment_id, event_type):
+    """Verifica si un evento de pago ya ha sido procesado"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    SELECT COUNT(*) FROM processed_payments 
+    WHERE payment_id = ? AND event_type = ?
+    ''', (payment_id, event_type))
+    
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    return count > 0
+
+def mark_payment_processed(payment_id, event_type, subscription_id=None):
+    """Registra que un evento de pago ha sido procesado"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    INSERT OR REPLACE INTO processed_payments (payment_id, event_type, subscription_id)
+    VALUES (?, ?, ?)
+    ''', (payment_id, event_type, subscription_id))
+    
+    conn.commit()
+    conn.close()
+
 # Funciones para manipular suscripciones
 def create_subscription(
     user_id: int, 
@@ -462,13 +512,6 @@ def update_subscription_status(sub_id: int, status: str) -> bool:
 def extend_subscription(sub_id: int, new_end_date: datetime.datetime) -> bool:
     """
     Extiende la fecha de expiración de una suscripción y asegura que mantenga estado ACTIVE
-    
-    Args:
-        sub_id (int): ID de la suscripción
-        new_end_date (datetime): Nueva fecha de expiración
-        
-    Returns:
-        bool: True si la operación fue exitosa
     """
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -489,6 +532,9 @@ def extend_subscription(sub_id: int, new_end_date: datetime.datetime) -> bool:
     
     current_status = current['status']
     current_end_date = current['end_date']
+    
+    # Registrar cambio específico de fecha
+    logger.info(f"Suscripción {sub_id}: Cambiando fecha de fin de {current_end_date} a {new_end_date}")
     
     # Actualizar la suscripción
     cursor.execute('''

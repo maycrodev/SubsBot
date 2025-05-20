@@ -85,111 +85,6 @@ import bot_handlers
 
 bot_handlers.admin_states = admin_states
 
-@app.route('/webhook/paypal', methods=['POST'])
-def legacy_paypal_webhook():
-    """Redirige webhooks antiguos a la ruta correcta"""
-    logger.info("Webhook de PayPal recibido en ruta antigua /webhook/paypal - redirigiendo")
-    
-    # En lugar de solo llamar a paypal_webhook(), debemos procesarlo directamente aquí
-    # ya que la redirección no está funcionando correctamente
-    try:
-        import datetime
-        
-        event_data = request.json
-        event_type = event_data.get("event_type", "DESCONOCIDO")
-        
-        # Log detallado para diagnóstico
-        logger.info(f"Procesando webhook de PayPal directamente: {event_type}")
-        
-        # Extraer IDs relevantes
-        resource = event_data.get("resource", {})
-        billing_agreement_id = resource.get("id")  # Cambio importante: extraer ID directamente
-        
-        # Si es CANCELLED, procesar directamente
-        if event_type == "BILLING.SUBSCRIPTION.CANCELLED" and billing_agreement_id:
-            # Obtener la suscripción
-            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
-            
-            if subscription:
-                logger.info(f"Suscripción encontrada para cancelar: {subscription['sub_id']}, Usuario: {subscription['user_id']}")
-                
-                # 1. Actualizar estado en BD
-                db.update_subscription_status(subscription['sub_id'], "CANCELLED")
-                logger.info(f"Estado de suscripción actualizado a CANCELLED")
-                
-                # 2. Expulsar usuario directamente
-                user_id = subscription['user_id']
-                try:
-                    from config import GROUP_CHAT_ID
-                    
-                    if GROUP_CHAT_ID:
-                        # Expulsar usuario
-                        bot.ban_chat_member(
-                            chat_id=GROUP_CHAT_ID,
-                            user_id=user_id,
-                            revoke_messages=False
-                        )
-                        
-                        # Desbanear para permitir reingreso futuro
-                        bot.unban_chat_member(
-                            chat_id=GROUP_CHAT_ID,
-                            user_id=user_id,
-                            only_if_banned=True
-                        )
-                        
-                        # Registrar expulsión
-                        db.record_expulsion(user_id, "Cancelación de suscripción (webhook directo)")
-                        logger.info(f"Usuario {user_id} expulsado del grupo por cancelación")
-                        
-                except Exception as e:
-                    logger.error(f"Error al expulsar usuario {user_id}: {e}")
-                
-                # 3. Notificar al usuario
-                try:
-                    bot.send_message(
-                        chat_id=user_id,
-                        text=(
-                            "💔 *¡Oh no! Tu suscripción ha sido cancelada* (｡•́︿•̀｡)\n\n"
-                            "Has sido removido del Grupo VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
-                            "Si quieres regresar y ser parte otra vez del Grupo VIP, "
-                            "usa el comando /start para ver los planes disponibles ✨💌\n"
-                        ),
-                        parse_mode='Markdown'
-                    )
-                    logger.info(f"Notificación de cancelación enviada a usuario {user_id}")
-                except Exception as e:
-                    logger.error(f"Error al notificar cancelación a usuario {user_id}: {e}")
-                
-                # 4. Notificar administradores
-                for admin_id in ADMIN_IDS:
-                    try:
-                        bot.send_message(
-                            chat_id=admin_id,
-                            text=f"🚫 Suscripción cancelada y usuario {user_id} expulsado (procesado directamente desde webhook)"
-                        )
-                    except Exception as e:
-                        logger.error(f"Error al notificar admin {admin_id}: {e}")
-                
-                # 5. Forzar verificación de seguridad (por si acaso)
-                try:
-                    import bot_handlers
-                    logger.info("Forzando verificación de seguridad después de cancelación")
-                    bot_handlers.force_security_check(bot)
-                except Exception as e:
-                    logger.error(f"Error al forzar verificación: {e}")
-                
-                return jsonify({"status": "success", "message": "Cancelación procesada exitosamente"}), 200
-            else:
-                logger.error(f"No se encontró suscripción para ID: {billing_agreement_id}")
-        
-        # Si llegamos aquí, usar la función normal
-        return paypal_webhook()
-        
-    except Exception as e:
-        logger.error(f"Error en procesamiento directo del webhook: {e}")
-        # Intentar con la función normal en caso de error
-        return paypal_webhook()
-
 @app.route(f'/webhook/{BOT_TOKEN}', methods=['POST'])
 def webhook():
     """Recibe las actualizaciones de Telegram a través de webhook"""
@@ -1019,341 +914,181 @@ def paypal_webhook():
     """Maneja los webhooks de PayPal"""
     try:
         import datetime
+        import database as db
+        import json
         
         event_data = request.json
         event_type = event_data.get("event_type", "DESCONOCIDO")
         
         # Log detallado para diagnóstico
         logger.info(f"PayPal webhook recibido: {event_type}")
-        logger.info(f"Contenido del webhook: {json.dumps(event_data, indent=2)}")
         
         # Extraer IDs relevantes para deduplicación
         resource = event_data.get("resource", {})
-        billing_agreement_id = resource.get("billing_agreement_id")  # Para PAYMENT.SALE.COMPLETED
         
-        # Para BILLING.SUBSCRIPTION.ACTIVATED necesitamos obtener el id de la suscripción 
+        # Extraer IDs de forma consistente para todos los tipos de eventos
+        payment_id = resource.get("id", "")
+        billing_agreement_id = resource.get("billing_agreement_id", "")
+        
+        # Si es BILLING.SUBSCRIPTION.ACTIVATED, usar el ID de resource directamente
         if not billing_agreement_id and event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
-            billing_agreement_id = resource.get("id")
-            
-        payment_id = resource.get("id")
+            billing_agreement_id = resource.get("id", "")
         
-        # Crear un ID único para este evento
-        event_unique_id = f"{event_type}_{billing_agreement_id or payment_id}"
+        # Usar billing_agreement_id como payment_id si existe, sino usar el ID del recurso
+        payment_id = billing_agreement_id or payment_id
+        
+        if not payment_id:
+            logger.error(f"No se pudo extraer un ID válido del evento {event_type}")
+            return jsonify({"status": "error", "message": "ID de pago no encontrado"}), 400
         
         # Verificar si este evento ya fue procesado
-        # Excepción: Siempre procesamos PAYMENT.SALE.COMPLETED para evitar problemas con renovaciones
-        if event_unique_id in processed_payment_ids and event_type != "PAYMENT.SALE.COMPLETED":
-            logger.info(f"Evento ya procesado anteriormente, omitiendo: {event_unique_id}")
+        if db.is_payment_processed(payment_id, event_type):
+            logger.info(f"Evento ya procesado anteriormente, omitiendo: {payment_id} ({event_type})")
             return jsonify({"status": "success", "message": "Evento ya procesado"}), 200
-        
-        # Registrar evento como procesado para evitar duplicados
-        processed_payment_ids.add(event_unique_id)
-        logger.info(f"Registrando evento como procesado: {event_unique_id}")
-        
-        # --------- MANEJO DE SUSCRIPCIONES ACTIVADAS ---------
-        if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
-            # Extraer toda la información relevante del recurso de suscripción
-            subscriber = resource.get("subscriber", {})
-            user_email = subscriber.get("email_address")
-            payer_id = subscriber.get("payer_id")
-            username_info = subscriber.get("name", {})
-            given_name = username_info.get("given_name", "")
-            surname = username_info.get("surname", "")
-            plan_id_paypal = resource.get("plan_id")  # ID del plan de PayPal
             
-            # Buscar usuario por email en nuestra base de datos
-            # Nota: Necesitaríamos implementar una función para buscar por email si no existe
-            user_id = None
+        # ----- Procesar BILLING.SUBSCRIPTION.CANCELLED -----
+        if event_type == "BILLING.SUBSCRIPTION.CANCELLED" and billing_agreement_id:
+            # Obtener la suscripción
+            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
             
-            # Buscar todos los usuarios y verificar si alguno coincide con el email
-            conn = db.get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT user_id FROM users WHERE email = ?", (user_email,))
-            user_row = cursor.fetchone()
-            
-            if user_row:
-                user_id = user_row[0]
-                logger.info(f"Usuario encontrado por email {user_email}: {user_id}")
+            if subscription:
+                logger.info(f"Procesando cancelación: Subscription ID {subscription['sub_id']}, User ID: {subscription['user_id']}")
+                
+                # 1. Actualizar estado en BD
+                db.update_subscription_status(subscription['sub_id'], "CANCELLED")
+                
+                # 2. Expulsar usuario
+                user_id = subscription['user_id']
+                try:
+                    from config import GROUP_CHAT_ID
+                    if GROUP_CHAT_ID:
+                        # Expulsar usuario
+                        bot.ban_chat_member(
+                            chat_id=GROUP_CHAT_ID,
+                            user_id=user_id,
+                            revoke_messages=False
+                        )
+                        
+                        # Desbanear para permitir reingreso futuro
+                        bot.unban_chat_member(
+                            chat_id=GROUP_CHAT_ID,
+                            user_id=user_id,
+                            only_if_banned=True
+                        )
+                        
+                        # Registrar expulsión
+                        db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
+                except Exception as e:
+                    logger.error(f"Error al expulsar usuario {user_id}: {e}")
+                
+                # 3. Notificar al usuario
+                try:
+                    bot.send_message(
+                        chat_id=user_id,
+                        text=(
+                            "💔 *¡Oh no! Tu suscripción ha sido cancelada* (｡•́︿•̀｡)\n\n"
+                            "Has sido removido del Grupo VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
+                            "Si quieres regresar y ser parte otra vez del Grupo VIP, "
+                            "usa el comando /start para ver los planes disponibles ✨💌\n"
+                        ),
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    logger.error(f"Error al notificar cancelación a usuario {user_id}: {e}")
+                
+                # 4. Forzar verificación de seguridad 
+                try:
+                    import bot_handlers
+                    bot_handlers.force_security_check(bot)
+                except Exception as e:
+                    logger.error(f"Error al forzar verificación: {e}")
+                
+                # Marcar evento como procesado
+                db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
+                
+                return jsonify({"status": "success", "message": "Cancelación procesada exitosamente"}), 200
             else:
-                # Buscar en los datos pendientes si guardamos alguna relación temporal
-                # Esto sería necesario implementarlo si queremos mantener correlación
-                logger.warning(f"No se encontró usuario por email {user_email}. Buscando por otros medios.")
+                logger.error(f"No se encontró suscripción para ID: {billing_agreement_id}")
                 
-                # Si tenemos parámetros adicionales como custom_id podríamos extraer user_id
-                # Por ahora, solo registramos que no pudimos encontrar el usuario
-            
-            # Verificar si la suscripción ya existe en nuestra base de datos
-            if billing_agreement_id:
-                subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
-                
-                if subscription:
-                    # La suscripción ya existe, solo actualizamos su estado
-                    db.update_subscription_status(subscription['sub_id'], "ACTIVE")
-                    logger.info(f"Suscripción {subscription['sub_id']} activada")
-                    
-                    # Actualizar user_id si lo tenemos del evento pero no en la suscripción
-                    if user_id and subscription.get('user_id') != user_id:
-                        db.update_subscription_user(subscription['sub_id'], user_id)
-                        logger.info(f"Actualizado user_id en suscripción {subscription['sub_id']} a {user_id}")
-                        
-                elif user_id:
-                    # NUEVO: La suscripción no existe pero tenemos el user_id, vamos a crearla
-                    try:
-                        # Mapear el plan_id de PayPal a nuestro plan_id interno
-                        # En este caso, necesitamos una forma de mapear plan_id_paypal a nuestro plan_id
-                        # Para simplificar, podemos usar un plan por defecto o tener una tabla de mapeo
-                        
-                        # Identificar nuestro plan interno en base al plan_id de PayPal
-                        internal_plan_id = None
-                        
-                        # La mejor manera sería mantener un mapeo de plan_id de PayPal a nuestro plan_id
-                        # Por ahora, buscaremos en nuestros planes uno que coincida o usaremos "monthly" por defecto
-                        for our_plan_id, plan_data in PLANS.items():
-                            # Si tenemos guardado el plan_id de PayPal en nuestra configuración
-                            if plan_data.get('paypal_plan_id') == plan_id_paypal:
-                                internal_plan_id = our_plan_id
-                                break
-                        
-                        # Si no encontramos el plan, usamos "monthly" o el primer plan disponible
-                        if not internal_plan_id:
-                            internal_plan_id = "monthly"  # Plan por defecto
-                            logger.warning(f"No se pudo mapear plan de PayPal {plan_id_paypal}, usando {internal_plan_id}")
-                        
-                        # Crear la suscripción en nuestra base de datos
-                        from bot_handlers import process_successful_subscription
-                        result = process_successful_subscription(
-                            bot, 
-                            user_id, 
-                            internal_plan_id, 
-                            billing_agreement_id, 
-                            resource, 
-                            is_recurring=True
-                        )
-                        
-                        if result:
-                            logger.info(f"Se creó exitosamente la suscripción para usuario {user_id} con billing_id {billing_agreement_id}")
-                        else:
-                            logger.error(f"Error al crear suscripción para usuario {user_id} con billing_id {billing_agreement_id}")
-                    except Exception as create_error:
-                        logger.error(f"Error al crear suscripción: {create_error}")
-                else:
-                    # No tenemos ni la suscripción ni el user_id
-                    logger.error(f"No se pudo crear suscripción: no se encontró usuario para billing_id {billing_agreement_id}")
-                    
-        # --------- MANEJO DE SUSCRIPCIONES CANCELADAS ---------        
-        elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
-            # Procesar cancelación de suscripción
-            if billing_agreement_id:
-                subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
-                if subscription:
-                    logger.info(f"Cancelación de suscripción detectada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
-                    
-                    # 1. Actualizar estado en la base de datos
-                    db.update_subscription_status(subscription['sub_id'], "CANCELLED")
-                    
-                    # 2. Expulsar al usuario del grupo
-                    user_id = subscription['user_id']
-                    try:
-                        from config import GROUP_CHAT_ID
-                        if GROUP_CHAT_ID:
-                            # Intentar expulsar al usuario con reintentos
-                            max_retries = 3
-                            success = False
-                            
-                            for attempt in range(max_retries):
-                                try:
-                                    logger.info(f"Expulsando a usuario {user_id} por cancelación de suscripción (intento {attempt+1}/{max_retries})")
-                                    
-                                    # Banear al usuario
-                                    bot.ban_chat_member(
-                                        chat_id=GROUP_CHAT_ID,
-                                        user_id=user_id,
-                                        revoke_messages=False
-                                    )
-                                    
-                                    # Desbanear inmediatamente para permitir reingreso futuro
-                                    bot.unban_chat_member(
-                                        chat_id=GROUP_CHAT_ID,
-                                        user_id=user_id,
-                                        only_if_banned=True
-                                    )
-                                    
-                                    # Registrar la expulsión
-                                    db.record_expulsion(user_id, "Cancelación de suscripción")
-                                    
-                                    logger.info(f"Usuario {user_id} expulsado exitosamente por cancelación")
-                                    success = True
-                                    break
-                                except Exception as exp_error:
-                                    logger.error(f"Error al expulsar usuario {user_id} (intento {attempt+1}): {exp_error}")
-                                    if attempt < max_retries - 1:
-                                        time.sleep(2)  # Esperar antes de reintentar
-                            
-                            if not success:
-                                logger.error(f"No se pudo expulsar al usuario {user_id} después de {max_retries} intentos")
-                                
-                            # NUEVO: Forzar verificación de seguridad inmediata
-                            try:
-                                import bot_handlers
-                                logger.info(f"Forzando verificación de seguridad para usuario {user_id} por cancelación")
-                                bot_handlers.force_security_check(bot)
-                            except Exception as security_error:
-                                logger.error(f"Error al forzar verificación de seguridad: {security_error}")
-                                
-                    except Exception as e:
-                        logger.error(f"Error al procesar expulsión para usuario {user_id}: {e}")
-                    
-                    # 3. Notificar al usuario
-                    try:
-                        bot.send_message(
-                            chat_id=user_id,
-                            text=(
-                                "💔 *¡Oh no! Tu suscripción ha sido cancelada* (｡•́︿•̀｡)\n\n"
-                                "Has sido removido del Grupo VIP... Te vamos a extrañar mucho (｡T ω T｡)\n\n"
-                                "Si quieres regresar y ser parte otra vez del Grupo VIP, "
-                                "usa el comando /start para ver los planes disponibles ✨💌\n"
-                            ),
-                            parse_mode='Markdown'
-                        )
-                    except Exception as e:
-                        logger.error(f"Error al notificar cancelación al usuario {user_id}: {e}")
-                    
-                    # 4. Notificar a los administradores
-                    for admin_id in ADMIN_IDS:
-                        try:
-                            user_info = db.get_user(user_id) or {}
-                            username = user_info.get('username', 'Sin username')
-                            first_name = user_info.get('first_name', '')
-                            
-                            bot.send_message(
-                                chat_id=admin_id,
-                                text=(
-                                    "🚫 *Suscripción cancelada*\n\n"
-                                    f"Usuario: {first_name} (@{username})\n"
-                                    f"ID: {user_id}\n"
-                                    f"Plan: {subscription.get('plan', 'Desconocido')}\n"
-                                    f"Estado: CANCELADO\n"
-                                    f"Acción: Usuario expulsado del grupo"
-                                ),
-                                parse_mode='Markdown'
-                            )
-                        except Exception as e:
-                            logger.error(f"Error al notificar a admin {admin_id} sobre cancelación: {e}")
-        
-        # --------- MANEJO DE PAGOS COMPLETADOS ---------
+        # ----- Procesar PAYMENT.SALE.COMPLETED (Renovaciones) -----        
         elif event_type == "PAYMENT.SALE.COMPLETED":
-            # Procesar pago completado (puede ser pago inicial o renovación)
             if billing_agreement_id:
                 subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
                 
                 if subscription:
-                    logger.info(f"Suscripción encontrada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
+                    logger.info(f"Procesando renovación para suscripción {subscription['sub_id']}")
                     
-                    # Verificar si es una suscripción nueva o una renovación
-                    start_date = datetime.datetime.fromisoformat(subscription.get('start_date'))
-                    now = datetime.datetime.now()
-                    
-                    # Asegurar que ambas fechas sean del mismo tipo antes de la resta
-                    if hasattr(start_date, 'tzinfo') and start_date.tzinfo is not None:
-                        now = now.replace(tzinfo=start_date.tzinfo)
-                    elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
-                        start_date = start_date.replace(tzinfo=now.tzinfo)
+                    # Verificar que este pago específico no haya sido aplicado a esta suscripción
+                    if not db.is_payment_processed(payment_id, event_type):
+                        # Calcular nueva fecha de expiración
+                        from config import PLANS
+                        plan_id = subscription['plan']
+                        plan = PLANS.get(plan_id)
                         
-                    time_difference = (now - start_date).total_seconds()
-                    
-                    # Si es muy reciente (menos de 30 segundos), probablemente es el pago inicial
-                    if time_difference < 30:  # 30 segundos
-                        logger.info(f"Ignorando evento de pago inicial para suscripción recién creada (hace {time_difference:.1f} segundos)")
-                        return jsonify({"status": "success", "message": "Pago inicial ignorado para evitar extensión incorrecta"}), 200
-                    
-                    # Si llegamos aquí, es una renovación genuina
-                    user_id = subscription['user_id']
-                    plan_id = subscription['plan']
-                    plan = PLANS.get(plan_id)
-                    
-                    if plan:
-                        # Verificar si la fecha ya expiró
-                        current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
-                        # Solución: Usar now sin zona horaria para mantener consistencia
-                        now = datetime.datetime.now()
-                        
-                        # Asegurar que ambas fechas sean del mismo tipo
-                        if hasattr(current_end_date, 'tzinfo') and current_end_date.tzinfo is not None:
-                            now = now.replace(tzinfo=current_end_date.tzinfo)
-                        elif hasattr(now, 'tzinfo') and now.tzinfo is not None:
-                            current_end_date = current_end_date.replace(tzinfo=now.tzinfo)
-                        
-                        if current_end_date < now:
-                            # Ya expiró, calcular desde ahora
-                            days = plan['duration_days']
-                            hours = int(days * 24)
+                        if plan:
+                            # Verificar si la fecha ya expiró
+                            current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
+                            now = datetime.datetime.now()
                             
-                            # Calcular nueva fecha de fin
-                            new_end_date = now + datetime.timedelta(hours=hours)
+                            if current_end_date < now:
+                                # Ya expiró, calcular desde ahora
+                                days = plan['duration_days']
+                                hours = int(days * 24)
+                                new_end_date = now + datetime.timedelta(hours=hours)
+                                logger.info(f"Suscripción expirada: Calculando desde ahora, días={days}, horas={hours}")
+                            else:
+                                # Aún activa, extender desde la fecha actual
+                                days = plan['duration_days']
+                                hours = int(days * 24)
+                                new_end_date = current_end_date + datetime.timedelta(hours=hours)
+                                logger.info(f"Suscripción activa: Extendiendo desde fecha actual, días={days}, horas={hours}")
                             
-                            logger.info(f"Renovación (ya expirada): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
-                        else:
-                            # Aún activa, extender desde la fecha actual
-                            days = plan['duration_days']
-                            hours = int(days * 24)
+                            # Extender la suscripción
+                            db.extend_subscription(subscription['sub_id'], new_end_date)
+                            logger.info(f"Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                             
-                            # Calcular nueva fecha de fin
-                            new_end_date = current_end_date + datetime.timedelta(hours=hours)
-                            
-                            logger.info(f"Renovación (activa): Plan {plan_id}, Duration: {days} days, Hours: {hours}")
-                        
-                        # Extender la suscripción UNA SOLA VEZ en la base de datos
-                        db.extend_subscription(subscription['sub_id'], new_end_date)
-                        logger.info(f"RENOVACIÓN PROCESADA: Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
-                        
-                        # Notificar al usuario sobre la renovación
-                        try:
+                            # Intentar notificar al usuario sobre la renovación
                             import payments as pay
-                            pay.notify_successful_renewal(bot, user_id, subscription, new_end_date)
-                            logger.info(f"Mensaje de renovación enviado a usuario {user_id}")
-                        except Exception as e:
-                            logger.error(f"Error al notificar renovación: {e}")
+                            try:
+                                pay.notify_successful_renewal(bot, subscription['user_id'], subscription, new_end_date)
+                            except Exception as notify_error:
+                                logger.error(f"Error al notificar renovación: {notify_error}")
+                            
+                            # Registrar renovación en historial
+                            try:
+                                payment_amount = float(resource.get("amount", {}).get("total", plan['price_usd']))
+                                db.record_subscription_renewal(
+                                    subscription['sub_id'], 
+                                    subscription['user_id'],
+                                    plan_id,
+                                    payment_amount,
+                                    current_end_date,
+                                    new_end_date,
+                                    payment_id,
+                                    "COMPLETED"
+                                )
+                            except Exception as record_error:
+                                logger.error(f"Error al registrar renovación en historial: {record_error}")
+                        else:
+                            logger.error(f"Plan no encontrado: {plan_id}")
+                        
+                        # Marcar evento como procesado
+                        db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
                     else:
-                        logger.error(f"No se encontró plan {plan_id} para suscripción {subscription['sub_id']}")
+                        logger.info(f"Pago {payment_id} ya aplicado a suscripción {subscription['sub_id']}, omitiendo")
+                    
+                    return jsonify({"status": "success", "message": "Renovación procesada"}), 200
                 else:
-                    # NUEVO: Guardar este payment en una tabla temporal para procesarlo cuando
-                    # llegue el evento BILLING.SUBSCRIPTION.ACTIVATED
-                    logger.warning(f"No se encontró suscripción para billing_id {billing_agreement_id}. Guardando para procesamiento posterior.")
-                    
-                    # Implementar tabla temporal para guardar la correlación (necesario agregar)
-                    # db.save_pending_payment(billing_agreement_id, resource)
-                    
-                    # Crear estructura para almacenar evento pendiente
-                    try:
-                        conn = db.get_db_connection()
-                        cursor = conn.cursor()
-                        
-                        # Verificar si la tabla existe y crearla si no
-                        cursor.execute("""
-                        CREATE TABLE IF NOT EXISTS pending_payments (
-                            payment_id TEXT PRIMARY KEY,
-                            billing_agreement_id TEXT,
-                            event_data TEXT,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        )
-                        """)
-                        
-                        # Insertar el evento pendiente
-                        cursor.execute("""
-                        INSERT OR REPLACE INTO pending_payments 
-                        (payment_id, billing_agreement_id, event_data) 
-                        VALUES (?, ?, ?)
-                        """, (payment_id, billing_agreement_id, json.dumps(event_data)))
-                        
-                        conn.commit()
-                        conn.close()
-                        
-                        logger.info(f"Evento de pago guardado para procesamiento posterior: {payment_id}, {billing_agreement_id}")
-                    except Exception as db_error:
-                        logger.error(f"Error al guardar pago pendiente: {db_error}")
+                    logger.warning(f"No se encontró suscripción para billing_id {billing_agreement_id}")
+            else:
+                logger.warning(f"Evento PAYMENT.SALE.COMPLETED sin billing_agreement_id")
         
-        # Respuesta exitosa para cualquier tipo de evento
-        return jsonify({"status": "success", "message": "Evento procesado correctamente"}), 200
+        # ----- Procesar otros tipos de evento -----
+        # Marcar el evento como procesado de todas formas
+        db.mark_payment_processed(payment_id, event_type)
+        
+        return jsonify({"status": "success", "message": f"Evento {event_type} registrado"}), 200
+        
     except Exception as e:
         logger.error(f"Error al procesar webhook de PayPal: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
