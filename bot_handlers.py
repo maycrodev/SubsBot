@@ -829,6 +829,74 @@ def create_main_menu_markup():
     )
     return markup
 
+def verify_subscription_with_paypal(subscription):
+    """
+    Verifica el estado real de una suscripción directamente con PayPal
+    
+    Args:
+        subscription (dict): Datos de la suscripción en la base de datos
+        
+    Returns:
+        dict: Resultado de la verificación con claves:
+            - is_valid (bool): Si la suscripción está activa según PayPal
+            - status (str): Estado devuelto por PayPal
+            - error (str, opcional): Mensaje de error si hubo problemas
+    """
+    try:
+        import payments as pay
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        paypal_sub_id = subscription.get('paypal_sub_id')
+        
+        # Si no tiene ID de PayPal, es una suscripción manual (whitelist)
+        if not paypal_sub_id:
+            return {
+                'is_valid': subscription.get('status') == 'ACTIVE',
+                'status': subscription.get('status'),
+                'is_whitelist': True
+            }
+        
+        # Verificar con PayPal
+        logger.info(f"Verificando suscripción {paypal_sub_id} directamente con PayPal")
+        paypal_details = pay.verify_subscription(paypal_sub_id)
+        
+        if not paypal_details:
+            return {
+                'is_valid': False,
+                'status': 'ERROR',
+                'error': 'No se pudo verificar con PayPal'
+            }
+        
+        paypal_status = paypal_details.get('status')
+        
+        # Determinar si es válida según su estado en PayPal
+        is_valid = paypal_status in ['ACTIVE', 'APPROVED']
+        
+        # Actualizar estado en la base de datos si hay discrepancia
+        if is_valid and subscription.get('status') != 'ACTIVE':
+            import database as db
+            logger.info(f"Actualizando estado local de suscripción {subscription['sub_id']} a ACTIVE desde {subscription['status']}")
+            db.update_subscription_status(subscription['sub_id'], 'ACTIVE')
+        elif not is_valid and subscription.get('status') == 'ACTIVE':
+            import database as db
+            logger.info(f"Actualizando estado local de suscripción {subscription['sub_id']} a {paypal_status} desde ACTIVE")
+            db.update_subscription_status(subscription['sub_id'], 'CANCELLED' if paypal_status == 'CANCELLED' else 'EXPIRED')
+        
+        return {
+            'is_valid': is_valid,
+            'status': paypal_status,
+            'paypal_data': paypal_details
+        }
+        
+    except Exception as e:
+        logger.error(f"Error al verificar suscripción con PayPal: {str(e)}")
+        return {
+            'is_valid': False,
+            'status': 'ERROR',
+            'error': str(e)
+        }
+
 def create_plans_markup():
     """
     Crea dinámicamente el markup de botones para los planes
@@ -936,6 +1004,22 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
                 logger.info(f"Usuario {user_id} tiene otra suscripción activa. Omitiendo expulsión.")
                 skipped += 1
                 continue
+
+            # Obtener información completa de la suscripción
+            subscription = db.get_subscription_info(sub_id)
+            
+            # Verificar el estado real en PayPal (para suscripciones recurrentes)
+            if plan and subscription and subscription.get('is_recurring') and subscription.get('paypal_sub_id'):
+                paypal_verification = verify_subscription_with_paypal(subscription)
+                logger.info(f"Verificación PayPal para suscripción {sub_id}: {paypal_verification}")
+                
+                # Si PayPal dice que NO es válida, pero nuestro sistema dice que SÍ lo es
+                if not paypal_verification.get('is_valid') and subscription.get('status') == 'ACTIVE':
+                    logger.warning(f"Discrepancia detectada: Suscripción {sub_id} aparece como ACTIVE en sistema pero PayPal dice {paypal_verification.get('status')}")
+                    
+                    # Actualizar estado en base de datos
+                    db.update_subscription_status(sub_id, 'CANCELLED' if paypal_verification.get('status') == 'CANCELLED' else 'EXPIRED')
+                    logger.info(f"Estado de suscripción {sub_id} actualizado a {paypal_verification.get('status')}")
             
             is_whitelist = db.is_whitelist_subscription(sub_id)
             sub_type = "Whitelist" if is_whitelist else "Pagada"

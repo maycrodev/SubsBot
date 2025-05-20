@@ -1000,6 +1000,7 @@ def paypal_webhook():
                 try:
                     import bot_handlers
                     bot_handlers.force_security_check(bot)
+                    logger.info(f"Verificación de seguridad forzada después de cancelación de suscripción {subscription['sub_id']}")
                 except Exception as e:
                     logger.error(f"Error al forzar verificación: {e}")
                 
@@ -1027,7 +1028,7 @@ def paypal_webhook():
                         
                         if plan:
                             # Verificar si la fecha ya expiró
-                            current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
+                            current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date')).replace(tzinfo=None)
                             now = datetime.datetime.now()
                             
                             if current_end_date < now:
