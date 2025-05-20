@@ -1018,7 +1018,7 @@ def admin_renewal_stats():
 def paypal_webhook():
     """Maneja los webhooks de PayPal"""
     try:
-        import datetime  # Añadir esta importación
+        import datetime
         
         event_data = request.json
         event_type = event_data.get("event_type", "DESCONOCIDO")
@@ -1029,13 +1029,19 @@ def paypal_webhook():
         
         # Extraer IDs relevantes para deduplicación
         resource = event_data.get("resource", {})
-        billing_agreement_id = resource.get("billing_agreement_id")
+        billing_agreement_id = resource.get("billing_agreement_id")  # Para PAYMENT.SALE.COMPLETED
+        
+        # Para BILLING.SUBSCRIPTION.ACTIVATED necesitamos obtener el id de la suscripción 
+        if not billing_agreement_id and event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
+            billing_agreement_id = resource.get("id")
+            
         payment_id = resource.get("id")
         
         # Crear un ID único para este evento
         event_unique_id = f"{event_type}_{billing_agreement_id or payment_id}"
         
         # Verificar si este evento ya fue procesado
+        # Excepción: Siempre procesamos PAYMENT.SALE.COMPLETED para evitar problemas con renovaciones
         if event_unique_id in processed_payment_ids and event_type != "PAYMENT.SALE.COMPLETED":
             logger.info(f"Evento ya procesado anteriormente, omitiendo: {event_unique_id}")
             return jsonify({"status": "success", "message": "Evento ya procesado"}), 200
@@ -1044,15 +1050,97 @@ def paypal_webhook():
         processed_payment_ids.add(event_unique_id)
         logger.info(f"Registrando evento como procesado: {event_unique_id}")
         
-        # Manejar diferentes tipos de eventos
+        # --------- MANEJO DE SUSCRIPCIONES ACTIVADAS ---------
         if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
-            # Activar la suscripción
+            # Extraer toda la información relevante del recurso de suscripción
+            subscriber = resource.get("subscriber", {})
+            user_email = subscriber.get("email_address")
+            payer_id = subscriber.get("payer_id")
+            username_info = subscriber.get("name", {})
+            given_name = username_info.get("given_name", "")
+            surname = username_info.get("surname", "")
+            plan_id_paypal = resource.get("plan_id")  # ID del plan de PayPal
+            
+            # Buscar usuario por email en nuestra base de datos
+            # Nota: Necesitaríamos implementar una función para buscar por email si no existe
+            user_id = None
+            
+            # Buscar todos los usuarios y verificar si alguno coincide con el email
+            conn = db.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM users WHERE email = ?", (user_email,))
+            user_row = cursor.fetchone()
+            
+            if user_row:
+                user_id = user_row[0]
+                logger.info(f"Usuario encontrado por email {user_email}: {user_id}")
+            else:
+                # Buscar en los datos pendientes si guardamos alguna relación temporal
+                # Esto sería necesario implementarlo si queremos mantener correlación
+                logger.warning(f"No se encontró usuario por email {user_email}. Buscando por otros medios.")
+                
+                # Si tenemos parámetros adicionales como custom_id podríamos extraer user_id
+                # Por ahora, solo registramos que no pudimos encontrar el usuario
+            
+            # Verificar si la suscripción ya existe en nuestra base de datos
             if billing_agreement_id:
                 subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+                
                 if subscription:
+                    # La suscripción ya existe, solo actualizamos su estado
                     db.update_subscription_status(subscription['sub_id'], "ACTIVE")
                     logger.info(f"Suscripción {subscription['sub_id']} activada")
                     
+                    # Actualizar user_id si lo tenemos del evento pero no en la suscripción
+                    if user_id and subscription.get('user_id') != user_id:
+                        db.update_subscription_user(subscription['sub_id'], user_id)
+                        logger.info(f"Actualizado user_id en suscripción {subscription['sub_id']} a {user_id}")
+                        
+                elif user_id:
+                    # NUEVO: La suscripción no existe pero tenemos el user_id, vamos a crearla
+                    try:
+                        # Mapear el plan_id de PayPal a nuestro plan_id interno
+                        # En este caso, necesitamos una forma de mapear plan_id_paypal a nuestro plan_id
+                        # Para simplificar, podemos usar un plan por defecto o tener una tabla de mapeo
+                        
+                        # Identificar nuestro plan interno en base al plan_id de PayPal
+                        internal_plan_id = None
+                        
+                        # La mejor manera sería mantener un mapeo de plan_id de PayPal a nuestro plan_id
+                        # Por ahora, buscaremos en nuestros planes uno que coincida o usaremos "monthly" por defecto
+                        for our_plan_id, plan_data in PLANS.items():
+                            # Si tenemos guardado el plan_id de PayPal en nuestra configuración
+                            if plan_data.get('paypal_plan_id') == plan_id_paypal:
+                                internal_plan_id = our_plan_id
+                                break
+                        
+                        # Si no encontramos el plan, usamos "monthly" o el primer plan disponible
+                        if not internal_plan_id:
+                            internal_plan_id = "monthly"  # Plan por defecto
+                            logger.warning(f"No se pudo mapear plan de PayPal {plan_id_paypal}, usando {internal_plan_id}")
+                        
+                        # Crear la suscripción en nuestra base de datos
+                        from bot_handlers import process_successful_subscription
+                        result = process_successful_subscription(
+                            bot, 
+                            user_id, 
+                            internal_plan_id, 
+                            billing_agreement_id, 
+                            resource, 
+                            is_recurring=True
+                        )
+                        
+                        if result:
+                            logger.info(f"Se creó exitosamente la suscripción para usuario {user_id} con billing_id {billing_agreement_id}")
+                        else:
+                            logger.error(f"Error al crear suscripción para usuario {user_id} con billing_id {billing_agreement_id}")
+                    except Exception as create_error:
+                        logger.error(f"Error al crear suscripción: {create_error}")
+                else:
+                    # No tenemos ni la suscripción ni el user_id
+                    logger.error(f"No se pudo crear suscripción: no se encontró usuario para billing_id {billing_agreement_id}")
+                    
+        # --------- MANEJO DE SUSCRIPCIONES CANCELADAS ---------        
         elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
             # Procesar cancelación de suscripción
             if billing_agreement_id:
@@ -1151,11 +1239,13 @@ def paypal_webhook():
                             )
                         except Exception as e:
                             logger.error(f"Error al notificar a admin {admin_id} sobre cancelación: {e}")
-                
+        
+        # --------- MANEJO DE PAGOS COMPLETADOS ---------
         elif event_type == "PAYMENT.SALE.COMPLETED":
-            # Procesar renovación de suscripción
+            # Procesar pago completado (puede ser pago inicial o renovación)
             if billing_agreement_id:
                 subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+                
                 if subscription:
                     logger.info(f"Suscripción encontrada: ID {subscription['sub_id']}, Usuario {subscription['user_id']}")
                     
@@ -1171,7 +1261,7 @@ def paypal_webhook():
                         
                     time_difference = (now - start_date).total_seconds()
                     
-                    # REDUCIDO A 30 SEGUNDOS para facilitar pruebas
+                    # Si es muy reciente (menos de 30 segundos), probablemente es el pago inicial
                     if time_difference < 30:  # 30 segundos
                         logger.info(f"Ignorando evento de pago inicial para suscripción recién creada (hace {time_difference:.1f} segundos)")
                         return jsonify({"status": "success", "message": "Pago inicial ignorado para evitar extensión incorrecta"}), 200
@@ -1223,10 +1313,47 @@ def paypal_webhook():
                             logger.info(f"Mensaje de renovación enviado a usuario {user_id}")
                         except Exception as e:
                             logger.error(f"Error al notificar renovación: {e}")
+                    else:
+                        logger.error(f"No se encontró plan {plan_id} para suscripción {subscription['sub_id']}")
                 else:
-                    logger.error(f"No se encontró suscripción para billing_id {billing_agreement_id}")
+                    # NUEVO: Guardar este payment en una tabla temporal para procesarlo cuando
+                    # llegue el evento BILLING.SUBSCRIPTION.ACTIVATED
+                    logger.warning(f"No se encontró suscripción para billing_id {billing_agreement_id}. Guardando para procesamiento posterior.")
+                    
+                    # Implementar tabla temporal para guardar la correlación (necesario agregar)
+                    # db.save_pending_payment(billing_agreement_id, resource)
+                    
+                    # Crear estructura para almacenar evento pendiente
+                    try:
+                        conn = db.get_db_connection()
+                        cursor = conn.cursor()
+                        
+                        # Verificar si la tabla existe y crearla si no
+                        cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS pending_payments (
+                            payment_id TEXT PRIMARY KEY,
+                            billing_agreement_id TEXT,
+                            event_data TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """)
+                        
+                        # Insertar el evento pendiente
+                        cursor.execute("""
+                        INSERT OR REPLACE INTO pending_payments 
+                        (payment_id, billing_agreement_id, event_data) 
+                        VALUES (?, ?, ?)
+                        """, (payment_id, billing_agreement_id, json.dumps(event_data)))
+                        
+                        conn.commit()
+                        conn.close()
+                        
+                        logger.info(f"Evento de pago guardado para procesamiento posterior: {payment_id}, {billing_agreement_id}")
+                    except Exception as db_error:
+                        logger.error(f"Error al guardar pago pendiente: {db_error}")
         
-        return jsonify({"status": "success"}), 200
+        # Respuesta exitosa para cualquier tipo de evento
+        return jsonify({"status": "success", "message": "Evento procesado correctamente"}), 200
     except Exception as e:
         logger.error(f"Error al procesar webhook de PayPal: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
