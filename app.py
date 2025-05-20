@@ -10,7 +10,7 @@ import requests
 from telebot import types
 import database as db
 import payments as pay
-from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS, PLANS, DB_PATH, RECURRING_PAYMENTS_ENABLED
+from config import BOT_TOKEN, PORT, WEBHOOK_URL, ADMIN_IDS, PLANS, DB_PATH, RECURRING_PAYMENTS_ENABLED, SUBSCRIPTION_GRACE_PERIOD_HOURS
 
 admin_states = {}
 
@@ -1284,7 +1284,7 @@ def admin_panel():
                                stats=stats,
                                recent_subscriptions=recent_subscriptions,
                                recent_users=recent_users,
-                               now=now) 
+                               now=now, grace_period=SUBSCRIPTION_GRACE_PERIOD_HOURS) 
         
     except Exception as e:
         logger.error(f"Error en admin_panel: {str(e)}")

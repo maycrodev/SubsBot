@@ -2,6 +2,7 @@ import sqlite3
 import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from config import DB_PATH
+from config import SUBSCRIPTION_GRACE_PERIOD_HOURS
 import logging  # Añade esta línea
 
 # Configurar logging si no está configurado
@@ -678,7 +679,7 @@ def get_active_subscriptions_count(conn=None):
         close_conn = True
     
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(f"""
     SELECT COUNT(*) FROM subscriptions 
     WHERE 
         -- Suscripciones ACTIVE normales
@@ -686,7 +687,7 @@ def get_active_subscriptions_count(conn=None):
         OR
         -- Suscripciones en periodo de gracia con renovaciones recientes
         (status = 'ACTIVE' AND is_recurring = 1 AND paypal_sub_id IS NOT NULL 
-         AND datetime(end_date) BETWEEN datetime('now', '-10 hour') AND datetime('now'))
+         AND datetime(end_date) BETWEEN datetime('now', '-{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour') AND datetime('now'))
         OR
         -- Suscripciones con renovaciones recientes (detectadas por la tabla de renovaciones)
         (sub_id IN (SELECT sub_id FROM subscription_renewals 
@@ -775,14 +776,14 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
     try:
         # PASO 1: Marcar como EXPIRED solo las suscripciones ACTIVE que han expirado
         # MODIFICADO: No marcar como expiradas suscripciones recurrentes dentro del período de gracia
-        query = """
+        query = f"""
         UPDATE subscriptions 
         SET status = 'EXPIRED'
         WHERE 
             status = 'ACTIVE' AND 
             datetime(end_date) <= datetime('now') AND
             (is_recurring = 0 OR paypal_sub_id IS NULL OR 
-             datetime(end_date) < datetime('now', '-24 hour'))
+             datetime(end_date) < datetime('now', '-{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour'))
         """
         
         cursor.execute(query)
@@ -794,7 +795,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
         # PASO 2: Obtener todas las suscripciones expiradas o canceladas para procesamiento
         # MODIFICADO: Incluir explícitamente suscripciones CANCELLED
         if force:
-            expired_query = """
+            expired_query = f"""
             SELECT 
                 user_id, 
                 sub_id, 
@@ -808,7 +809,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 (status = 'EXPIRED' OR status = 'CANCELLED' OR 
                 (datetime(end_date) <= datetime('now')))
                 AND (is_recurring = 0 OR paypal_sub_id IS NULL OR 
-                     datetime(end_date) < datetime('now', '-24 hour'))
+                     datetime(end_date) < datetime('now', '-{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour'))
             """
         else:
             expired_query = """
@@ -1033,7 +1034,7 @@ def has_valid_subscription(user_id: int) -> bool:
         
         # PERÍODO DE GRACIA: Verificar suscripciones recurrentes en período de 24 horas
         # CORREGIDO: Añadir condición para excluir suscripciones canceladas
-        cursor.execute("""
+        cursor.execute(f"""
         SELECT s.sub_id, s.plan, s.end_date, s.paypal_sub_id 
         FROM subscriptions s
         WHERE s.user_id = ? 
@@ -1041,7 +1042,7 @@ def has_valid_subscription(user_id: int) -> bool:
         AND s.status != 'CANCELLED'
         AND s.is_recurring = 1
         AND s.paypal_sub_id IS NOT NULL
-        AND datetime(s.end_date) BETWEEN datetime('now', '-10 hour') AND datetime('now', '+10 hour')
+        AND datetime(s.end_date) BETWEEN datetime('now', '-{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour') AND datetime('now', '+{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour')
         ORDER BY s.end_date DESC
         LIMIT 1
         """, (user_id,))
