@@ -922,6 +922,7 @@ def paypal_webhook():
         
         # Log detallado para diagnóstico
         logger.info(f"PayPal webhook recibido: {event_type}")
+        logger.info(f"Contenido del webhook: {json.dumps(event_data, indent=2)}")
         
         # Extraer IDs relevantes para deduplicación
         resource = event_data.get("resource", {})
@@ -948,6 +949,10 @@ def paypal_webhook():
             
         # ----- Procesar BILLING.SUBSCRIPTION.CANCELLED -----
         if event_type == "BILLING.SUBSCRIPTION.CANCELLED" and billing_agreement_id:
+            # Registrar evento de cancelación para diagnóstico
+            logger.info(f"EVENTO DE CANCELACIÓN RECIBIDO: {event_type} para suscripción {billing_agreement_id}")
+            logger.info(f"Datos completos del evento: {json.dumps(event_data, indent=2)}")
+            
             # Obtener la suscripción
             subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
             
@@ -962,24 +967,43 @@ def paypal_webhook():
                 try:
                     from config import GROUP_CHAT_ID
                     if GROUP_CHAT_ID:
-                        # Expulsar usuario
-                        bot.ban_chat_member(
-                            chat_id=GROUP_CHAT_ID,
-                            user_id=user_id,
-                            revoke_messages=False
-                        )
+                        logger.info(f"Intentando expulsar al usuario {user_id} del grupo {GROUP_CHAT_ID}")
                         
-                        # Desbanear para permitir reingreso futuro
-                        bot.unban_chat_member(
-                            chat_id=GROUP_CHAT_ID,
-                            user_id=user_id,
-                            only_if_banned=True
-                        )
-                        
-                        # Registrar expulsión
-                        db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
+                        # Intentar expulsar al usuario (con reintentos)
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                logger.info(f"Intento {attempt+1}/{max_retries} de expulsar al usuario {user_id}")
+                                
+                                # Expulsar usuario
+                                bot.ban_chat_member(
+                                    chat_id=GROUP_CHAT_ID,
+                                    user_id=user_id,
+                                    revoke_messages=False
+                                )
+                                logger.info(f"Usuario {user_id} expulsado exitosamente")
+                                
+                                # Desbanear para permitir reingreso futuro
+                                bot.unban_chat_member(
+                                    chat_id=GROUP_CHAT_ID,
+                                    user_id=user_id,
+                                    only_if_banned=True
+                                )
+                                logger.info(f"Usuario {user_id} desbaneado exitosamente")
+                                
+                                # Registrar expulsión
+                                db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
+                                logger.info(f"Expulsión registrada para usuario {user_id}")
+                                
+                                break  # Salir del bucle si se expulsó exitosamente
+                            except Exception as e:
+                                logger.error(f"Error al expulsar usuario {user_id} (intento {attempt+1}/{max_retries}): {e}")
+                                if attempt < max_retries - 1:
+                                    time.sleep(2)  # Esperar antes de reintentar
+                                else:
+                                    logger.error(f"No se pudo expulsar al usuario {user_id} después de {max_retries} intentos")
                 except Exception as e:
-                    logger.error(f"Error al expulsar usuario {user_id}: {e}")
+                    logger.error(f"Error general al intentar expulsar al usuario {user_id}: {e}")
                 
                 # 3. Notificar al usuario
                 try:
@@ -1048,12 +1072,21 @@ def paypal_webhook():
                             db.extend_subscription(subscription['sub_id'], new_end_date)
                             logger.info(f"Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                             
-                            # Intentar notificar al usuario sobre la renovación
-                            import payments as pay
-                            try:
-                                pay.notify_successful_renewal(bot, subscription['user_id'], subscription, new_end_date)
-                            except Exception as notify_error:
-                                logger.error(f"Error al notificar renovación: {notify_error}")
+                            # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
+                            start_date = datetime.datetime.fromisoformat(subscription['start_date']).replace(tzinfo=None)
+                            time_difference = (now - start_date).total_seconds()
+                            
+                            # Si la suscripción se creó recientemente (menos de 5 minutos), es nueva
+                            is_new_subscription = time_difference < 300  # 5 minutos en segundos
+                            
+                            # Intentar notificar al usuario sobre la renovación SOLO si no es una suscripción nueva
+                            if not is_new_subscription:
+                                try:
+                                    pay.notify_successful_renewal(bot, subscription['user_id'], subscription, new_end_date)
+                                except Exception as notify_error:
+                                    logger.error(f"Error al notificar renovación: {notify_error}")
+                            else:
+                                logger.info(f"Nueva suscripción detectada para usuario {subscription['user_id']}, omitiendo notificación de renovación")
                             
                             # Registrar renovación en historial
                             try:
