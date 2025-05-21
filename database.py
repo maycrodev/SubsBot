@@ -925,7 +925,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
     cursor = conn.cursor()
     
     # Obtener la fecha actual para logging
-    current_time = datetime.datetime.now()
+    current_time = datetime.datetime.now(datetime.timezone.utc)  # Make timezone-aware
     logger.info(f"Verificación iniciada a: {current_time}")
     
     try:
@@ -993,8 +993,32 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 user_id = sub[0]
                 sub_id = sub[1]
                 plan = sub[2]
-                end_date = datetime.datetime.fromisoformat(sub[3]) if sub[3] else None
-                start_date = datetime.datetime.fromisoformat(sub[4]) if sub[4] else None
+                
+                # Fix: Handle timezone consistently when parsing dates
+                end_date_str = sub[3] if sub[3] else None
+                start_date_str = sub[4] if sub[4] else None
+                
+                # Create timezone-aware datetime objects
+                end_date = None
+                if end_date_str:
+                    try:
+                        # Parse the date and make it timezone-aware if it isn't already
+                        end_date = datetime.datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+                        if not end_date.tzinfo:
+                            end_date = end_date.replace(tzinfo=datetime.timezone.utc)
+                    except Exception as date_err:
+                        logger.error(f"Error parsing end_date: {date_err}")
+                
+                start_date = None
+                if start_date_str:
+                    try:
+                        # Parse the date and make it timezone-aware if it isn't already
+                        start_date = datetime.datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+                        if not start_date.tzinfo:
+                            start_date = start_date.replace(tzinfo=datetime.timezone.utc)
+                    except Exception as date_err:
+                        logger.error(f"Error parsing start_date: {date_err}")
+                
                 status = sub[5] 
                 sub_type = sub[6]
                 is_recurring = sub[7]
@@ -1013,6 +1037,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                     
                 time_diff = "N/A"
                 if end_date:
+                    # Now both end_date and current_time are timezone-aware
                     time_diff = current_time - end_date
                     
                 logger.info(f"""
