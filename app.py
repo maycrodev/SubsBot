@@ -951,7 +951,6 @@ def paypal_webhook():
         if event_type == "BILLING.SUBSCRIPTION.CANCELLED" and billing_agreement_id:
             # Registrar evento de cancelación para diagnóstico
             logger.info(f"⚠️ EVENTO DE CANCELACIÓN RECIBIDO: {event_type} para suscripción {billing_agreement_id}")
-            logger.info(f"Datos completos del evento: {json.dumps(event_data, indent=2)}")
             
             # Obtener la suscripción
             subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
@@ -973,61 +972,33 @@ def paypal_webhook():
                     elif GROUP_CHAT_ID:
                         logger.info(f"Intentando expulsar al usuario {user_id} del grupo {GROUP_CHAT_ID}")
                         
-                        # Verificar si el usuario está en el grupo antes de expulsar
+                        # Expulsar directamente, sin verificar si está en el grupo
                         try:
-                            chat_member = bot.get_chat_member(GROUP_CHAT_ID, user_id)
-                            if chat_member.status not in ['left', 'kicked']:
-                                # Intentar expulsar al usuario (con reintentos)
-                                expulsion_success = False
-                                max_retries = 3
-                                
-                                for attempt in range(max_retries):
-                                    try:
-                                        logger.info(f"Intento {attempt+1}/{max_retries} de expulsar al usuario {user_id}")
-                                        
-                                        # Expulsar usuario
-                                        bot.ban_chat_member(
-                                            chat_id=GROUP_CHAT_ID,
-                                            user_id=user_id,
-                                            revoke_messages=False
-                                        )
-                                        logger.info(f"Usuario {user_id} expulsado exitosamente")
-                                        
-                                        # Desbanear para permitir reingreso futuro
-                                        bot.unban_chat_member(
-                                            chat_id=GROUP_CHAT_ID,
-                                            user_id=user_id,
-                                            only_if_banned=True
-                                        )
-                                        logger.info(f"Usuario {user_id} desbaneado exitosamente")
-                                        
-                                        # Registrar expulsión
-                                        db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
-                                        logger.info(f"Expulsión registrada para usuario {user_id}")
-                                        
-                                        expulsion_success = True
-                                        break  # Salir del bucle si se expulsó exitosamente
-                                    except Exception as e:
-                                        logger.error(f"Error al expulsar usuario {user_id} (intento {attempt+1}/{max_retries}): {e}")
-                                        if attempt < max_retries - 1:
-                                            time.sleep(2)  # Esperar antes de reintentar
-                                
-                                if not expulsion_success:
-                                    logger.error(f"No se pudo expulsar al usuario {user_id} después de {max_retries} intentos")
-                                    # Registrar este fallo para reintento posterior
-                                    try:
-                                        db.record_failed_expulsion(user_id, "Cancelación de suscripción (webhook)", 
-                                                                  f"Falló después de {max_retries} intentos")
-                                    except Exception as record_error:
-                                        logger.error(f"Error al registrar fallo de expulsión: {record_error}")
-                            else:
-                                logger.info(f"Usuario {user_id} ya no está en el grupo. Estado: {chat_member.status}")
+                            # Expulsar usuario directamente sin verificaciones previas
+                            bot.ban_chat_member(
+                                chat_id=GROUP_CHAT_ID,
+                                user_id=user_id,
+                                revoke_messages=False
+                            )
+                            logger.info(f"Usuario {user_id} expulsado exitosamente")
+                            
+                            # Desbanear para permitir reingreso futuro
+                            bot.unban_chat_member(
+                                chat_id=GROUP_CHAT_ID,
+                                user_id=user_id,
+                                only_if_banned=True
+                            )
+                            logger.info(f"Usuario {user_id} desbaneado exitosamente")
+                            
+                            # Registrar expulsión
+                            db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
+                            logger.info(f"Expulsión registrada para usuario {user_id}")
                         except Exception as e:
-                            logger.error(f"Error al verificar miembro del chat {user_id}: {e}")
-                            # Registrar fallo para reintento posterior
+                            logger.error(f"Error al expulsar usuario {user_id}: {e}")
+                            # Forzar una verificación de seguridad para intentar nuevamente
                             try:
-                                db.record_failed_expulsion(user_id, "Cancelación de suscripción (webhook)", 
-                                                         f"Error al verificar: {str(e)}")
+                                import bot_handlers
+                                bot_handlers.force_security_check(bot)
                             except Exception:
                                 pass
                 except Exception as e:
@@ -1073,16 +1044,58 @@ def paypal_webhook():
                     
                     # Verificar que este pago específico no haya sido aplicado a esta suscripción
                     if not db.is_payment_processed(payment_id, event_type):
-                        # Calcular nueva fecha de expiración
+                        # IMPORTANTE: Verificar si este pago es para la creación inicial 
+                        # o para una renovación real
+                        start_date_str = subscription.get('start_date')
+                        
+                        # Asegurar que estamos manejando correctamente las zonas horarias
+                        if start_date_str:
+                            start_date = datetime.datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+                            if '+' not in start_date_str and 'Z' not in start_date_str:
+                                # Si no tiene zona horaria, asumimos que es UTC
+                                start_date = start_date.replace(tzinfo=datetime.timezone.utc)
+                        else:
+                            # Si no hay start_date, usar la fecha actual
+                            start_date = datetime.datetime.now(datetime.timezone.utc)
+                        
+                        now = datetime.datetime.now(datetime.timezone.utc)
+                        time_difference = (now - start_date).total_seconds()
+                        
+                        # Si la suscripción se creó recientemente, es parte del proceso inicial
+                        # Aumentamos el margen a 15 minutos para ser más conservadores
+                        is_initial_payment = time_difference < 900  # 15 minutos
+                        
+                        if is_initial_payment:
+                            logger.info(f"Este es el pago inicial de la suscripción {subscription['sub_id']}, NO extendiendo")
+                            
+                            # Marcar el evento como procesado para evitar duplicados
+                            db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
+                            
+                            return jsonify({"status": "success", "message": "Pago inicial procesado"}), 200
+                        
+                        # Si llegamos aquí, es una renovación real
                         from config import PLANS
                         plan_id = subscription['plan']
                         plan = PLANS.get(plan_id)
                         
                         if plan:
-                            # Verificar si la fecha ya expiró
-                            current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date')).replace(tzinfo=None)
-                            now = datetime.datetime.now()
+                            # Obtener fechas como objetos datetime con zona horaria UTC
+                            end_date_str = subscription.get('end_date')
                             
+                            if end_date_str:
+                                # Normalizar la fecha final para asegurar formato UTC
+                                if '+' in end_date_str or 'Z' in end_date_str:
+                                    # Ya tiene zona horaria, eliminar Z si existe y reemplazar con +00:00
+                                    current_end_date = datetime.datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+                                else:
+                                    # No tiene zona horaria, asumimos que es UTC
+                                    current_end_date = datetime.datetime.fromisoformat(end_date_str)
+                                    current_end_date = current_end_date.replace(tzinfo=datetime.timezone.utc)
+                            else:
+                                # Si no hay end_date, usar la fecha actual + 1 día
+                                current_end_date = now + datetime.timedelta(days=1)
+                            
+                            # Verificar si la fecha ya expiró
                             if current_end_date < now:
                                 # Ya expiró, calcular desde ahora
                                 days = plan['duration_days']
@@ -1100,22 +1113,12 @@ def paypal_webhook():
                             db.extend_subscription(subscription['sub_id'], new_end_date)
                             logger.info(f"Suscripción {subscription['sub_id']} extendida hasta {new_end_date}")
                             
-                            # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
-                            start_date = datetime.datetime.fromisoformat(subscription['start_date']).replace(tzinfo=None)
-                            time_difference = (now - start_date).total_seconds()
-                            
-                            # Si la suscripción se creó recientemente (menos de 5 minutos), es nueva
-                            is_new_subscription = time_difference < 300  # 5 minutos en segundos
-                            
-                            # Intentar notificar al usuario sobre la renovación SOLO si no es una suscripción nueva
-                            if not is_new_subscription:
-                                try:
-                                    import payments as pay
-                                    pay.notify_successful_renewal(bot, subscription['user_id'], subscription, new_end_date)
-                                except Exception as notify_error:
-                                    logger.error(f"Error al notificar renovación: {notify_error}")
-                            else:
-                                logger.info(f"Nueva suscripción detectada para usuario {subscription['user_id']}, omitiendo notificación de renovación")
+                            # Intentar notificar al usuario
+                            try:
+                                import payments as pay
+                                pay.notify_successful_renewal(bot, subscription['user_id'], subscription, new_end_date)
+                            except Exception as notify_error:
+                                logger.error(f"Error al notificar renovación: {notify_error}")
                             
                             # Registrar renovación en historial
                             try:
