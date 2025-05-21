@@ -1609,9 +1609,13 @@ def check_security_thread_status(bot):
 # Modificación 4: Añadir una función para forzar la expulsión inmediata de todos los usuarios con suscripciones expiradas
 # Añade esta nueva función al archivo:
 
-def force_security_check(bot):
+def force_security_check(bot, specific_users=None):
     """
     Fuerza una verificación de seguridad inmediata y expulsa a todos los usuarios con suscripciones expiradas.
+    
+    Args:
+        bot: Instancia del bot
+        specific_users: Lista opcional de IDs de usuarios para verificar específicamente
     """
     try:
         logger.info("🔍 Iniciando verificación de seguridad forzada...")
@@ -1622,14 +1626,39 @@ def force_security_check(bot):
             logger.error("❌ El bot no tiene los permisos necesarios para realizar expulsiones")
             return False
         
-        # Forzar la actualización de suscripciones expiradas
+        # Forzar la actualización de suscripciones expiradas y canceladas
         expired_subscriptions = db.check_and_update_subscriptions(force=True)
+        
+        # Si se proporcionaron usuarios específicos, filtrar para incluir solo esos usuarios
+        if specific_users and len(specific_users) > 0:
+            logger.info(f"Verificando específicamente los usuarios: {specific_users}")
+            expired_filtered = []
+            for sub in expired_subscriptions:
+                user_id, sub_id, plan = sub
+                if user_id in specific_users:
+                    expired_filtered.append(sub)
+                    logger.info(f"Usuario {user_id} incluido en la verificación específica")
+            
+            # Si no hay ninguna suscripción expirada para los usuarios específicos, buscar suscripciones canceladas
+            if not expired_filtered:
+                for user_id in specific_users:
+                    # Obtener la última suscripción del usuario
+                    sub = db.get_subscription_by_user_id(user_id)
+                    if sub and sub.get('status') == 'CANCELLED':
+                        expired_filtered.append((user_id, sub.get('sub_id'), sub.get('plan')))
+                        logger.info(f"Añadiendo suscripción cancelada del usuario {user_id} a la verificación específica")
+            
+            # Usar la lista filtrada
+            expired_subscriptions = expired_filtered
+            
+            if not expired_subscriptions:
+                logger.info(f"No se encontraron suscripciones expiradas o canceladas para los usuarios específicos")
         
         if not expired_subscriptions:
             logger.info("✅ No hay suscripciones expiradas que procesar")
             return True
         
-        logger.info(f"Encontradas {len(expired_subscriptions)} suscripciones expiradas")
+        logger.info(f"Encontradas {len(expired_subscriptions)} suscripciones expiradas o canceladas")
         
         # Realizar expulsión de usuarios con suscripciones expiradas
         if GROUP_CHAT_ID:
@@ -1643,7 +1672,7 @@ def force_security_check(bot):
                     try:
                         bot.send_message(
                             chat_id=admin_id,
-                            text=f"✅ Verificación forzada completada: {len(expired_subscriptions)} suscripciones expiradas procesadas"
+                            text=f"✅ Verificación forzada completada: {len(expired_subscriptions)} suscripciones expiradas/canceladas procesadas"
                         )
                     except Exception:
                         pass

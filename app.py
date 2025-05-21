@@ -972,37 +972,44 @@ def paypal_webhook():
                     elif GROUP_CHAT_ID:
                         logger.info(f"Intentando expulsar al usuario {user_id} del grupo {GROUP_CHAT_ID}")
                         
-                        # Expulsar directamente, sin verificar si está en el grupo
-                        try:
-                            # Expulsar usuario directamente sin verificaciones previas
-                            bot.ban_chat_member(
-                                chat_id=GROUP_CHAT_ID,
-                                user_id=user_id,
-                                revoke_messages=False
-                            )
-                            logger.info(f"Usuario {user_id} expulsado exitosamente")
-                            
-                            # Desbanear para permitir reingreso futuro
-                            bot.unban_chat_member(
-                                chat_id=GROUP_CHAT_ID,
-                                user_id=user_id,
-                                only_if_banned=True
-                            )
-                            logger.info(f"Usuario {user_id} desbaneado exitosamente")
-                            
-                            # Registrar expulsión
-                            db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
-                            logger.info(f"Expulsión registrada para usuario {user_id}")
-                        except Exception as e:
-                            logger.error(f"Error al expulsar usuario {user_id}: {e}")
-                            # Forzar una verificación de seguridad para intentar nuevamente
+                        # MEJORA: Implementar mecanismo de reintentos más robusto
+                        max_retries = 3
+                        for attempt in range(max_retries):
                             try:
-                                import bot_handlers
-                                bot_handlers.force_security_check(bot)
-                            except Exception:
-                                pass
+                                # Expulsar usuario directamente
+                                logger.info(f"Intento {attempt+1}/{max_retries} de expulsión para usuario {user_id}")
+                                bot.ban_chat_member(
+                                    chat_id=GROUP_CHAT_ID,
+                                    user_id=user_id,
+                                    revoke_messages=False
+                                )
+                                logger.info(f"Usuario {user_id} expulsado exitosamente")
+                                
+                                # Desbanear para permitir reingreso futuro
+                                bot.unban_chat_member(
+                                    chat_id=GROUP_CHAT_ID,
+                                    user_id=user_id,
+                                    only_if_banned=True
+                                )
+                                logger.info(f"Usuario {user_id} desbaneado exitosamente")
+                                
+                                # Registrar expulsión
+                                db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
+                                logger.info(f"Expulsión registrada para usuario {user_id}")
+                                break
+                            except Exception as e:
+                                logger.error(f"Error en intento {attempt+1} al expulsar usuario {user_id}: {e}")
+                                if attempt < max_retries - 1:
+                                    time.sleep(2)  # Esperar antes de reintentar
+                        
+                        # MEJORA: Si después de los reintentos no se pudo expulsar, registrar el fallo para procesamiento posterior
+                        if attempt == max_retries - 1:
+                            db.record_failed_expulsion(user_id, "Cancelación de suscripción", str(e))
+                            logger.warning(f"Se registró la expulsión fallida del usuario {user_id} para procesamiento posterior")
                 except Exception as e:
                     logger.error(f"Error general al intentar expulsar al usuario {user_id}: {e}")
+                    # Registrar el fallo para procesamiento posterior
+                    db.record_failed_expulsion(user_id, "Cancelación de suscripción", str(e))
                 
                 # 3. Notificar al usuario
                 try:
@@ -1022,7 +1029,8 @@ def paypal_webhook():
                 # 4. Forzar verificación de seguridad 
                 try:
                     import bot_handlers
-                    bot_handlers.force_security_check(bot)
+                    # MEJORA: Pasar el ID de usuario cancelado para priorizar su verificación
+                    bot_handlers.force_security_check(bot, [user_id])
                     logger.info(f"Verificación de seguridad forzada después de cancelación de suscripción {subscription['sub_id']}")
                 except Exception as e:
                     logger.error(f"Error al forzar verificación: {e}")
@@ -1079,9 +1087,12 @@ def paypal_webhook():
                         plan = PLANS.get(plan_id)
                         
                         if plan:
-                            # Obtener fechas como objetos datetime con zona horaria UTC
-                            end_date_str = subscription.get('end_date')
+                            # IMPORTANTE: Usar el cálculo preciso de horas para evitar duplicaciones
+                            plan_days = plan['duration_days']
+                            plan_hours = int(plan_days * 24)
                             
+                            # Determinar fecha base para extensión
+                            end_date_str = subscription.get('end_date')
                             if end_date_str:
                                 # Normalizar la fecha final para asegurar formato UTC
                                 if '+' in end_date_str or 'Z' in end_date_str:
@@ -1098,16 +1109,12 @@ def paypal_webhook():
                             # Verificar si la fecha ya expiró
                             if current_end_date < now:
                                 # Ya expiró, calcular desde ahora
-                                days = plan['duration_days']
-                                hours = int(days * 24)
-                                new_end_date = now + datetime.timedelta(hours=hours)
-                                logger.info(f"Suscripción expirada: Calculando desde ahora, días={days}, horas={hours}")
+                                new_end_date = now + datetime.timedelta(hours=plan_hours)
+                                logger.info(f"Suscripción expirada: Calculando desde ahora, horas={plan_hours}")
                             else:
                                 # Aún activa, extender desde la fecha actual
-                                days = plan['duration_days']
-                                hours = int(days * 24)
-                                new_end_date = current_end_date + datetime.timedelta(hours=hours)
-                                logger.info(f"Suscripción activa: Extendiendo desde fecha actual, días={days}, horas={hours}")
+                                new_end_date = current_end_date + datetime.timedelta(hours=plan_hours)
+                                logger.info(f"Suscripción activa: Extendiendo desde fecha actual, horas={plan_hours}")
                             
                             # Extender la suscripción
                             db.extend_subscription(subscription['sub_id'], new_end_date)
@@ -1148,6 +1155,89 @@ def paypal_webhook():
                     logger.warning(f"No se encontró suscripción para billing_id {billing_agreement_id}")
             else:
                 logger.warning(f"Evento PAYMENT.SALE.COMPLETED sin billing_agreement_id")
+        
+        # ----- Procesar BILLING.SUBSCRIPTION.ACTIVATED -----
+        elif event_type == "BILLING.SUBSCRIPTION.ACTIVATED" and billing_agreement_id:
+            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+            
+            if subscription:
+                logger.info(f"Procesando activación para suscripción {subscription['sub_id']}")
+                
+                # Verificar si el estatus actual no es ACTIVE
+                if subscription.get('status') != 'ACTIVE':
+                    # Actualizar a estado ACTIVE
+                    db.update_subscription_status(subscription['sub_id'], "ACTIVE")
+                    logger.info(f"Suscripción {subscription['sub_id']} actualizada a ACTIVE")
+                
+                # Marcar evento como procesado
+                db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
+                
+                return jsonify({"status": "success", "message": "Activación procesada exitosamente"}), 200
+            else:
+                logger.warning(f"No se encontró suscripción para ID: {billing_agreement_id}")
+        
+        # ----- Procesar BILLING.SUBSCRIPTION.SUSPENDED -----
+        elif event_type == "BILLING.SUBSCRIPTION.SUSPENDED" and billing_agreement_id:
+            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+            
+            if subscription:
+                logger.info(f"Procesando suspensión para suscripción {subscription['sub_id']}")
+                
+                # Actualizar estado en BD
+                db.update_subscription_status(subscription['sub_id'], "SUSPENDED")
+                
+                # Notificar al usuario
+                try:
+                    user_id = subscription.get('user_id')
+                    if user_id:
+                        bot.send_message(
+                            chat_id=user_id,
+                            text=(
+                                "⚠️ *Tu suscripción ha sido suspendida*\n\n"
+                                "Tu acceso al grupo VIP puede verse afectado. Por favor, verifica tu método de pago "
+                                "en PayPal para reactivar tu suscripción."
+                            ),
+                            parse_mode='Markdown'
+                        )
+                except Exception as e:
+                    logger.error(f"Error al notificar suspensión a usuario: {e}")
+                
+                # Marcar evento como procesado
+                db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
+                
+                return jsonify({"status": "success", "message": "Suspensión procesada exitosamente"}), 200
+            else:
+                logger.warning(f"No se encontró suscripción para ID: {billing_agreement_id}")
+        
+        # ----- Procesar BILLING.SUBSCRIPTION.PAYMENT.FAILED -----
+        elif event_type == "BILLING.SUBSCRIPTION.PAYMENT.FAILED" and billing_agreement_id:
+            subscription = db.get_subscription_by_paypal_id(billing_agreement_id)
+            
+            if subscription:
+                logger.info(f"Procesando fallo de pago para suscripción {subscription['sub_id']}")
+                
+                # Notificar al usuario sobre el pago fallido
+                try:
+                    user_id = subscription.get('user_id')
+                    if user_id:
+                        bot.send_message(
+                            chat_id=user_id,
+                            text=(
+                                "⚠️ *Pago fallido*\n\n"
+                                "No pudimos procesar el pago de tu suscripción. Por favor, verifica tu método de pago "
+                                "en PayPal para evitar la cancelación de tu acceso al grupo VIP."
+                            ),
+                            parse_mode='Markdown'
+                        )
+                except Exception as e:
+                    logger.error(f"Error al notificar pago fallido a usuario: {e}")
+                
+                # Marcar evento como procesado
+                db.mark_payment_processed(payment_id, event_type, subscription['sub_id'])
+                
+                return jsonify({"status": "success", "message": "Fallo de pago procesado exitosamente"}), 200
+            else:
+                logger.warning(f"No se encontró suscripción para ID: {billing_agreement_id}")
         
         # ----- Procesar otros tipos de evento -----
         # Marcar el evento como procesado de todas formas

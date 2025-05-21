@@ -409,29 +409,55 @@ def create_subscription(
     end_date: datetime.datetime, 
     status: str = 'ACTIVE', 
     paypal_sub_id: str = None,
-    is_recurring: bool = None  # Añadir este parámetro opcional
+    is_recurring: bool = None  # Opcional
 ) -> int:
+    """
+    Crea una nueva suscripción con duración exacta calculada en horas
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Verificar si la columna is_recurring existe, si no, crearla
-    cursor.execute("PRAGMA table_info(subscriptions)")
-    columns = [column[1] for column in cursor.fetchall()]
-    
-    if 'is_recurring' not in columns:
-        cursor.execute('ALTER TABLE subscriptions ADD COLUMN is_recurring BOOLEAN DEFAULT 1')
+    try:
+        # Verificar si la columna is_recurring existe, si no, crearla
+        cursor.execute("PRAGMA table_info(subscriptions)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'is_recurring' not in columns:
+            cursor.execute('ALTER TABLE subscriptions ADD COLUMN is_recurring BOOLEAN DEFAULT 1')
+            conn.commit()
+        
+        # MEJORA: Calcular duración exacta en horas
+        from config import PLANS
+        plan_config = PLANS.get(plan, {})
+        plan_days = plan_config.get('duration_days', 30)
+        plan_hours = int(plan_days * 24)
+        
+        # Calcular la fecha de fin exacta basada en la hora
+        corrected_end_date = start_date + datetime.timedelta(hours=plan_hours)
+        
+        # Usar la fecha calculada en lugar de la proporcionada
+        end_date = corrected_end_date
+        
+        logger.info(f"Creando suscripción: Plan {plan}, Duración {plan_days} días ({plan_hours} horas)")
+        logger.info(f"Fecha inicio: {start_date}, Fecha fin calculada: {end_date}")
+        
+        cursor.execute('''
+        INSERT INTO subscriptions (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id, is_recurring)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id, is_recurring))
+        
+        sub_id = cursor.lastrowid
         conn.commit()
+        
+        return sub_id
     
-    cursor.execute('''
-    INSERT INTO subscriptions (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id, is_recurring)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (user_id, plan, price_usd, start_date, end_date, status, paypal_sub_id, is_recurring))
-    
-    sub_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return sub_id
+    except Exception as e:
+        logger.error(f"Error en create_subscription: {str(e)}")
+        conn.rollback()
+        return -1
+        
+    finally:
+        conn.close()
 
 def get_subscription_by_payment_id(payment_id: str) -> Optional[Dict]:
     """Obtiene una suscripción por su ID de pago en PayPal (order_id para pagos únicos)"""
@@ -512,95 +538,107 @@ def update_subscription_status(sub_id: int, status: str) -> bool:
 def extend_subscription(sub_id: int, new_end_date: datetime.datetime) -> bool:
     """
     Extiende la fecha de expiración de una suscripción y asegura que mantenga estado ACTIVE
+    (pero solo si no está cancelada)
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Registrar información para diagnóstico
-    logger.info(f"Extendiendo suscripción {sub_id} hasta {new_end_date}")
-    
-    # Obtener información actual de la suscripción
-    cursor.execute('SELECT status, end_date, start_date, plan FROM subscriptions WHERE sub_id = ?', (sub_id,))
-    current = cursor.fetchone()
-    
-    if not current:
-        logger.error(f"No se encontró la suscripción {sub_id} para extender")
-        conn.close()
-        return False
-    
-    current_status = current[0]
-    current_end_date = current[1]
-    current_start_date = current[2]
-    plan_id = current[3]
-    
-    # Verificar que la nueva fecha sea posterior a la fecha actual
-    now = datetime.datetime.now()
-    if new_end_date <= now:
-        logger.error(f"La nueva fecha de fin ({new_end_date}) es anterior o igual a la fecha actual ({now})")
-        new_end_date = now + datetime.timedelta(hours=1)  # Mínimo 1 hora de extensión como salvaguarda
-        logger.warning(f"Ajustando fecha de fin a {new_end_date} para evitar expiración inmediata")
-    
-    # Verificar que la nueva fecha sea posterior a la fecha original de fin
     try:
-        original_end = datetime.datetime.fromisoformat(current_end_date)
-        original_start = datetime.datetime.fromisoformat(current_start_date)
+        # Registrar información para diagnóstico
+        logger.info(f"Extendiendo suscripción {sub_id} hasta {new_end_date}")
         
-        # Calcular la duración original en días para verificación
-        original_duration_days = (original_end - original_start).total_seconds() / (24 * 3600)
+        # Obtener información actual de la suscripción
+        cursor.execute('SELECT status, end_date, start_date, plan FROM subscriptions WHERE sub_id = ?', (sub_id,))
+        current = cursor.fetchone()
         
-        # Calcular la nueva duración para verificación
-        new_duration_days = (new_end_date - original_start).total_seconds() / (24 * 3600)
+        if not current:
+            logger.error(f"No se encontró la suscripción {sub_id} para extender")
+            conn.close()
+            return False
         
-        # Log para diagnóstico
-        logger.info(f"Plan: {plan_id}")
-        logger.info(f"Fecha start original: {original_start}")
-        logger.info(f"Fecha end original: {original_end}")
-        logger.info(f"Nueva fecha end: {new_end_date}")
-        logger.info(f"Duración original: {original_duration_days:.2f} días")
-        logger.info(f"Nueva duración: {new_duration_days:.2f} días")
+        current_status = current[0]
+        current_end_date = current[1]
+        current_start_date = current[2]
+        plan_id = current[3]
         
-        # Verificar si la nueva duración parece duplicada respecto a la original
-        from config import PLANS
-        plan_duration = PLANS.get(plan_id, {}).get('duration_days', 30)
+        # MEJORA: No extender suscripciones canceladas
+        if current_status == 'CANCELLED':
+            logger.info(f"No se extiende suscripción {sub_id} porque está CANCELADA")
+            conn.close()
+            return False
         
-        # Si la nueva duración es más del doble de la duración del plan, podría ser un error
-        if new_duration_days > (plan_duration * 2.1) and not is_whitelist_subscription(sub_id):
-            logger.warning(f"⚠️ POSIBLE DUPLICACIÓN: Duración calculada ({new_duration_days:.2f} días) es más del doble que la duración del plan ({plan_duration} días)")
+        # Verificar que la nueva fecha sea posterior a la fecha actual
+        now = datetime.datetime.now()
+        if new_end_date <= now:
+            logger.error(f"La nueva fecha de fin ({new_end_date}) es anterior o igual a la fecha actual ({now})")
+            new_end_date = now + datetime.timedelta(hours=1)  # Mínimo 1 hora de extensión como salvaguarda
+            logger.warning(f"Ajustando fecha de fin a {new_end_date} para evitar expiración inmediata")
+        
+        # MEJORA: Calcular con precisión de horas en lugar de días para evitar duplicación
+        try:
+            original_end = datetime.datetime.fromisoformat(current_end_date)
+            original_start = datetime.datetime.fromisoformat(current_start_date)
             
-            # Para evitar extensiones duplicadas, calculamos la fecha correcta
-            correct_end_date = original_start + datetime.timedelta(days=plan_duration)
-            logger.info(f"Fecha de fin corregida: {correct_end_date}")
+            # Importar configuración de planes
+            from config import PLANS
+            plan_config = PLANS.get(plan_id, {})
             
-            # Solo si la fecha corregida es posterior a la fecha actual, la utilizamos
-            if correct_end_date > now:
-                new_end_date = correct_end_date
-                logger.info(f"Usando fecha de fin corregida: {new_end_date}")
+            # MEJORA: Obtener duración en horas para mayor precisión
+            plan_duration_days = plan_config.get('duration_days', 30)
+            plan_duration_hours = int(plan_duration_days * 24)
+            
+            # Calcular extensión desde la fecha de fin actual o desde ahora, la que sea mayor
+            if original_end > now:
+                # Si la suscripción aún no ha expirado, extender desde la fecha fin actual
+                extension_base = original_end
             else:
-                logger.info(f"La fecha corregida es antigua, manteniendo nueva fecha: {new_end_date}")
+                # Si ya expiró, extender desde ahora
+                extension_base = now
+            
+            # Calcular la nueva fecha fin con la duración exacta en horas
+            corrected_end_date = extension_base + datetime.timedelta(hours=plan_duration_hours)
+            
+            logger.info(f"Fecha start original: {original_start}")
+            logger.info(f"Fecha end original: {original_end}")
+            logger.info(f"Base de extensión: {extension_base}")
+            logger.info(f"Duración del plan en horas: {plan_duration_hours}")
+            logger.info(f"Nueva fecha calculada: {corrected_end_date}")
+            logger.info(f"Fecha proporcionada: {new_end_date}")
+            
+            # MEJORA: Usar siempre la fecha calculada para evitar duplicaciones
+            new_end_date = corrected_end_date
+            
+        except Exception as e:
+            logger.error(f"Error al calcular nueva fecha: {e}")
+            # En caso de error, mantener la fecha proporcionada
+        
+        # Actualizar la suscripción
+        cursor.execute('''
+        UPDATE subscriptions 
+        SET end_date = ?, 
+            status = 'ACTIVE' 
+        WHERE sub_id = ? AND status != 'CANCELLED'
+        ''', (new_end_date, sub_id))
+        
+        affected = cursor.rowcount
+        conn.commit()
+        
+        # Registrar cambio específico de fecha solo si se actualizó
+        if affected > 0:
+            logger.info(f"Suscripción {sub_id}: Cambiando fecha de fin de {current_end_date} a {new_end_date}")
+            if current_status != 'ACTIVE':
+                logger.info(f"Suscripción {sub_id} cambió de estado {current_status} a ACTIVE")
+        else:
+            logger.warning(f"No se actualizó la suscripción {sub_id}")
+        
+        return affected > 0
+        
     except Exception as e:
-        logger.error(f"Error al verificar duración de suscripción: {e}")
-    
-    # Registrar cambio específico de fecha
-    logger.info(f"Suscripción {sub_id}: Cambiando fecha de fin de {current_end_date} a {new_end_date}")
-    
-    # Actualizar la suscripción
-    cursor.execute('''
-    UPDATE subscriptions 
-    SET end_date = ?, 
-        status = 'ACTIVE' 
-    WHERE sub_id = ?
-    ''', (new_end_date, sub_id))
-    
-    affected = cursor.rowcount
-    conn.commit()
-    
-    # Registrar cambio de estado si es necesario
-    if current_status != 'ACTIVE':
-        logger.info(f"Suscripción {sub_id} cambió de estado {current_status} a ACTIVE")
-    
-    conn.close()
-    
-    return affected > 0
+        logger.error(f"Error en extend_subscription: {str(e)}")
+        return False
+        
+    finally:
+        conn.close()
 
 def mark_failed_expulsion_processed(fail_id: int) -> bool:
     """
@@ -877,7 +915,7 @@ def close_expired_subscriptions(bot=None):
 
 def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
     """
-    Verifica y actualiza el estado de las suscripciones expiradas
+    Verifica y actualiza el estado de las suscripciones expiradas y canceladas
     Retorna lista de (user_id, sub_id, plan)
     
     Args:
@@ -892,21 +930,13 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
     
     try:
         # PASO 1: Marcar como EXPIRED solo las suscripciones ACTIVE que han expirado
-        # IMPORTANTE: No marcar como expiradas suscripciones recurrentes dentro del período de gracia
-        query = f"""
+        # MEJORA: Usar 24 horas como período de gracia estándar
+        query = """
         UPDATE subscriptions 
         SET status = 'EXPIRED'
         WHERE 
             status = 'ACTIVE' AND 
-            datetime(end_date) <= datetime('now') AND
-            (
-                -- No es recurrente
-                is_recurring = 0 
-                -- O no tiene ID de PayPal (manual/whitelist)
-                OR paypal_sub_id IS NULL 
-                -- O ya expiró hace más del período de gracia
-                OR datetime(end_date) < datetime('now', '-{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour')
-            )
+            datetime(end_date) <= datetime('now', '-24 hour')
         """
         
         cursor.execute(query)
@@ -916,8 +946,9 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
         logger.info(f"Suscripciones actualizadas a EXPIRED: {affected_rows}")
         
         # PASO 2: Obtener todas las suscripciones expiradas o canceladas para procesamiento
+        # MEJORA: Siempre incluir suscripciones CANCELLED en la verificación
         if force:
-            expired_query = f"""
+            expired_query = """
             SELECT 
                 user_id, 
                 sub_id, 
@@ -930,19 +961,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 paypal_sub_id
             FROM subscriptions 
             WHERE 
-                -- Ya marcada como expirada o cancelada
-                (status = 'EXPIRED' OR status = 'CANCELLED')
-                
-                -- O una suscripción activa que debería estar expirada (fuera del período de gracia)
-                OR (
-                    status = 'ACTIVE' AND 
-                    datetime(end_date) <= datetime('now') AND
-                    (
-                        is_recurring = 0 
-                        OR paypal_sub_id IS NULL 
-                        OR datetime(end_date) < datetime('now', '-{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour')
-                    )
-                )
+                status = 'EXPIRED' OR status = 'CANCELLED'
             """
         else:
             expired_query = """
@@ -967,6 +986,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
         whitelist_count = 0
         paid_count = 0
         cancelled_count = 0
+        expired_count = 0
         
         for sub in expired_subscriptions:
             try:
@@ -988,18 +1008,19 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 
                 if status == 'CANCELLED':
                     cancelled_count += 1
+                elif status == 'EXPIRED':
+                    expired_count += 1
                     
                 time_diff = "N/A"
                 if end_date:
                     time_diff = current_time - end_date
                     
                 logger.info(f"""
-                Suscripción expirada/cancelada:
+                Suscripción {status}:
                 - User ID: {user_id}
                 - Sub ID: {sub_id}
                 - Plan: {plan}
                 - Tipo: {sub_type}
-                - Status: {status}
                 - Recurrente: {is_recurring}
                 - PayPal ID: {paypal_sub_id}
                 - Fecha de inicio: {start_date}
@@ -1008,9 +1029,9 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 """)
                 
             except Exception as e:
-                logger.error(f"Error al procesar datos de suscripción expirada: {e}")
+                logger.error(f"Error al procesar datos de suscripción: {e}")
         
-        logger.info(f"Total: {len(expired_subscriptions)} (Whitelist: {whitelist_count}, Pagadas: {paid_count}, Canceladas: {cancelled_count})")
+        logger.info(f"Total: {len(expired_subscriptions)} (Whitelist: {whitelist_count}, Pagadas: {paid_count}, Canceladas: {cancelled_count}, Expiradas: {expired_count})")
         
         # PASO 3: Verificar si cada usuario tiene alguna otra suscripción válida antes de expulsarlo
         filtered_subscriptions = []
@@ -1018,13 +1039,20 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
             user_id = sub[0]
             sub_id = sub[1]
             plan = sub[2]
+            status = sub[5]
+            
+            # MEJORA: Si la suscripción está cancelada, siempre incluirla
+            if status == 'CANCELLED':
+                logger.info(f"Incluyendo usuario {user_id} con suscripción CANCELADA (sub_id: {sub_id})")
+                filtered_subscriptions.append((user_id, sub_id, plan))
+                continue
             
             # Verificar que el usuario no tenga ninguna suscripción válida
-            if db.has_valid_subscription(user_id):
-                logger.info(f"Omitiendo usuario {user_id} (sub_id: {sub_id}) porque tiene otra suscripción válida o en período de gracia")
-                continue
-                
-            filtered_subscriptions.append((user_id, sub_id, plan))
+            if not db.has_valid_subscription(user_id):
+                logger.info(f"Usuario {user_id} no tiene suscripciones válidas, incluyendo para expulsión")
+                filtered_subscriptions.append((user_id, sub_id, plan))
+            else:
+                logger.info(f"Omitiendo usuario {user_id} (sub_id: {sub_id}) porque tiene otra suscripción válida")
         
         logger.info(f"Total de suscripciones a procesar después de filtrado: {len(filtered_subscriptions)} de {len(expired_subscriptions)}")
         
@@ -1204,7 +1232,22 @@ def has_valid_subscription(user_id: int) -> bool:
     cursor = conn.cursor()
     
     try:
-        # PASO 1: Verificar suscripciones activas que no han expirado
+        # PASO 1: Verificar si hay alguna suscripción CANCELLED reciente
+        # MEJORA: Primero verificamos si hay suscripciones canceladas para evitar problemas
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions 
+        WHERE user_id = ? 
+        AND status = 'CANCELLED'
+        AND datetime(end_date) > datetime('now', '-1 day')
+        """, (user_id,))
+        
+        cancelled_count = cursor.fetchone()[0]
+        
+        if cancelled_count > 0:
+            logger.info(f"Usuario {user_id} tiene suscripciones canceladas recientes")
+            return False  # Si hay suscripciones canceladas recientes, no se considera válido
+        
+        # PASO 2: Verificar suscripciones activas que no han expirado
         cursor.execute("""
         SELECT COUNT(*) FROM subscriptions 
         WHERE user_id = ? 
@@ -1218,7 +1261,8 @@ def has_valid_subscription(user_id: int) -> bool:
             logger.info(f"Usuario {user_id} tiene {count} suscripciones activas vigentes")
             return True
         
-        # PASO 2: PERÍODO DE GRACIA: Verificar suscripciones recurrentes en período de gracia
+        # PASO 3: PERÍODO DE GRACIA: Verificar suscripciones recurrentes en período de gracia
+        # MEJORA: Aumentar el período de gracia a 24 horas para manejar los adelantos de PayPal
         cursor.execute(f"""
         SELECT s.sub_id, s.plan, s.end_date, s.paypal_sub_id 
         FROM subscriptions s
@@ -1226,7 +1270,7 @@ def has_valid_subscription(user_id: int) -> bool:
         AND s.status = 'ACTIVE'
         AND s.is_recurring = 1
         AND s.paypal_sub_id IS NOT NULL
-        AND datetime(s.end_date) BETWEEN datetime('now', '-{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour') AND datetime('now', '+{SUBSCRIPTION_GRACE_PERIOD_HOURS} hour')
+        AND datetime(s.end_date) BETWEEN datetime('now', '-24 hour') AND datetime('now', '+24 hour')
         ORDER BY s.end_date DESC
         LIMIT 1
         """, (user_id,))
@@ -1242,7 +1286,7 @@ def has_valid_subscription(user_id: int) -> bool:
                         f"(plan {plan}) en período de gracia ({end_date}), considerando válida")
             return True
             
-        # PASO 3: También verificar si hay renovaciones recientes en las últimas 36 horas
+        # PASO 4: También verificar si hay renovaciones recientes en las últimas 36 horas
         cursor.execute("""
         SELECT COUNT(*) FROM subscription_renewals
         WHERE user_id = ? AND renewal_date >= datetime('now', '-36 hour')
@@ -1253,26 +1297,8 @@ def has_valid_subscription(user_id: int) -> bool:
         if recent_renewals > 0:
             logger.info(f"Usuario {user_id} tiene {recent_renewals} renovaciones recientes, considerado válido")
             return True
-            
-        # PASO 4: Verificar si la suscripción fue cancelada recientemente (para darle tiempo a los webhooks)
-        cursor.execute("""
-        SELECT COUNT(*) FROM processed_payments
-        WHERE processed_at >= datetime('now', '-24 hour')
-        AND event_type = 'BILLING.SUBSCRIPTION.CANCELLED'
-        AND EXISTS (
-            SELECT 1 FROM subscriptions
-            WHERE user_id = ?
-            AND paypal_sub_id = processed_payments.payment_id
-        )
-        """, (user_id,))
         
-        recent_cancellations = cursor.fetchone()[0]
-        
-        if recent_cancellations > 0:
-            logger.info(f"Usuario {user_id} tiene cancelaciones recientes, verificando si debe ser expulsado")
-            # Si hay cancelaciones recientes, deberíamos expulsar al usuario
-            return False
-            
+        # Si llegamos aquí, no hay ninguna suscripción válida
         return False
         
     except Exception as e:
