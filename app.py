@@ -934,6 +934,11 @@ def paypal_webhook():
         # Si es BILLING.SUBSCRIPTION.ACTIVATED, usar el ID de resource directamente
         if not billing_agreement_id and event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
             billing_agreement_id = resource.get("id", "")
+            
+        # CORRECCIÓN: Para eventos de cancelación, asegurarnos de obtener el ID correcto
+        if not billing_agreement_id and event_type == "BILLING.SUBSCRIPTION.CANCELLED":
+            billing_agreement_id = resource.get("id", "")
+            logger.info(f"Usando ID directo para cancelación: {billing_agreement_id}")
         
         # Usar billing_agreement_id como payment_id si existe, sino usar el ID del recurso
         payment_id = billing_agreement_id or payment_id
@@ -960,6 +965,7 @@ def paypal_webhook():
                 
                 # 1. Actualizar estado en BD
                 db.update_subscription_status(subscription['sub_id'], "CANCELLED")
+                logger.info(f"Estado de suscripción {subscription['sub_id']} actualizado a CANCELLED")
                 
                 # 2. Expulsar usuario
                 user_id = subscription['user_id']
