@@ -950,7 +950,7 @@ def paypal_webhook():
         # ----- Procesar BILLING.SUBSCRIPTION.CANCELLED -----
         if event_type == "BILLING.SUBSCRIPTION.CANCELLED" and billing_agreement_id:
             # Registrar evento de cancelación para diagnóstico
-            logger.info(f"EVENTO DE CANCELACIÓN RECIBIDO: {event_type} para suscripción {billing_agreement_id}")
+            logger.info(f"⚠️ EVENTO DE CANCELACIÓN RECIBIDO: {event_type} para suscripción {billing_agreement_id}")
             logger.info(f"Datos completos del evento: {json.dumps(event_data, indent=2)}")
             
             # Obtener la suscripción
@@ -965,43 +965,71 @@ def paypal_webhook():
                 # 2. Expulsar usuario
                 user_id = subscription['user_id']
                 try:
-                    from config import GROUP_CHAT_ID
-                    if GROUP_CHAT_ID:
+                    from config import GROUP_CHAT_ID, ADMIN_IDS
+                    
+                    # No expulsar administradores
+                    if user_id in ADMIN_IDS:
+                        logger.info(f"No se expulsa al admin {user_id}")
+                    elif GROUP_CHAT_ID:
                         logger.info(f"Intentando expulsar al usuario {user_id} del grupo {GROUP_CHAT_ID}")
                         
-                        # Intentar expulsar al usuario (con reintentos)
-                        max_retries = 3
-                        for attempt in range(max_retries):
-                            try:
-                                logger.info(f"Intento {attempt+1}/{max_retries} de expulsar al usuario {user_id}")
+                        # Verificar si el usuario está en el grupo antes de expulsar
+                        try:
+                            chat_member = bot.get_chat_member(GROUP_CHAT_ID, user_id)
+                            if chat_member.status not in ['left', 'kicked']:
+                                # Intentar expulsar al usuario (con reintentos)
+                                expulsion_success = False
+                                max_retries = 3
                                 
-                                # Expulsar usuario
-                                bot.ban_chat_member(
-                                    chat_id=GROUP_CHAT_ID,
-                                    user_id=user_id,
-                                    revoke_messages=False
-                                )
-                                logger.info(f"Usuario {user_id} expulsado exitosamente")
+                                for attempt in range(max_retries):
+                                    try:
+                                        logger.info(f"Intento {attempt+1}/{max_retries} de expulsar al usuario {user_id}")
+                                        
+                                        # Expulsar usuario
+                                        bot.ban_chat_member(
+                                            chat_id=GROUP_CHAT_ID,
+                                            user_id=user_id,
+                                            revoke_messages=False
+                                        )
+                                        logger.info(f"Usuario {user_id} expulsado exitosamente")
+                                        
+                                        # Desbanear para permitir reingreso futuro
+                                        bot.unban_chat_member(
+                                            chat_id=GROUP_CHAT_ID,
+                                            user_id=user_id,
+                                            only_if_banned=True
+                                        )
+                                        logger.info(f"Usuario {user_id} desbaneado exitosamente")
+                                        
+                                        # Registrar expulsión
+                                        db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
+                                        logger.info(f"Expulsión registrada para usuario {user_id}")
+                                        
+                                        expulsion_success = True
+                                        break  # Salir del bucle si se expulsó exitosamente
+                                    except Exception as e:
+                                        logger.error(f"Error al expulsar usuario {user_id} (intento {attempt+1}/{max_retries}): {e}")
+                                        if attempt < max_retries - 1:
+                                            time.sleep(2)  # Esperar antes de reintentar
                                 
-                                # Desbanear para permitir reingreso futuro
-                                bot.unban_chat_member(
-                                    chat_id=GROUP_CHAT_ID,
-                                    user_id=user_id,
-                                    only_if_banned=True
-                                )
-                                logger.info(f"Usuario {user_id} desbaneado exitosamente")
-                                
-                                # Registrar expulsión
-                                db.record_expulsion(user_id, "Cancelación de suscripción (webhook)")
-                                logger.info(f"Expulsión registrada para usuario {user_id}")
-                                
-                                break  # Salir del bucle si se expulsó exitosamente
-                            except Exception as e:
-                                logger.error(f"Error al expulsar usuario {user_id} (intento {attempt+1}/{max_retries}): {e}")
-                                if attempt < max_retries - 1:
-                                    time.sleep(2)  # Esperar antes de reintentar
-                                else:
+                                if not expulsion_success:
                                     logger.error(f"No se pudo expulsar al usuario {user_id} después de {max_retries} intentos")
+                                    # Registrar este fallo para reintento posterior
+                                    try:
+                                        db.record_failed_expulsion(user_id, "Cancelación de suscripción (webhook)", 
+                                                                  f"Falló después de {max_retries} intentos")
+                                    except Exception as record_error:
+                                        logger.error(f"Error al registrar fallo de expulsión: {record_error}")
+                            else:
+                                logger.info(f"Usuario {user_id} ya no está en el grupo. Estado: {chat_member.status}")
+                        except Exception as e:
+                            logger.error(f"Error al verificar miembro del chat {user_id}: {e}")
+                            # Registrar fallo para reintento posterior
+                            try:
+                                db.record_failed_expulsion(user_id, "Cancelación de suscripción (webhook)", 
+                                                         f"Error al verificar: {str(e)}")
+                            except Exception:
+                                pass
                 except Exception as e:
                     logger.error(f"Error general al intentar expulsar al usuario {user_id}: {e}")
                 
@@ -1082,6 +1110,7 @@ def paypal_webhook():
                             # Intentar notificar al usuario sobre la renovación SOLO si no es una suscripción nueva
                             if not is_new_subscription:
                                 try:
+                                    import payments as pay
                                     pay.notify_successful_renewal(bot, subscription['user_id'], subscription, new_end_date)
                                 except Exception as notify_error:
                                     logger.error(f"Error al notificar renovación: {notify_error}")

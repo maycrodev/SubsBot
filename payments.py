@@ -184,12 +184,6 @@ def create_order(plan_id: str, user_id: int) -> Optional[str]:
 def process_subscription_renewals(bot):
     """
     Procesa las renovaciones pendientes de suscripciones
-    
-    Args:
-        bot: Instancia del bot de Telegram
-        
-    Returns:
-        tuple: (número de notificaciones enviadas, número de errores)
     """
     try:
         import database as db
@@ -198,6 +192,7 @@ def process_subscription_renewals(bot):
         logger.info("Procesando renovaciones pendientes de suscripciones...")
         
         # Obtener suscripciones a punto de vencer (en los próximos 60 minutos)
+        # Esto permitirá notificar con tiempo suficiente antes del cobro adelantado
         pending_renewals = db.get_pending_renewal_subscriptions(minutes_before=60)
         logger.info(f"Encontradas {len(pending_renewals)} suscripciones pendientes de renovación")
         
@@ -233,17 +228,33 @@ def process_subscription_renewals(bot):
                 
                 status = subscription_details.get('status')
                 
-                if status not in ['ACTIVE', 'APPROVED']:
-                    logger.warning(f"La suscripción {paypal_sub_id} no está activa en PayPal. Estado: {status}")
-                    continue
-                
-                # Enviar notificación al usuario
-                notify_successful_renewal(bot, user_id, subscription, None, is_upcoming=True)
-                
-                # Registrar la notificación
-                db.record_renewal_notification(sub_id, user_id)
-                
-                notifications_sent += 1
+                # Aviso importante: PayPal puede adelantar cobros hasta 24 horas
+                if status in ['ACTIVE', 'APPROVED']:
+                    end_date_str = subscription.get('end_date', '')
+                    if end_date_str:
+                        try:
+                            end_date = datetime.datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+                            now = datetime.datetime.now(datetime.timezone.utc)
+                            
+                            # Calcular tiempo hasta expiración
+                            time_to_expiry = end_date - now
+                            hours_to_expiry = time_to_expiry.total_seconds() / 3600
+                            
+                            logger.info(f"Suscripción {sub_id}: {hours_to_expiry:.2f} horas hasta expiración")
+                            
+                            # Aviso especial para suscripciones a punto de vencer
+                            is_urgent = hours_to_expiry < 24 and hours_to_expiry > 0
+                            
+                            # Enviar notificación al usuario
+                            notify_successful_renewal(bot, user_id, subscription, None, is_upcoming=True, is_urgent=is_urgent)
+                            
+                            # Registrar la notificación
+                            db.record_renewal_notification(sub_id, user_id)
+                            
+                            notifications_sent += 1
+                            
+                        except Exception as date_error:
+                            logger.error(f"Error al procesar fecha para suscripción {sub_id}: {date_error}")
                 
             except Exception as e:
                 logger.error(f"Error al procesar renovación {sub_id}: {str(e)}")
@@ -256,7 +267,7 @@ def process_subscription_renewals(bot):
         logger.error(f"Error general en process_subscription_renewals: {str(e)}")
         return -1, 1
 
-def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_upcoming=False):
+def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_upcoming=False, is_urgent=False):
     """
     Notifica a un usuario sobre una renovación exitosa o próxima
     
@@ -266,6 +277,7 @@ def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_
         subscription (dict): Datos de la suscripción
         new_end_date (datetime, optional): Nueva fecha de vencimiento
         is_upcoming (bool): Si es una renovación próxima o ya completada
+        is_urgent (bool): Si la renovación es inminente (menos de 24 horas)
     
     Returns:
         bool: True si se envió la notificación, False en caso contrario
@@ -284,13 +296,25 @@ def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_
             end_date_str = end_date.strftime('%d/%m/%Y')
             
             # Mensaje para renovación próxima
-            message = (
-                "📅 *Recordatorio de renovación automática*\n\n"
-                f"Tu suscripción al plan {plan_name} se renovará automáticamente "
-                f"el {end_date_str}.\n\n"
-                "💳 El pago se procesará a través de PayPal usando tu método de pago registrado.\n\n"
-                "ℹ️ Si deseas cancelar la renovación automática, puedes hacerlo desde tu cuenta de PayPal antes de esa fecha."
-            )
+            if is_urgent:
+                message = (
+                    "⚠️ *AVISO IMPORTANTE DE RENOVACIÓN AUTOMÁTICA*\n\n"
+                    f"Tu suscripción al plan {plan_name} está a punto de renovarse "
+                    f"en las próximas horas. El cobro puede realizarse antes del {end_date_str}.\n\n"
+                    "💳 PayPal puede adelantar los cobros hasta 24 horas antes de la fecha oficial.\n\n"
+                    "ℹ️ Una vez realizado el cobro, tu suscripción se extenderá automáticamente. "
+                    "Si deseas cancelar la renovación automática, hazlo desde tu cuenta de PayPal lo antes posible.\n\n"
+                    "📝 IMPORTANTE: No serás expulsado del grupo VIP aunque el cobro se realice anticipadamente."
+                )
+            else:
+                message = (
+                    "📅 *Recordatorio de renovación automática*\n\n"
+                    f"Tu suscripción al plan {plan_name} se renovará automáticamente "
+                    f"el {end_date_str}.\n\n"
+                    "💳 El pago se procesará a través de PayPal usando tu método de pago registrado.\n\n"
+                    "ℹ️ Si deseas cancelar la renovación automática, puedes hacerlo desde tu cuenta de PayPal antes de esa fecha.\n\n"
+                    "📝 Nota: PayPal puede adelantar el cobro hasta 24 horas antes de la fecha oficial."
+                )
         else:
             # Mensaje para renovación completada
             if not new_end_date:
