@@ -1300,7 +1300,7 @@ def admin_panel():
         conn.close()
         
         import datetime
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone.utc)
 
         # Renderizar el template con los datos
         return render_template('admin_panel.html', 

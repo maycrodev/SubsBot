@@ -568,7 +568,7 @@ def extend_subscription(sub_id: int, new_end_date: datetime.datetime) -> bool:
             return False
         
         # Verificar que la nueva fecha sea posterior a la fecha actual
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone.utc)
         if new_end_date <= now:
             logger.error(f"La nueva fecha de fin ({new_end_date}) es anterior o igual a la fecha actual ({now})")
             new_end_date = now + datetime.timedelta(hours=1)  # Mínimo 1 hora de extensión como salvaguarda
@@ -1037,8 +1037,21 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                     
                 time_diff = "N/A"
                 if end_date:
-                    # Now both end_date and current_time are timezone-aware
-                    time_diff = current_time - end_date
+                    try:
+                        # Asegúrese de que ambas fechas tienen información de zona horaria
+                        if not end_date.tzinfo:
+                            # Si end_date no tiene zona horaria, asignar UTC
+                            end_date = end_date.replace(tzinfo=datetime.timezone.utc)
+                            
+                        if not current_time.tzinfo:
+                            # Si current_time no tiene zona horaria, asignar UTC
+                            current_time = current_time.replace(tzinfo=datetime.timezone.utc)
+                            
+                        # Ahora ambas fechas tienen información de zona horaria y pueden restarse
+                        time_diff = current_time - end_date
+                    except Exception as e:
+                        logger.error(f"Error al calcular diferencia de tiempo: {e}")
+                        time_diff = "N/A"
                     
                 logger.info(f"""
                 Suscripción {status}:

@@ -886,7 +886,7 @@ def update_subscription_from_webhook(bot, event_data):
             
             # SOLUCIÓN: Verificar si es una suscripción nueva o una renovación
             start_date = datetime.datetime.fromisoformat(subscription['start_date'])
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(datetime.timezone.utc)
             time_difference = (now - start_date).total_seconds()
             
             # Calcular nueva fecha de expiración

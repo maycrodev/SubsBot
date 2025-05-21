@@ -15,6 +15,30 @@ logger = logging.getLogger(__name__)
 # URLs base según el modo (sandbox o producción)
 BASE_URL = "https://api-m.sandbox.paypal.com" if PAYPAL_MODE == 'sandbox' else "https://api-m.paypal.com"
 
+def normalize_datetime(dt, default_timezone=datetime.timezone.utc):
+    """
+    Asegura que un objeto datetime tenga zona horaria.
+    
+    Args:
+        dt: Objeto datetime o string ISO
+        default_timezone: Zona horaria a usar si dt no tiene una
+        
+    Returns:
+        Objeto datetime con zona horaria
+    """
+    if dt is None:
+        return None
+        
+    # Si es string, convertir a datetime
+    if isinstance(dt, str):
+        dt = datetime.datetime.fromisoformat(dt.replace('Z', '+00:00'))
+    
+    # Añadir zona horaria si no tiene
+    if not dt.tzinfo:
+        dt = dt.replace(tzinfo=default_timezone)
+        
+    return dt
+
 def get_access_token() -> Optional[str]:
     """Obtiene un token de acceso para la API de PayPal"""
     try:
@@ -115,7 +139,7 @@ def create_order(plan_id: str, user_id: int) -> Optional[str]:
             return None
         
         # Generate a unique request ID
-        request_id = f"order-{plan_id}-{user_id}-{datetime.datetime.now().timestamp()}"
+        request_id = f"order-{plan_id}-{user_id}-{datetime.datetime.now(datetime.timezone.utc).timestamp()}"
         
         headers = {
             "Authorization": f"Bearer {token}",
@@ -233,7 +257,7 @@ def process_subscription_renewals(bot):
                     end_date_str = subscription.get('end_date', '')
                     if end_date_str:
                         try:
-                            end_date = datetime.datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+                            end_date = normalize_datetime(end_date_str)
                             now = datetime.datetime.now(datetime.timezone.utc)
                             
                             # Calcular tiempo hasta expiración
@@ -318,9 +342,9 @@ def notify_successful_renewal(bot, user_id, subscription, new_end_date=None, is_
         else:
             # Mensaje para renovación completada
             if not new_end_date:
-                end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
+                end_date = normalize_datetime(subscription.get('end_date'))
             else:
-                end_date = new_end_date
+                end_date = normalize_datetime(new_end_date)
                 
             end_date_str = end_date.strftime('%d/%m/%Y')
             
@@ -452,7 +476,7 @@ def create_plan(plan_id: str, product_id: str) -> Optional[str]:
             return None
         
         # Generar un ID de solicitud único
-        request_id = f"plan-{plan_id}-{datetime.datetime.now().timestamp()}"
+        request_id = f"plan-{plan_id}-{datetime.datetime.now(datetime.timezone.utc).timestamp()}"
         
         headers = {
             "Authorization": f"Bearer {token}",
@@ -567,7 +591,7 @@ def create_subscription_link(plan_id: str, user_id: int) -> Optional[str]:
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "PayPal-Request-Id": f"subscription-{user_id}-{datetime.datetime.now().timestamp()}"
+            "PayPal-Request-Id": f"subscription-{user_id}-{datetime.datetime.now(datetime.timezone.utc).timestamp()}"
         }
         
         # Configure return URLs with user_id, plan_id and payment type
@@ -737,8 +761,8 @@ def process_webhook_event(event_data: Dict) -> Tuple[bool, str]:
                     
                     if plan:
                         # Verificar si la fecha ya expiró
-                        current_end_date = datetime.datetime.fromisoformat(subscription.get('end_date'))
-                        now = datetime.datetime.now()
+                        current_end_date = normalize_datetime(subscription.get('end_date'))
+                        now = datetime.datetime.now(datetime.timezone.utc)
                         
                         if current_end_date < now:
                             # Ya expiró, calcular desde ahora
