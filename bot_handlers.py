@@ -24,6 +24,10 @@ admin_states = None  # Será asignado desde app.py
 # Diccionario para almacenar las animaciones de pago en curso
 payment_animations = {}
 
+# Variables para seguimiento de suscripciones procesadas
+processed_cancelled_subs = set()  # Conjunto para almacenar IDs de suscripciones canceladas ya procesadas
+last_cleanup_time = datetime.datetime.now()  # Para limpiar periódicamente el conjunto
+
 # Funciones de utilidad
 def parse_duration(duration_text: str) -> Optional[float]:
     """
@@ -1097,8 +1101,15 @@ def get_plan_from_callback(callback_data):
 def perform_group_security_check(bot, group_id, expired_subscriptions=None):
     """Realiza verificación de seguridad y expulsa usuarios no autorizados"""
     try:
+        global processed_cancelled_subs, last_cleanup_time
         start_time = datetime.datetime.now()
         logger.info(f"🛡️ INICIANDO VERIFICACIÓN DE SEGURIDAD DEL GRUPO en {start_time}")
+        
+        # Limpieza periódica del conjunto (cada 24 horas)
+        if not 'last_cleanup_time' in globals() or (start_time - last_cleanup_time).total_seconds() > 86400:  # 24 horas
+            processed_cancelled_subs = set()
+            last_cleanup_time = start_time
+            logger.info("Conjunto de suscripciones canceladas procesadas limpiado")
         
         # PASO 1: Verificar permisos del bot en el grupo
         try:
@@ -1124,6 +1135,21 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
         if expired_subscriptions is None:
             logger.info("Obteniendo suscripciones expiradas de la base de datos...")
             expired_subscriptions = db.check_and_update_subscriptions(force=False)
+            
+        # Filtrar suscripciones ya procesadas
+        filtered_subs = []
+        for sub_data in expired_subscriptions:
+            user_id, sub_id, plan = sub_data
+            
+            # Si es una suscripción cancelada y ya fue procesada, omitirla
+            subscription = db.get_subscription_info(sub_id)
+            if subscription and subscription.get('status') == 'CANCELLED' and sub_id in processed_cancelled_subs:
+                logger.info(f"Omitiendo suscripción cancelada {sub_id} de usuario {user_id} - ya procesada")
+                continue
+                
+            filtered_subs.append(sub_data)
+        
+        expired_subscriptions = filtered_subs
         
         # PASO 3: Procesar suscripciones expiradas
         total_count = len(expired_subscriptions)
@@ -1195,6 +1221,12 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
                         if chat_member.status in ['left', 'kicked']:
                             logger.info(f"Usuario {user_id} ya no está en el grupo. Omitiendo.")
                             skipped += 1
+                            
+                            # Marcar la suscripción cancelada como procesada
+                            if subscription and subscription.get('status') == 'CANCELLED':
+                                processed_cancelled_subs.add(sub_id)
+                                logger.info(f"Suscripción cancelada {sub_id} marcada como procesada")
+                            
                             break  # Salir del bucle de reintentos
                         
                         # PASO 5: EXPULSAR AL USUARIO
@@ -1236,6 +1268,11 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
                                 success += 1
                                 logger.info(f"✅ Usuario {user_id} expulsado exitosamente")
                                 
+                                # Marcar la suscripción cancelada como procesada
+                                if subscription and subscription.get('status') == 'CANCELLED':
+                                    processed_cancelled_subs.add(sub_id)
+                                    logger.info(f"Suscripción cancelada {sub_id} marcada como procesada")
+                                
                             except Exception as ban_method_error:
                                 # Método 2: Si ban_chat_member falla, intentar con kick_chat_member
                                 logger.warning(f"ban_chat_member falló, intentando método alternativo kick_chat_member: {ban_method_error}")
@@ -1261,6 +1298,11 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
                                     # Si llegamos aquí, la expulsión alternativa fue exitosa
                                     success += 1
                                     logger.info(f"✅ Usuario {user_id} expulsado con método alternativo")
+                                    
+                                    # Marcar la suscripción cancelada como procesada
+                                    if subscription and subscription.get('status') == 'CANCELLED':
+                                        processed_cancelled_subs.add(sub_id)
+                                        logger.info(f"Suscripción cancelada {sub_id} marcada como procesada")
                                     
                                 except Exception as kick_error:
                                     # Si ambos métodos fallan, registrar el error
@@ -1307,6 +1349,12 @@ def perform_group_security_check(bot, group_id, expired_subscriptions=None):
                         if "user not found" in str(check_error).lower():
                             logger.info(f"Usuario {user_id} no encontrado en el grupo. Omitiendo.")
                             skipped += 1
+                            
+                            # Marcar la suscripción cancelada como procesada
+                            if subscription and subscription.get('status') == 'CANCELLED':
+                                processed_cancelled_subs.add(sub_id)
+                                logger.info(f"Suscripción cancelada {sub_id} marcada como procesada")
+                            
                             break  # Salir del bucle de reintentos
                         else:
                             logger.error(f"Error al verificar usuario {user_id} en el grupo: {check_error}")
@@ -1650,9 +1698,21 @@ def force_security_check(bot, specific_users=None):
             
             # Usar la lista filtrada
             expired_subscriptions = expired_filtered
+        else:
+            # Filtrar suscripciones ya procesadas cuando no se trata de usuarios específicos
+            filtered_subs = []
+            for sub_data in expired_subscriptions:
+                user_id, sub_id, plan = sub_data
+                
+                # Si es una suscripción cancelada y ya fue procesada, omitirla
+                subscription = db.get_subscription_info(sub_id)
+                if subscription and subscription.get('status') == 'CANCELLED' and sub_id in processed_cancelled_subs:
+                    logger.info(f"Omitiendo suscripción cancelada {sub_id} de usuario {user_id} - ya procesada")
+                    continue
+                    
+                filtered_subs.append(sub_data)
             
-            if not expired_subscriptions:
-                logger.info(f"No se encontraron suscripciones expiradas o canceladas para los usuarios específicos")
+            expired_subscriptions = filtered_subs
         
         if not expired_subscriptions:
             logger.info("✅ No hay suscripciones expiradas que procesar")
