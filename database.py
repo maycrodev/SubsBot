@@ -1270,22 +1270,7 @@ def has_valid_subscription(user_id: int) -> bool:
     cursor = conn.cursor()
     
     try:
-        # PASO 1: Verificar si hay alguna suscripción CANCELLED reciente
-        # MEJORA: Primero verificamos si hay suscripciones canceladas para evitar problemas
-        cursor.execute("""
-        SELECT COUNT(*) FROM subscriptions 
-        WHERE user_id = ? 
-        AND status = 'CANCELLED'
-        AND datetime(end_date) > datetime('now', '-1 day')
-        """, (user_id,))
-        
-        cancelled_count = cursor.fetchone()[0]
-        
-        if cancelled_count > 0:
-            logger.info(f"Usuario {user_id} tiene suscripciones canceladas recientes")
-            return False  # Si hay suscripciones canceladas recientes, no se considera válido
-        
-        # PASO 2: Verificar suscripciones activas que no han expirado
+        # PASO 1: Verificar suscripciones activas primero
         cursor.execute("""
         SELECT COUNT(*) FROM subscriptions 
         WHERE user_id = ? 
@@ -1293,13 +1278,13 @@ def has_valid_subscription(user_id: int) -> bool:
         AND datetime(end_date) > datetime('now')
         """, (user_id,))
         
-        count = cursor.fetchone()[0]
+        active_count = cursor.fetchone()[0]
         
-        if count > 0:
-            logger.info(f"Usuario {user_id} tiene {count} suscripciones activas vigentes")
+        if active_count > 0:
+            logger.info(f"Usuario {user_id} tiene {active_count} suscripciones activas vigentes")
             return True
         
-        # PASO 3: PERÍODO DE GRACIA: Verificar suscripciones recurrentes en período de gracia
+        # PASO 2: PERÍODO DE GRACIA: Verificar suscripciones recurrentes en período de gracia
         # MEJORA: Aumentar el período de gracia a 24 horas para manejar los adelantos de PayPal
         cursor.execute(f"""
         SELECT s.sub_id, s.plan, s.end_date, s.paypal_sub_id 
@@ -1324,7 +1309,7 @@ def has_valid_subscription(user_id: int) -> bool:
                         f"(plan {plan}) en período de gracia ({end_date}), considerando válida")
             return True
             
-        # PASO 4: También verificar si hay renovaciones recientes en las últimas 36 horas
+        # PASO 3: También verificar si hay renovaciones recientes en las últimas 36 horas
         cursor.execute("""
         SELECT COUNT(*) FROM subscription_renewals
         WHERE user_id = ? AND renewal_date >= datetime('now', '-36 hour')
@@ -1335,6 +1320,21 @@ def has_valid_subscription(user_id: int) -> bool:
         if recent_renewals > 0:
             logger.info(f"Usuario {user_id} tiene {recent_renewals} renovaciones recientes, considerado válido")
             return True
+        
+        # PASO 4: Solo ahora verificar suscripciones canceladas recientes
+        # Si no encontró ninguna suscripción válida, verificamos si hay canceladas recientes
+        cursor.execute("""
+        SELECT COUNT(*) FROM subscriptions 
+        WHERE user_id = ? 
+        AND status = 'CANCELLED'
+        AND datetime(end_date) > datetime('now', '-1 day')
+        """, (user_id,))
+        
+        cancelled_count = cursor.fetchone()[0]
+        
+        if cancelled_count > 0:
+            logger.info(f"Usuario {user_id} tiene suscripciones canceladas recientes y ninguna activa")
+            return False
         
         # Si llegamos aquí, no hay ninguna suscripción válida
         return False
