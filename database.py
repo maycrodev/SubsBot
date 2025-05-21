@@ -1086,7 +1086,7 @@ def check_and_update_subscriptions(force=False) -> List[Tuple[int, int, str]]:
                 continue
             
             # Verificar que el usuario no tenga ninguna suscripción válida
-            if not db.has_valid_subscription(user_id):
+            if not has_valid_subscription(user_id):  # LÍNEA CORREGIDA - sin el prefijo db.
                 logger.info(f"Usuario {user_id} no tiene suscripciones válidas, incluyendo para expulsión")
                 filtered_subscriptions.append((user_id, sub_id, plan))
             else:
