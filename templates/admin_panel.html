@@ -517,8 +517,22 @@
                             </td>
                             <td>{{ sub.plan }}</td>
                             <td>${{ sub.price_usd }}</td>
-                            <td>{{ sub.start_date }}</td>
-                            <td>{{ sub.end_date }}</td>
+                            <td>
+                                {{ sub.start_date }}
+                                {% if sub.renovaciones_recientes > 0 %}
+                                    <br><small class="text-muted">
+                                        <i class="fas fa-sync"></i> Renovado recientemente
+                                    </small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ sub.end_date }}
+                                {% if sub.renovaciones_recientes > 0 %}
+                                    <br><small class="text-success">
+                                        <i class="fas fa-info-circle"></i> Fecha extendida por renovación
+                                    </small>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if sub.status == 'ACTIVE' %}
                                     <span class="badge badge-active"><i class="fas fa-check-circle"></i> Activo</span>

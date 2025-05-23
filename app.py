@@ -1274,19 +1274,79 @@ def admin_panel():
             "enlaces_invitacion": db.get_table_count(conn, "invite_links")
         }
         
-        # Obtener últimas 5 suscripciones con estado corregido
+        # Obtener últimas 5 suscripciones con fechas actualizadas por renovaciones
         cursor = conn.cursor()
         cursor.execute("""
-        SELECT s.sub_id, s.user_id, u.username, s.plan, s.price_usd, s.start_date, s.end_date, 
-            s.status, s.is_recurring, s.paypal_sub_id,
-            (SELECT COUNT(*) FROM subscription_renewals sr 
-            WHERE sr.sub_id = s.sub_id AND sr.renewal_date >= datetime('now', '-36 hour')) as renovaciones_recientes
+        SELECT 
+            s.sub_id, 
+            s.user_id, 
+            u.username, 
+            s.plan, 
+            s.price_usd, 
+            s.start_date,
+            -- Usar la fecha de fin más reciente considerando renovaciones
+            CASE 
+                WHEN sr.max_new_end_date IS NOT NULL AND sr.max_new_end_date > s.end_date 
+                THEN sr.max_new_end_date 
+                ELSE s.end_date 
+            END as end_date,
+            -- Mantener el estado original para la lógica
+            s.status, 
+            s.is_recurring, 
+            s.paypal_sub_id,
+            -- Contar renovaciones recientes
+            COALESCE(sr.recent_renewals_count, 0) as renovaciones_recientes,
+            -- Fecha de la última renovación
+            sr.last_renewal_date as ultima_renovacion,
+            -- Cantidad total de renovaciones
+            COALESCE(sr.total_renewals, 0) as total_renovaciones
         FROM subscriptions s
         LEFT JOIN users u ON s.user_id = u.user_id
-        ORDER BY s.start_date DESC
-        LIMIT 5
+        -- Subconsulta para obtener información agregada de renovaciones
+        LEFT JOIN (
+            SELECT 
+                sub_id,
+                MAX(new_end_date) as max_new_end_date,
+                MAX(renewal_date) as last_renewal_date,
+                COUNT(*) as total_renewals,
+                SUM(CASE 
+                    WHEN renewal_date >= datetime('now', '-36 hour') 
+                    THEN 1 ELSE 0 
+                END) as recent_renewals_count
+            FROM subscription_renewals
+            GROUP BY sub_id
+        ) sr ON s.sub_id = sr.sub_id
+        ORDER BY 
+            CASE 
+                WHEN s.status = 'ACTIVE' THEN 0
+                WHEN s.status = 'CANCELLED' THEN 1
+                ELSE 2
+            END,
+            s.start_date DESC
+        LIMIT 10
         """)
-        recent_subscriptions = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
+        
+        recent_subscriptions = []
+        for row in cursor.fetchall():
+            sub_dict = dict(zip([column[0] for column in cursor.description], row))
+            
+            # Si hay renovaciones, añadir información adicional
+            if sub_dict.get('total_renovaciones', 0) > 0:
+                # Formatear la información de renovación
+                if sub_dict.get('ultima_renovacion'):
+                    try:
+                        ultima_ren = datetime.datetime.fromisoformat(sub_dict['ultima_renovacion'])
+                        sub_dict['ultima_renovacion_formateada'] = ultima_ren.strftime('%d/%m/%Y %H:%M')
+                    except:
+                        sub_dict['ultima_renovacion_formateada'] = 'Fecha no disponible'
+                
+                # Añadir texto descriptivo sobre renovaciones
+                if sub_dict['total_renovaciones'] == 1:
+                    sub_dict['renovacion_texto'] = "1 renovación"
+                else:
+                    sub_dict['renovacion_texto'] = f"{sub_dict['total_renovaciones']} renovaciones"
+            
+            recent_subscriptions.append(sub_dict)
         
         # Obtener usuarios recientes
         cursor.execute("""
@@ -1297,18 +1357,35 @@ def admin_panel():
         """)
         recent_users = [dict(zip([column[0] for column in cursor.description], row)) for row in cursor.fetchall()]
         
+        # Obtener estadísticas adicionales de renovaciones
+        cursor.execute("""
+        SELECT 
+            COUNT(DISTINCT sub_id) as subs_con_renovaciones,
+            COUNT(*) as total_renovaciones,
+            SUM(amount_usd) as ingresos_renovaciones
+        FROM subscription_renewals
+        WHERE renewal_date >= datetime('now', '-30 day')
+        """)
+        renewal_stats = cursor.fetchone()
+        
+        if renewal_stats:
+            stats['subs_renovadas_30d'] = renewal_stats[0] or 0
+            stats['total_renovaciones_30d'] = renewal_stats[1] or 0
+            stats['ingresos_renovaciones_30d'] = renewal_stats[2] or 0.0
+        
         conn.close()
         
         import datetime
         now = datetime.datetime.now(datetime.timezone.utc)
 
-        # Renderizar el template con los datos
+        # Renderizar el template con los datos actualizados
         return render_template('admin_panel.html', 
                                admin_id=admin_id,
                                stats=stats,
                                recent_subscriptions=recent_subscriptions,
                                recent_users=recent_users,
-                               now=now, grace_period=SUBSCRIPTION_GRACE_PERIOD_HOURS) 
+                               now=now, 
+                               grace_period=SUBSCRIPTION_GRACE_PERIOD_HOURS) 
         
     except Exception as e:
         logger.error(f"Error en admin_panel: {str(e)}")
